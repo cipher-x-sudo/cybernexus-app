@@ -12,11 +12,14 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Node.js for frontend runtime
 RUN apt-get update && apt-get install -y \
     gcc \
     nginx \
     supervisor \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -86,8 +89,8 @@ stderr_logfile=/dev/stderr \n\
 stderr_logfile_maxbytes=0 \n\
 \n\
 [program:backend] \n\
-command=uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \n\
-directory=/app \n\
+command=uvicorn app.main:app --host 0.0.0.0 --port 8000 \n\
+directory=/app/backend \n\
 autostart=true \n\
 autorestart=true \n\
 stdout_logfile=/dev/stdout \n\
@@ -96,7 +99,7 @@ stderr_logfile=/dev/stderr \n\
 stderr_logfile_maxbytes=0 \n\
 \n\
 [program:frontend] \n\
-command=npm start -- -p 3001 \n\
+command=/usr/bin/node node_modules/next/dist/bin/next start -p 3001 \n\
 directory=/app/frontend \n\
 autostart=true \n\
 autorestart=true \n\
