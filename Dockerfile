@@ -34,34 +34,39 @@ COPY --from=frontend-builder /app/frontend/public ./frontend/public
 COPY --from=frontend-builder /app/frontend/package*.json ./frontend/
 COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 
-# Supervisor config to run backend (on port 3000 for Railway) and frontend
-RUN echo '[supervisord] \n\
-nodaemon=true \n\
+# Create startup script that configures supervisor with PORT at runtime
+RUN echo '#!/bin/bash\n\
+PORT=${PORT:-3000}\n\
+cat > /etc/supervisor/conf.d/app.conf << EOF\n\
+[supervisord]\n\
+nodaemon=true\n\
 \n\
-[program:backend] \n\
-command=sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-3000}" \n\
-directory=/app/backend \n\
-autostart=true \n\
-autorestart=true \n\
-stdout_logfile=/dev/stdout \n\
-stdout_logfile_maxbytes=0 \n\
-stderr_logfile=/dev/stderr \n\
-stderr_logfile_maxbytes=0 \n\
+[program:backend]\n\
+command=uvicorn app.main:app --host 0.0.0.0 --port ${PORT}\n\
+directory=/app/backend\n\
+autostart=true\n\
+autorestart=true\n\
+stdout_logfile=/dev/stdout\n\
+stdout_logfile_maxbytes=0\n\
+stderr_logfile=/dev/stderr\n\
+stderr_logfile_maxbytes=0\n\
 \n\
-[program:frontend] \n\
-command=/usr/bin/node node_modules/next/dist/bin/next start -p 3001 \n\
-directory=/app/frontend \n\
-autostart=true \n\
-autorestart=true \n\
-stdout_logfile=/dev/stdout \n\
-stdout_logfile_maxbytes=0 \n\
-stderr_logfile=/dev/stderr \n\
-stderr_logfile_maxbytes=0 \n\
-' > /etc/supervisor/conf.d/app.conf
+[program:frontend]\n\
+command=/usr/bin/node node_modules/next/dist/bin/next start -p 3001\n\
+directory=/app/frontend\n\
+autostart=true\n\
+autorestart=true\n\
+stdout_logfile=/dev/stdout\n\
+stdout_logfile_maxbytes=0\n\
+stderr_logfile=/dev/stderr\n\
+stderr_logfile_maxbytes=0\n\
+EOF\n\
+exec supervisord -c /etc/supervisor/supervisord.conf\n\
+' > /app/start.sh && chmod +x /app/start.sh
 
-# Expose main port (nginx gateway)
+# Expose port
 EXPOSE 3000
 
-# Start supervisor
-CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+# Start with script that handles PORT env var
+CMD ["/bin/bash", "/app/start.sh"]
 
