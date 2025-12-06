@@ -32,9 +32,37 @@ COPY --from=frontend-builder /app/frontend/public ./frontend/public
 COPY --from=frontend-builder /app/frontend/package*.json ./frontend/
 COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 
-# Nginx config for frontend
+# Nginx config to route API to backend and everything else to frontend
 RUN echo 'server { \n\
     listen 3000; \n\
+    \n\
+    location /api { \n\
+        proxy_pass http://127.0.0.1:8000; \n\
+        proxy_http_version 1.1; \n\
+        proxy_set_header Upgrade $http_upgrade; \n\
+        proxy_set_header Connection "upgrade"; \n\
+        proxy_set_header Host $host; \n\
+        proxy_set_header X-Real-IP $remote_addr; \n\
+    } \n\
+    \n\
+    location /health { \n\
+        proxy_pass http://127.0.0.1:8000; \n\
+        proxy_http_version 1.1; \n\
+        proxy_set_header Host $host; \n\
+    } \n\
+    \n\
+    location /docs { \n\
+        proxy_pass http://127.0.0.1:8000; \n\
+        proxy_http_version 1.1; \n\
+        proxy_set_header Host $host; \n\
+    } \n\
+    \n\
+    location /openapi.json { \n\
+        proxy_pass http://127.0.0.1:8000; \n\
+        proxy_http_version 1.1; \n\
+        proxy_set_header Host $host; \n\
+    } \n\
+    \n\
     location / { \n\
         proxy_pass http://127.0.0.1:3001; \n\
         proxy_http_version 1.1; \n\
@@ -44,9 +72,18 @@ RUN echo 'server { \n\
     } \n\
 }' > /etc/nginx/sites-available/default
 
-# Supervisor config to run both services
+# Supervisor config to run nginx, backend and frontend
 RUN echo '[supervisord] \n\
 nodaemon=true \n\
+\n\
+[program:nginx] \n\
+command=nginx -g "daemon off;" \n\
+autostart=true \n\
+autorestart=true \n\
+stdout_logfile=/dev/stdout \n\
+stdout_logfile_maxbytes=0 \n\
+stderr_logfile=/dev/stderr \n\
+stderr_logfile_maxbytes=0 \n\
 \n\
 [program:backend] \n\
 command=uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \n\
@@ -69,8 +106,8 @@ stderr_logfile=/dev/stderr \n\
 stderr_logfile_maxbytes=0 \n\
 ' > /etc/supervisor/conf.d/app.conf
 
-# Expose ports
-EXPOSE 8000 3000
+# Expose main port (nginx gateway)
+EXPOSE 3000
 
 # Start supervisor
 CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
