@@ -35,46 +35,43 @@ COPY --from=frontend-builder /app/frontend/public ./frontend/public
 COPY --from=frontend-builder /app/frontend/package*.json ./frontend/
 COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 
-# Nginx config to route API to backend and everything else to frontend
-RUN echo 'server { \n\
-    listen 3000; \n\
-    \n\
-    location /api { \n\
-        proxy_pass http://127.0.0.1:8000; \n\
-        proxy_http_version 1.1; \n\
-        proxy_set_header Upgrade $http_upgrade; \n\
-        proxy_set_header Connection "upgrade"; \n\
-        proxy_set_header Host $host; \n\
-        proxy_set_header X-Real-IP $remote_addr; \n\
-    } \n\
-    \n\
-    location /health { \n\
-        proxy_pass http://127.0.0.1:8000; \n\
-        proxy_http_version 1.1; \n\
-        proxy_set_header Host $host; \n\
-    } \n\
-    \n\
-    location /docs { \n\
-        proxy_pass http://127.0.0.1:8000; \n\
-        proxy_http_version 1.1; \n\
-        proxy_set_header Host $host; \n\
-    } \n\
-    \n\
-    location /openapi.json { \n\
-        proxy_pass http://127.0.0.1:8000; \n\
-        proxy_http_version 1.1; \n\
-        proxy_set_header Host $host; \n\
-    } \n\
-    \n\
-    location / { \n\
-        proxy_pass http://127.0.0.1:3001; \n\
-        proxy_http_version 1.1; \n\
-        proxy_set_header Upgrade $http_upgrade; \n\
-        proxy_set_header Connection "upgrade"; \n\
-        proxy_set_header Host $host; \n\
-    } \n\
-}' > /etc/nginx/conf.d/default.conf \
-    && rm -f /etc/nginx/sites-enabled/default
+# Clean nginx config and create our custom one
+RUN rm -f /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* \
+    && printf '%s\n' \
+    'server {' \
+    '    listen 3000 default_server;' \
+    '    server_name _;' \
+    '' \
+    '    location /api {' \
+    '        proxy_pass http://127.0.0.1:8000;' \
+    '        proxy_http_version 1.1;' \
+    '        proxy_set_header Host $host;' \
+    '        proxy_set_header X-Real-IP $remote_addr;' \
+    '    }' \
+    '' \
+    '    location /health {' \
+    '        proxy_pass http://127.0.0.1:8000;' \
+    '        proxy_set_header Host $host;' \
+    '    }' \
+    '' \
+    '    location /docs {' \
+    '        proxy_pass http://127.0.0.1:8000;' \
+    '        proxy_set_header Host $host;' \
+    '    }' \
+    '' \
+    '    location /openapi.json {' \
+    '        proxy_pass http://127.0.0.1:8000;' \
+    '        proxy_set_header Host $host;' \
+    '    }' \
+    '' \
+    '    location / {' \
+    '        proxy_pass http://127.0.0.1:3001;' \
+    '        proxy_http_version 1.1;' \
+    '        proxy_set_header Upgrade $http_upgrade;' \
+    '        proxy_set_header Connection "upgrade";' \
+    '        proxy_set_header Host $host;' \
+    '    }' \
+    '}' > /etc/nginx/conf.d/app.conf
 
 # Supervisor config to run nginx, backend and frontend
 RUN echo '[supervisord] \n\
