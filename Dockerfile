@@ -39,7 +39,7 @@ RUN echo '[supervisord] \n\
 nodaemon=true \n\
 \n\
 [program:backend] \n\
-command=uvicorn app.main:app --host 0.0.0.0 --port 3000 \n\
+command=sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-3000}" \n\
 directory=/app/backend \n\
 autostart=true \n\
 autorestart=true \n\
