@@ -73,7 +73,8 @@ RUN echo 'server { \n\
         proxy_set_header Connection "upgrade"; \n\
         proxy_set_header Host $host; \n\
     } \n\
-}' > /etc/nginx/sites-available/default
+}' > /etc/nginx/conf.d/default.conf \
+    && rm -f /etc/nginx/sites-enabled/default
 
 # Supervisor config to run nginx, backend and frontend
 RUN echo '[supervisord] \n\
