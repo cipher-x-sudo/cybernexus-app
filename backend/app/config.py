@@ -1,0 +1,75 @@
+"""
+CyberNexus Configuration Module
+
+Handles all application configuration using Pydantic Settings.
+"""
+
+from pathlib import Path
+from typing import Optional
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+    
+    # Application
+    APP_NAME: str = "CyberNexus"
+    APP_VERSION: str = "0.1.0"
+    DEBUG: bool = False
+    ENVIRONMENT: str = "development"
+    
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    
+    # Security
+    SECRET_KEY: str = Field(default="your-super-secret-key-change-in-production")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Data Storage
+    DATA_DIR: Path = Path("data")
+    GRAPH_DIR: Path = Path("data/graph")
+    INDEX_DIR: Path = Path("data/indices")
+    EVENTS_DIR: Path = Path("data/events")
+    CACHE_DIR: Path = Path("data/cache")
+    BLOBS_DIR: Path = Path("data/blobs")
+    
+    # Collectors
+    TOR_PROXY_HOST: str = "localhost"
+    TOR_PROXY_PORT: int = 9050
+    REQUEST_TIMEOUT: int = 30
+    MAX_CONCURRENT_REQUESTS: int = 10
+    
+    # WebSocket
+    WS_HEARTBEAT_INTERVAL: int = 30
+    
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+
+
+# Global settings instance
+settings = Settings()
+
+
+def init_directories():
+    """Create required data directories."""
+    dirs = [
+        settings.DATA_DIR,
+        settings.GRAPH_DIR,
+        settings.INDEX_DIR,
+        settings.EVENTS_DIR,
+        settings.CACHE_DIR,
+        settings.BLOBS_DIR,
+    ]
+    for dir_path in dirs:
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+

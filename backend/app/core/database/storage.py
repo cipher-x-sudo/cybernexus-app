@@ -1,0 +1,289 @@
+"""
+Custom Storage Layer
+
+File-based storage using custom DSA structures for persistence.
+"""
+
+import os
+import json
+import threading
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from datetime import datetime
+
+from app.config import settings
+from app.core.dsa import Graph, AVLTree, HashMap, Trie, BloomFilter
+
+
+class Storage:
+    """
+    Custom file-based storage using DSA structures.
+    
+    Features:
+    - Persistent storage to disk
+    - In-memory caching with DSA
+    - Thread-safe operations
+    - Automatic indexing
+    """
+    
+    def __init__(self, data_dir: Path = None):
+        """Initialize storage.
+        
+        Args:
+            data_dir: Base directory for data storage
+        """
+        self.data_dir = data_dir or settings.DATA_DIR
+        self._ensure_directories()
+        
+        # In-memory structures
+        self._entity_graph = Graph(directed=True)
+        self._entity_index = AVLTree()  # Index by timestamp
+        self._type_index = HashMap()    # Index by entity type
+        self._value_trie = Trie()       # Prefix search on values
+        self._seen_filter = BloomFilter(expected_items=1000000)
+        
+        # Thread safety
+        self._lock = threading.RLock()
+        
+        # Load existing data
+        self._load_data()
+    
+    def _ensure_directories(self):
+        """Create necessary directories."""
+        dirs = [
+            self.data_dir,
+            self.data_dir / "entities",
+            self.data_dir / "graph",
+            self.data_dir / "indices",
+            self.data_dir / "events",
+        ]
+        for d in dirs:
+            d.mkdir(parents=True, exist_ok=True)
+    
+    def _load_data(self):
+        """Load existing data from disk."""
+        # Load graph
+        graph_file = self.data_dir / "graph" / "entity_graph.json"
+        if graph_file.exists():
+            try:
+                with open(graph_file, 'r') as f:
+                    data = json.load(f)
+                    self._entity_graph = Graph.from_dict(data)
+            except Exception:
+                pass
+        
+        # Load entities and rebuild indices
+        entities_dir = self.data_dir / "entities"
+        for entity_file in entities_dir.glob("*.json"):
+            try:
+                with open(entity_file, 'r') as f:
+                    entity = json.load(f)
+                    self._index_entity(entity)
+            except Exception:
+                pass
+    
+    def _save_graph(self):
+        """Save graph to disk."""
+        graph_file = self.data_dir / "graph" / "entity_graph.json"
+        with open(graph_file, 'w') as f:
+            json.dump(self._entity_graph.to_dict(), f, default=str)
+    
+    def _index_entity(self, entity: dict):
+        """Add entity to in-memory indices."""
+        entity_id = entity.get("id")
+        entity_type = entity.get("type")
+        value = entity.get("value", "")
+        timestamp = entity.get("created_at", datetime.utcnow().isoformat())
+        
+        # Add to type index
+        if entity_type:
+            entities = self._type_index.get(entity_type, [])
+            if entity_id not in entities:
+                entities.append(entity_id)
+            self._type_index.put(entity_type, entities)
+        
+        # Add to trie for prefix search
+        if value:
+            self._value_trie.insert(value.lower(), entity_id)
+        
+        # Add to bloom filter
+        self._seen_filter.add(entity_id)
+        if value:
+            self._seen_filter.add(value)
+        
+        # Add to AVL tree by timestamp
+        self._entity_index.insert(timestamp, entity_id)
+        
+        # Add to graph
+        self._entity_graph.add_node(
+            entity_id,
+            label=value,
+            node_type=entity_type,
+            data=entity
+        )
+    
+    # ==================== Entity Operations ====================
+    
+    def save_entity(self, entity: dict) -> str:
+        """Save an entity to storage.
+        
+        Args:
+            entity: Entity dictionary with at least 'id' field
+            
+        Returns:
+            Entity ID
+        """
+        with self._lock:
+            entity_id = entity.get("id")
+            if not entity_id:
+                raise ValueError("Entity must have an 'id' field")
+            
+            # Save to file
+            entity_file = self.data_dir / "entities" / f"{entity_id}.json"
+            with open(entity_file, 'w') as f:
+                json.dump(entity, f, default=str, indent=2)
+            
+            # Update indices
+            self._index_entity(entity)
+            
+            return entity_id
+    
+    def get_entity(self, entity_id: str) -> Optional[dict]:
+        """Get an entity by ID.
+        
+        Args:
+            entity_id: Entity identifier
+            
+        Returns:
+            Entity dictionary or None
+        """
+        # Quick check with bloom filter
+        if not self._seen_filter.contains(entity_id):
+            return None
+        
+        entity_file = self.data_dir / "entities" / f"{entity_id}.json"
+        if entity_file.exists():
+            with open(entity_file, 'r') as f:
+                return json.load(f)
+        return None
+    
+    def delete_entity(self, entity_id: str) -> bool:
+        """Delete an entity.
+        
+        Args:
+            entity_id: Entity identifier
+            
+        Returns:
+            True if deleted
+        """
+        with self._lock:
+            entity_file = self.data_dir / "entities" / f"{entity_id}.json"
+            if entity_file.exists():
+                os.remove(entity_file)
+                # Note: Can't remove from bloom filter
+                self._entity_graph.remove_node(entity_id)
+                return True
+            return False
+    
+    def search_by_prefix(self, prefix: str, limit: int = 100) -> List[str]:
+        """Search entities by value prefix.
+        
+        Args:
+            prefix: Prefix to search for
+            limit: Maximum results
+            
+        Returns:
+            List of entity IDs
+        """
+        matches = self._value_trie.get_prefix_matches(prefix.lower(), limit)
+        return [entity_id for _, entity_id in matches]
+    
+    def get_by_type(self, entity_type: str) -> List[str]:
+        """Get all entity IDs of a specific type.
+        
+        Args:
+            entity_type: Type to filter by
+            
+        Returns:
+            List of entity IDs
+        """
+        return self._type_index.get(entity_type, [])
+    
+    def exists(self, value: str) -> bool:
+        """Quick check if a value exists (may have false positives).
+        
+        Args:
+            value: Value to check
+            
+        Returns:
+            True if probably exists, False if definitely not
+        """
+        return self._seen_filter.contains(value)
+    
+    # ==================== Graph Operations ====================
+    
+    def add_relationship(self, source_id: str, target_id: str, 
+                        relation: str, weight: float = 1.0, metadata: dict = None):
+        """Add a relationship between entities.
+        
+        Args:
+            source_id: Source entity ID
+            target_id: Target entity ID
+            relation: Relationship type
+            weight: Edge weight
+            metadata: Additional edge data
+        """
+        with self._lock:
+            self._entity_graph.add_edge(
+                source_id, target_id,
+                weight=weight,
+                relation=relation,
+                metadata=metadata or {}
+            )
+            self._save_graph()
+    
+    def get_neighbors(self, entity_id: str, depth: int = 1) -> List[str]:
+        """Get neighboring entity IDs.
+        
+        Args:
+            entity_id: Starting entity
+            depth: Maximum depth
+            
+        Returns:
+            List of neighbor entity IDs
+        """
+        return list(self._entity_graph.get_neighbors(entity_id, depth))
+    
+    def find_path(self, source_id: str, target_id: str) -> Optional[List[str]]:
+        """Find path between two entities.
+        
+        Args:
+            source_id: Source entity ID
+            target_id: Target entity ID
+            
+        Returns:
+            List of entity IDs in path, or None
+        """
+        return self._entity_graph.shortest_path_bfs(source_id, target_id)
+    
+    def get_graph_data(self) -> dict:
+        """Get full graph data for visualization.
+        
+        Returns:
+            Dictionary with nodes and edges
+        """
+        return self._entity_graph.to_dict()
+    
+    # ==================== Statistics ====================
+    
+    def stats(self) -> dict:
+        """Get storage statistics."""
+        return {
+            "entities": len(list((self.data_dir / "entities").glob("*.json"))),
+            "graph_nodes": self._entity_graph.node_count,
+            "graph_edges": self._entity_graph.edge_count,
+            "index_size": len(self._entity_index),
+            "bloom_filter": self._seen_filter.stats()
+        }
+
+
