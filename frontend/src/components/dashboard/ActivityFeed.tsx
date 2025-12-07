@@ -14,54 +14,62 @@ interface ActivityItem {
   timestamp: Date;
 }
 
-const mockActivities: ActivityItem[] = [
-  {
-    id: "1",
-    type: "threat",
-    title: "New APT Campaign Detected",
-    description: "APT29 activity targeting energy sector",
-    severity: "critical",
-    timestamp: new Date(Date.now() - 2 * 60000),
-  },
-  {
-    id: "2",
-    type: "credential",
-    title: "Credentials Found on Dark Web",
-    description: "5 employee credentials in recent breach dump",
-    severity: "high",
-    timestamp: new Date(Date.now() - 15 * 60000),
-  },
-  {
-    id: "3",
-    type: "scan",
-    title: "Weekly Scan Completed",
-    description: "Analyzed 1,247 assets, 3 new findings",
-    severity: "info",
-    timestamp: new Date(Date.now() - 60 * 60000),
-  },
-  {
-    id: "4",
-    type: "darkweb",
-    title: "Organization Mentioned",
-    description: "Your domain found on paste site",
-    severity: "medium",
-    timestamp: new Date(Date.now() - 2 * 60 * 60000),
-  },
-  {
-    id: "5",
-    type: "alert",
-    title: "Phishing Domain Registered",
-    description: "Lookalike domain registered targeting your brand",
-    severity: "high",
-    timestamp: new Date(Date.now() - 3 * 60 * 60000),
-  },
-];
+// Generate mock activities only on client to avoid hydration mismatch
+function generateMockActivities(): ActivityItem[] {
+  const now = Date.now();
+  return [
+    {
+      id: "1",
+      type: "threat",
+      title: "New APT Campaign Detected",
+      description: "APT29 activity targeting energy sector",
+      severity: "critical",
+      timestamp: new Date(now - 2 * 60000),
+    },
+    {
+      id: "2",
+      type: "credential",
+      title: "Credentials Found on Dark Web",
+      description: "5 employee credentials in recent breach dump",
+      severity: "high",
+      timestamp: new Date(now - 15 * 60000),
+    },
+    {
+      id: "3",
+      type: "scan",
+      title: "Weekly Scan Completed",
+      description: "Analyzed 1,247 assets, 3 new findings",
+      severity: "info",
+      timestamp: new Date(now - 60 * 60000),
+    },
+    {
+      id: "4",
+      type: "darkweb",
+      title: "Organization Mentioned",
+      description: "Your domain found on paste site",
+      severity: "medium",
+      timestamp: new Date(now - 2 * 60 * 60000),
+    },
+    {
+      id: "5",
+      type: "alert",
+      title: "Phishing Domain Registered",
+      description: "Lookalike domain registered targeting your brand",
+      severity: "high",
+      timestamp: new Date(now - 3 * 60 * 60000),
+    },
+  ];
+}
 
 export function ActivityFeed() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [displayedCount, setDisplayedCount] = useState(0);
 
   useEffect(() => {
+    // Generate activities client-side only
+    const mockActivities = generateMockActivities();
+    setActivities(mockActivities);
+    
     // Simulate typing effect for activity items
     const timer = setInterval(() => {
       setDisplayedCount((prev) => {
@@ -73,7 +81,6 @@ export function ActivityFeed() {
       });
     }, 500);
 
-    setActivities(mockActivities);
     return () => clearInterval(timer);
   }, []);
 

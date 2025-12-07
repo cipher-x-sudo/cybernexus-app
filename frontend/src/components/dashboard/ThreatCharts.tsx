@@ -220,8 +220,13 @@ export function HeatmapChart({ className }: { className?: string }) {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  const data = days.map(() =>
-    hours.map(() => Math.random())
+  // Use seeded pseudo-random values to avoid hydration mismatch
+  const data = days.map((_, dayIndex) =>
+    hours.map((_, hourIndex) => {
+      // Simple deterministic pseudo-random based on indices
+      const seed = (dayIndex * 24 + hourIndex) * 9301 + 49297;
+      return ((seed % 233280) / 233280);
+    })
   );
 
   return (
