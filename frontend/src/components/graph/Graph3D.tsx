@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, useMemo, useCallback } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
-import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
+import { GlassCard, GlassButton, GlassInput } from "@/components/ui";
 
 // Entity types with unique colors
 const entityTypes = {
@@ -125,7 +125,6 @@ function Node3D({ node, isHovered, isSelected, onHover, onClick }: NodeProps) {
         color="white"
         anchorX="center"
         anchorY="middle"
-        font="/fonts/JetBrainsMono-Regular.ttf"
       >
         {node.label}
       </Text>
@@ -214,6 +213,23 @@ export function Graph3D() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleTypes, setVisibleTypes] = useState<string[]>(Object.keys(entityTypes));
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    // Check WebGL support
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) {
+        setHasError(true);
+        return;
+      }
+      setIsLoaded(true);
+    } catch (e) {
+      setHasError(true);
+    }
+  }, []);
 
   const filteredNodes = useMemo(() => {
     return sampleNodes.filter((node) => {
@@ -240,12 +256,45 @@ export function Graph3D() {
     ? sampleNodes.find((n) => n.id === selectedNode)
     : null;
 
+  if (hasError) {
+    return (
+      <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-[#0a0e1a] rounded-2xl">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 text-red-500">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="text-white font-mono mb-2">WebGL Not Supported</h3>
+          <p className="text-white/50 text-sm">Your browser doesn&apos;t support 3D graphics.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-[#0a0e1a] rounded-2xl">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/50 font-mono text-sm">Initializing 3D Graph...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-full min-h-[600px]">
       {/* 3D Canvas */}
       <Canvas
         camera={{ position: [10, 8, 10], fov: 50 }}
         className="bg-[#0a0e1a]"
+        onCreated={() => setIsLoaded(true)}
+        fallback={
+          <div className="w-full h-full flex items-center justify-center bg-[#0a0e1a]">
+            <p className="text-white/50 font-mono">Loading 3D Engine...</p>
+          </div>
+        }
       >
         <Scene
           nodes={filteredNodes}

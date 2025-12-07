@@ -1,8 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Skeleton } from "@/components/ui";
 
 // Dynamic import for 3D component to avoid SSR issues
 const Graph3D = dynamic(
@@ -21,6 +20,12 @@ const Graph3D = dynamic(
 );
 
 export default function GraphPage() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -33,9 +38,16 @@ export default function GraphPage() {
 
       {/* 3D Graph */}
       <div className="glass rounded-2xl overflow-hidden">
-        <Suspense fallback={<Skeleton height={600} />}>
+        {mounted ? (
           <Graph3D />
-        </Suspense>
+        ) : (
+          <div className="w-full h-[600px] flex items-center justify-center bg-[#0a0e1a]">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-white/50 font-mono text-sm">Loading 3D Graph...</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
