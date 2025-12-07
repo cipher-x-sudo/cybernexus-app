@@ -5,7 +5,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
-import { GlassCard, GlassButton, GlassInput } from "@/components/ui";
 
 // Entity types with unique colors
 const entityTypes = {
@@ -258,7 +257,7 @@ export function Graph3D() {
 
   if (hasError) {
     return (
-      <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-[#0a0e1a] rounded-2xl">
+      <div className="relative w-full flex items-center justify-center bg-[#0a0e1a] rounded-2xl" style={{ height: "700px" }}>
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 text-red-500">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -274,7 +273,7 @@ export function Graph3D() {
 
   if (!isLoaded) {
     return (
-      <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-[#0a0e1a] rounded-2xl">
+      <div className="relative w-full flex items-center justify-center bg-[#0a0e1a] rounded-2xl" style={{ height: "700px" }}>
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-white/50 font-mono text-sm">Initializing 3D Graph...</p>
@@ -284,11 +283,11 @@ export function Graph3D() {
   }
 
   return (
-    <div className="relative w-full h-full min-h-[600px]">
+    <div className="relative w-full" style={{ height: "700px" }}>
       {/* 3D Canvas */}
       <Canvas
         camera={{ position: [10, 8, 10], fov: 50 }}
-        className="bg-[#0a0e1a]"
+        style={{ background: "#0a0e1a", height: "100%", width: "100%" }}
         onCreated={() => setIsLoaded(true)}
         fallback={
           <div className="w-full h-full flex items-center justify-center bg-[#0a0e1a]">
@@ -307,129 +306,149 @@ export function Graph3D() {
       </Canvas>
 
       {/* Control panel */}
-      <div className="absolute top-4 left-4 w-64 space-y-4">
+      <div className="absolute top-4 left-4 w-72 space-y-3 z-10">
         {/* Search */}
-        <GlassCard padding="sm">
-          <GlassInput
-            placeholder="Search entities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            icon={
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            }
-          />
-        </GlassCard>
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
+          <div className="relative">
+            <svg 
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500/70" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search entities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 text-sm font-mono focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-xs text-white/40 mt-2 font-mono">
+              Found: {filteredNodes.length} entities
+            </p>
+          )}
+        </div>
 
         {/* Entity type filters */}
-        <GlassCard padding="sm">
-          <p className="text-xs font-mono text-white/50 mb-3 uppercase tracking-wider">
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
+          <p className="text-xs font-mono text-amber-500/70 mb-3 uppercase tracking-wider">
             Entity Types
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {Object.entries(entityTypes).map(([type, config]) => (
               <button
                 key={type}
                 onClick={() => toggleType(type)}
                 className={cn(
-                  "px-2 py-1 rounded-lg text-xs font-mono transition-all",
+                  "px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all border",
                   visibleTypes.includes(type)
-                    ? "bg-white/10 text-white"
-                    : "bg-transparent text-white/30"
+                    ? "text-white"
+                    : "bg-transparent text-white/30 border-transparent hover:border-white/20"
                 )}
                 style={{
-                  borderColor: visibleTypes.includes(type) ? config.color : "transparent",
-                  borderWidth: 1,
+                  backgroundColor: visibleTypes.includes(type) ? `${config.color}20` : "transparent",
+                  borderColor: visibleTypes.includes(type) ? config.color : undefined,
                 }}
               >
-                {type.replace("_", " ")}
+                {type.replace(/_/g, " ")}
               </button>
             ))}
           </div>
-        </GlassCard>
+        </div>
       </div>
 
       {/* Node details panel */}
       {selectedNodeData && (
-        <div className="absolute top-4 right-4 w-72">
-          <GlassCard>
+        <div className="absolute top-4 right-4 w-72 z-10">
+          <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-mono font-semibold text-white">Entity Details</h3>
+              <h3 className="font-mono font-semibold text-white text-sm">Entity Details</h3>
               <button
                 onClick={() => setSelectedNode(null)}
-                className="text-white/40 hover:text-white"
+                className="text-white/40 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div
                   className="w-4 h-4 rounded"
                   style={{ backgroundColor: entityTypes[selectedNodeData.type as keyof typeof entityTypes].color }}
                 />
-                <span className="font-mono text-sm text-white/70">
-                  {selectedNodeData.type.replace("_", " ")}
+                <span className="font-mono text-sm text-white/70 capitalize">
+                  {selectedNodeData.type.replace(/_/g, " ")}
                 </span>
               </div>
 
-              <div>
-                <p className="text-xs text-white/40 mb-1">Label</p>
-                <p className="font-mono text-white">{selectedNodeData.label}</p>
+              <div className="bg-white/5 rounded-lg p-3">
+                <p className="text-xs text-amber-500/70 mb-1 font-mono uppercase">Label</p>
+                <p className="font-mono text-white text-sm">{selectedNodeData.label}</p>
               </div>
 
-              <div>
-                <p className="text-xs text-white/40 mb-1">Connections</p>
-                <p className="font-mono text-white">
+              <div className="bg-white/5 rounded-lg p-3">
+                <p className="text-xs text-amber-500/70 mb-1 font-mono uppercase">Connections</p>
+                <p className="font-mono text-white text-lg">
                   {sampleEdges.filter(
                     (e) => e.source === selectedNode || e.target === selectedNode
                   ).length}
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-white/[0.05]">
-                <GlassButton variant="primary" size="sm" className="w-full">
-                  View Details
-                </GlassButton>
-              </div>
+              <button className="w-full h-10 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-500 rounded-lg font-mono text-sm transition-all">
+                View Full Details
+              </button>
             </div>
-          </GlassCard>
+          </div>
         </div>
       )}
 
       {/* Instructions */}
-      <div className="absolute bottom-4 left-4">
-        <GlassCard padding="sm" className="text-xs text-white/40 space-y-1">
-          <p>🖱️ Drag to rotate</p>
-          <p>🔍 Scroll to zoom</p>
-          <p>👆 Click node for details</p>
-        </GlassCard>
+      <div className="absolute bottom-4 left-4 z-10">
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 text-xs text-white/50 space-y-1 font-mono">
+          <p className="flex items-center gap-2"><span className="text-amber-500">⟳</span> Drag to rotate</p>
+          <p className="flex items-center gap-2"><span className="text-amber-500">⊕</span> Scroll to zoom</p>
+          <p className="flex items-center gap-2"><span className="text-amber-500">◉</span> Click node for details</p>
+        </div>
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-4 right-4">
-        <GlassCard padding="sm">
-          <p className="text-xs font-mono text-white/50 mb-2 uppercase tracking-wider">
+      <div className="absolute bottom-4 right-4 z-10">
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
+          <p className="text-xs font-mono text-amber-500/70 mb-2 uppercase tracking-wider">
             Legend
           </p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
             {Object.entries(entityTypes).map(([type, config]) => (
-              <div key={type} className="flex items-center gap-1.5">
+              <div key={type} className="flex items-center gap-2">
                 <div
-                  className="w-2 h-2 rounded-sm"
+                  className="w-2.5 h-2.5 rounded-sm"
                   style={{ backgroundColor: config.color }}
                 />
-                <span className="text-[10px] text-white/40">
+                <span className="text-[10px] text-white/50 font-mono">
                   {type.split("_")[0]}
                 </span>
               </div>
             ))}
           </div>
-        </GlassCard>
+        </div>
       </div>
     </div>
   );
