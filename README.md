@@ -120,9 +120,22 @@ cybernexus/
 
 ## Documentation
 
-- [Architecture Guide](docs/ARCHITECTURE.md)
-- [DSA Documentation](docs/DSA.md)
-- [API Reference](docs/API.md)
+- **🚀 [Quick Start](docs/QUICKSTART.md)** - Get running in 5 minutes
+- **📘 [Complete User Guide](docs/GUIDE.md)** - Comprehensive guide: what, why, who, and how
+- [Architecture Guide](docs/ARCHITECTURE.md) - Technical architecture details
+- [DSA Documentation](docs/DSA.md) - Custom data structure implementations
+- [API Reference](docs/API.md) - REST API endpoints
+
+### Quick Links
+
+| I want to... | Go to... |
+|--------------|----------|
+| Understand what CyberNexus is | [User Guide - Overview](docs/GUIDE.md#what-is-cybernexus) |
+| See who should use it | [User Guide - Users](docs/GUIDE.md#who-should-use-cybernexus) |
+| Learn how it works | [User Guide - How It Works](docs/GUIDE.md#how-it-works) |
+| Get started quickly | [User Guide - Getting Started](docs/GUIDE.md#getting-started) |
+| Explore DSA implementations | [DSA Documentation](docs/DSA.md) |
+| Integrate with the API | [API Reference](docs/API.md) |
 
 ## Tech Stack
 

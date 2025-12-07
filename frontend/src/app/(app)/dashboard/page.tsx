@@ -2,113 +2,14 @@
 
 import { GlassCard } from "@/components/ui";
 import {
-  StatCard,
+  RiskScore,
+  CriticalFindings,
+  CapabilityCards,
+  LiveActivity,
+  QuickStart,
   MiniWorldMap,
-  ActivityFeed,
-  QuickActions,
-  DonutChart,
   LineChart,
-  BarChart,
-  HeatmapChart,
 } from "@/components/dashboard";
-
-const stats = [
-  {
-    title: "Total Threats",
-    value: 2847,
-    change: 12,
-    trend: "up" as const,
-    variant: "default" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Critical",
-    value: 12,
-    change: 25,
-    trend: "up" as const,
-    variant: "critical" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Assets Monitored",
-    value: 156,
-    change: 8,
-    trend: "up" as const,
-    variant: "default" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-      </svg>
-    ),
-  },
-  {
-    title: "Credentials Leaked",
-    value: 89,
-    change: 15,
-    trend: "up" as const,
-    variant: "warning" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Dark Web Mentions",
-    value: 34,
-    change: 5,
-    trend: "down" as const,
-    variant: "default" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-      </svg>
-    ),
-  },
-  {
-    title: "Security Score",
-    value: 78,
-    change: 3,
-    trend: "up" as const,
-    variant: "success" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Threats Resolved",
-    value: 2543,
-    change: 18,
-    trend: "up" as const,
-    variant: "success" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
-      </svg>
-    ),
-  },
-  {
-    title: "Avg Response Time",
-    value: 4,
-    changeLabel: "minutes",
-    variant: "default" as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-];
 
 export default function DashboardPage() {
   return (
@@ -116,53 +17,115 @@ export default function DashboardPage() {
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-white">Dashboard</h1>
+          <h1 className="text-2xl font-mono font-bold text-white">Security Operations Center</h1>
           <p className="text-sm text-white/50">
-            Real-time threat intelligence overview
+            Unified view of your organization&apos;s security posture
           </p>
         </div>
-        <QuickActions />
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-xs font-mono text-emerald-400">All systems operational</span>
+          </span>
+        </div>
       </div>
 
-      {/* World map hero */}
-      <GlassCard className="overflow-hidden" padding="none">
-        <div className="p-5 border-b border-white/[0.05]">
-          <div className="flex items-center justify-between">
-            <h2 className="font-mono font-semibold text-white">Global Threat Activity</h2>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-              </span>
-              <span className="text-xs font-mono text-white/50">12 active threats</span>
+      {/* Top row: Risk Score + Critical Findings */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <RiskScore
+          score={78}
+          riskLevel="medium"
+          trend="improving"
+          criticalIssues={3}
+          highIssues={7}
+        />
+        <CriticalFindings />
+      </div>
+
+      {/* Quick Start */}
+      <QuickStart 
+        onScan={(domain) => console.log("Scanning:", domain)}
+      />
+
+      {/* Capability Cards */}
+      <CapabilityCards />
+
+      {/* Bottom row: Map + Activity + Trends */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* World map */}
+        <GlassCard className="lg:col-span-2 overflow-hidden" padding="none">
+          <div className="p-5 border-b border-white/[0.05]">
+            <div className="flex items-center justify-between">
+              <h2 className="font-mono font-semibold text-white">Global Threat Activity</h2>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <span className="text-xs font-mono text-white/50">12 active threats</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="h-64 lg:h-80">
-          <MiniWorldMap />
-        </div>
-      </GlassCard>
+          <div className="h-64 lg:h-72">
+            <MiniWorldMap />
+          </div>
+        </GlassCard>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat} />
-        ))}
+        {/* Live Activity */}
+        <LiveActivity />
       </div>
 
-      {/* Charts row */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <DonutChart />
-        <LineChart />
-        <BarChart />
-      </div>
-
-      {/* Bottom row */}
+      {/* Trends row */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <ActivityFeed />
-        <HeatmapChart />
+        <LineChart />
+        
+        {/* Recent Scans Summary */}
+        <GlassCard className="p-6" hover={false}>
+          <h2 className="font-mono text-lg font-semibold text-white mb-4">Recent Assessments</h2>
+          <div className="space-y-3">
+            {[
+              { capability: "Email Security", target: "example.com", status: "completed", findings: 3, time: "2h ago" },
+              { capability: "Exposure Discovery", target: "example.com", status: "completed", findings: 5, time: "4h ago" },
+              { capability: "Infrastructure", target: "api.example.com", status: "completed", findings: 8, time: "6h ago" },
+              { capability: "Dark Web Intel", target: "company-name", status: "running", findings: 0, time: "Started 15m ago" },
+            ].map((scan, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {scan.status === "running" ? (
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-white font-medium">{scan.capability}</p>
+                    <p className="text-xs text-white/40 font-mono">{scan.target}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  {scan.status === "completed" && (
+                    <p className="text-sm font-mono text-amber-400">{scan.findings} findings</p>
+                  )}
+                  <p className="text-xs text-white/40">{scan.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
       </div>
     </div>
   );
 }
-

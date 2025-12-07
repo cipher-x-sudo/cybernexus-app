@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { GlitchText } from "@/components/effects";
 
-const navItems = [
+const mainNavItems = [
   {
     label: "Dashboard",
     href: "/dashboard",
@@ -16,6 +16,82 @@ const navItems = [
       </svg>
     ),
   },
+];
+
+const capabilityNavItems = [
+  {
+    label: "Exposure Discovery",
+    href: "/capabilities/exposure",
+    color: "cyan",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Dark Web Intel",
+    href: "/capabilities/darkweb",
+    color: "purple",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Email Security",
+    href: "/capabilities/email",
+    color: "amber",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Infrastructure",
+    href: "/capabilities/infrastructure",
+    color: "emerald",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+      </svg>
+    ),
+  },
+  {
+    label: "Auth Testing",
+    href: "/capabilities/auth",
+    color: "rose",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Network Security",
+    href: "/capabilities/network",
+    color: "blue",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Investigation",
+    href: "/capabilities/investigate",
+    color: "orange",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      </svg>
+    ),
+  },
+];
+
+const analysisNavItems = [
   {
     label: "Threat Graph",
     href: "/graph",
@@ -30,25 +106,7 @@ const navItems = [
     href: "/map",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Credentials",
-    href: "/credentials",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Dark Web",
-    href: "/darkweb",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
       </svg>
     ),
   },
@@ -85,6 +143,22 @@ const bottomNavItems = [
   },
 ];
 
+const getColorClasses = (color?: string, isActive?: boolean) => {
+  if (!isActive) return "";
+  
+  const colors: Record<string, string> = {
+    cyan: "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30",
+    purple: "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+    amber: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+    emerald: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+    rose: "bg-rose-500/20 text-rose-400 border border-rose-500/30",
+    blue: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+    orange: "bg-orange-500/20 text-orange-400 border border-orange-500/30",
+  };
+  
+  return colors[color || "amber"] || colors.amber;
+};
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -92,6 +166,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [capabilitiesExpanded, setCapabilitiesExpanded] = useState(true);
 
   return (
     <>
@@ -141,7 +216,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* Main navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
+            {/* Main items */}
+            {mainNavItems.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -164,6 +240,79 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </Link>
               );
             })}
+
+            {/* Capabilities section */}
+            <div className="pt-4">
+              <button
+                onClick={() => setCapabilitiesExpanded(!capabilitiesExpanded)}
+                className="flex items-center justify-between w-full px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider hover:text-white/60 transition-colors"
+              >
+                <span>Capabilities</span>
+                <svg
+                  className={cn(
+                    "w-4 h-4 transition-transform",
+                    capabilitiesExpanded && "rotate-180"
+                  )}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {capabilitiesExpanded && (
+                <div className="mt-1 space-y-1">
+                  {capabilityNavItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-2.5 rounded-xl",
+                          "font-mono text-sm transition-all duration-200",
+                          isActive
+                            ? getColorClasses(item.color, true)
+                            : "text-white/60 hover:bg-white/[0.05] hover:text-white"
+                        )}
+                        onClick={() => onClose()}
+                      >
+                        {item.icon}
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Analysis section */}
+            <div className="pt-4">
+              <div className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
+                Analysis
+              </div>
+              {analysisNavItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-2.5 rounded-xl",
+                      "font-mono text-sm transition-all duration-200",
+                      isActive
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                        : "text-white/60 hover:bg-white/[0.05] hover:text-white"
+                    )}
+                    onClick={() => onClose()}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           {/* Bottom navigation */}
@@ -175,7 +324,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl",
+                    "flex items-center gap-3 px-4 py-2.5 rounded-xl",
                     "font-mono text-sm transition-all duration-200",
                     isActive
                       ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
@@ -197,10 +346,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-sm text-white truncate">
-                    John Doe
+                    Security Analyst
                   </p>
                   <p className="text-xs text-white/50 truncate">
-                    john@example.com
+                    analyst@company.com
                   </p>
                 </div>
               </div>
@@ -211,4 +360,3 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     </>
   );
 }
-

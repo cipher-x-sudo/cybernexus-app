@@ -3,4 +3,8 @@ export * from "./MiniWorldMap";
 export * from "./ActivityFeed";
 export * from "./QuickActions";
 export * from "./ThreatCharts";
-
+export * from "./RiskScore";
+export * from "./CriticalFindings";
+export * from "./CapabilityCards";
+export * from "./LiveActivity";
+export * from "./QuickStart";
