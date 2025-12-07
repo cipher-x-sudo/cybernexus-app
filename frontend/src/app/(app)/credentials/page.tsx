@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
@@ -15,65 +15,74 @@ interface Credential {
   status: "active" | "resolved" | "investigating";
 }
 
-const mockCredentials: Credential[] = [
-  {
-    id: "1",
-    email: "admin@company.com",
-    domain: "company.com",
-    password: "p@$$w0rd123",
-    source: "Data Breach - MegaCorp",
-    severity: "critical",
-    foundAt: new Date(Date.now() - 2 * 60 * 60000),
-    status: "active",
-  },
-  {
-    id: "2",
-    email: "john.doe@company.com",
-    domain: "company.com",
-    password: "JohnDoe2024!",
-    source: "Paste Site",
-    severity: "high",
-    foundAt: new Date(Date.now() - 24 * 60 * 60000),
-    status: "investigating",
-  },
-  {
-    id: "3",
-    email: "sarah.smith@company.com",
-    domain: "company.com",
-    password: "S@rah123",
-    source: "Dark Web Forum",
-    severity: "high",
-    foundAt: new Date(Date.now() - 3 * 24 * 60 * 60000),
-    status: "resolved",
-  },
-  {
-    id: "4",
-    email: "dev@company.com",
-    domain: "company.com",
-    password: "dev_pass_temp",
-    source: "GitHub Commit",
-    severity: "medium",
-    foundAt: new Date(Date.now() - 7 * 24 * 60 * 60000),
-    status: "active",
-  },
-  {
-    id: "5",
-    email: "support@company.com",
-    domain: "company.com",
-    password: "Support2023",
-    source: "Stealer Logs",
-    severity: "critical",
-    foundAt: new Date(Date.now() - 12 * 60 * 60000),
-    status: "active",
-  },
-];
+// Generate credentials only on client to avoid hydration mismatch
+function generateMockCredentials(): Credential[] {
+  const now = Date.now();
+  return [
+    {
+      id: "1",
+      email: "admin@company.com",
+      domain: "company.com",
+      password: "p@$$w0rd123",
+      source: "Data Breach - MegaCorp",
+      severity: "critical",
+      foundAt: new Date(now - 2 * 60 * 60000),
+      status: "active",
+    },
+    {
+      id: "2",
+      email: "john.doe@company.com",
+      domain: "company.com",
+      password: "JohnDoe2024!",
+      source: "Paste Site",
+      severity: "high",
+      foundAt: new Date(now - 24 * 60 * 60000),
+      status: "investigating",
+    },
+    {
+      id: "3",
+      email: "sarah.smith@company.com",
+      domain: "company.com",
+      password: "S@rah123",
+      source: "Dark Web Forum",
+      severity: "high",
+      foundAt: new Date(now - 3 * 24 * 60 * 60000),
+      status: "resolved",
+    },
+    {
+      id: "4",
+      email: "dev@company.com",
+      domain: "company.com",
+      password: "dev_pass_temp",
+      source: "GitHub Commit",
+      severity: "medium",
+      foundAt: new Date(now - 7 * 24 * 60 * 60000),
+      status: "active",
+    },
+    {
+      id: "5",
+      email: "support@company.com",
+      domain: "company.com",
+      password: "Support2023",
+      source: "Stealer Logs",
+      severity: "critical",
+      foundAt: new Date(now - 12 * 60 * 60000),
+      status: "active",
+    },
+  ];
+}
 
 export default function CredentialsPage() {
+  const [credentials, setCredentials] = useState<Credential[]>([]);
   const [selectedCredential, setSelectedCredential] = useState<Credential | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const filteredCredentials = mockCredentials.filter((cred) => {
+  useEffect(() => {
+    setCredentials(generateMockCredentials());
+  }, []);
+
+  const filteredCredentials = credentials.filter((cred) => {
     if (statusFilter !== "all" && cred.status !== statusFilter) return false;
     if (searchQuery && !cred.email.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -109,10 +118,10 @@ export default function CredentialsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Leaked", value: mockCredentials.length, color: "text-white" },
-          { label: "Active", value: mockCredentials.filter((c) => c.status === "active").length, color: "text-red-400" },
-          { label: "Investigating", value: mockCredentials.filter((c) => c.status === "investigating").length, color: "text-yellow-400" },
-          { label: "Resolved", value: mockCredentials.filter((c) => c.status === "resolved").length, color: "text-emerald-400" },
+          { label: "Total Leaked", value: credentials.length, color: "text-white" },
+          { label: "Active", value: credentials.filter((c) => c.status === "active").length, color: "text-red-400" },
+          { label: "Investigating", value: credentials.filter((c) => c.status === "investigating").length, color: "text-yellow-400" },
+          { label: "Resolved", value: credentials.filter((c) => c.status === "resolved").length, color: "text-emerald-400" },
         ].map((stat) => (
           <GlassCard key={stat.label} padding="lg">
             <p className="text-sm font-mono text-white/50 mb-1">{stat.label}</p>

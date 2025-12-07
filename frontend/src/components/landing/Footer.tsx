@@ -173,7 +173,7 @@ export function Footer() {
 
         {/* Bottom section */}
         <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-white/30">
+          <p className="text-sm text-white/30" suppressHydrationWarning>
             © {new Date().getFullYear()} CyberNexus. All rights reserved.
           </p>
 
