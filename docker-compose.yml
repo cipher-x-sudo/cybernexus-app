@@ -10,12 +10,20 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/app/data
+      - backend-cache:/root/.cache
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
     networks:
       - cybernexus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
@@ -24,11 +32,13 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
       - /app/node_modules
       - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - WATCHPACK_POLLING=true
     depends_on:
       - backend
     restart: unless-stopped
@@ -40,6 +50,4 @@ networks:
     driver: bridge
 
 volumes:
-  data:
-
-
+  backend-cache:
