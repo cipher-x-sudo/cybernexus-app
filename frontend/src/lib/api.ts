@@ -61,6 +61,51 @@ export interface DashboardStats {
   darkWebMentions: number;
 }
 
+// Capability Types
+export interface CapabilityInfo {
+  id: string;
+  name: string;
+  description: string;
+  question: string;
+  icon: string;
+  supports_scheduling: boolean;
+  requires_tor: boolean;
+  default_config: Record<string, any>;
+}
+
+export interface CapabilityJob {
+  id: string;
+  capability: string;
+  target: string;
+  status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  progress: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  findings_count: number;
+  error: string | null;
+}
+
+export interface CapabilityFinding {
+  id: string;
+  capability: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  title: string;
+  description: string;
+  evidence: Record<string, any>;
+  affected_assets: string[];
+  recommendations: string[];
+  discovered_at: string;
+  risk_score: number;
+}
+
+export interface CreateJobRequest {
+  capability: string;
+  target: string;
+  config?: Record<string, any>;
+  priority?: "critical" | "high" | "normal" | "low" | "background";
+}
+
 // API Client
 class ApiClient {
   private baseUrl: string;
@@ -216,6 +261,108 @@ class ApiClient {
       body: JSON.stringify(settings),
     });
   }
+
+  // ============================================================================
+  // Capabilities API
+  // ============================================================================
+
+  /**
+   * List all available security capabilities
+   */
+  async getCapabilities() {
+    return this.request<CapabilityInfo[]>("/capabilities/");
+  }
+
+  /**
+   * Get a specific capability by ID
+   */
+  async getCapability(capabilityId: string) {
+    return this.request<CapabilityInfo>(`/capabilities/${capabilityId}`);
+  }
+
+  /**
+   * Create and start a capability job (scan)
+   */
+  async createCapabilityJob(request: CreateJobRequest) {
+    return this.request<CapabilityJob>("/capabilities/jobs", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Get job status and progress
+   */
+  async getJobStatus(jobId: string) {
+    return this.request<CapabilityJob>(`/capabilities/jobs/${jobId}`);
+  }
+
+  /**
+   * List all jobs with optional filtering
+   */
+  async getJobs(params?: { capability?: string; status?: string; limit?: number }) {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    return this.request<CapabilityJob[]>(`/capabilities/jobs?${query}`);
+  }
+
+  /**
+   * Get findings from a completed job
+   */
+  async getJobFindings(jobId: string) {
+    return this.request<CapabilityFinding[]>(`/capabilities/jobs/${jobId}/findings`);
+  }
+
+  /**
+   * List all findings with optional filtering
+   */
+  async getFindings(params?: { 
+    capability?: string; 
+    severity?: string; 
+    target?: string;
+    min_risk_score?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    return this.request<CapabilityFinding[]>(`/capabilities/findings?${query}`);
+  }
+
+  /**
+   * Get critical findings that need immediate attention
+   */
+  async getCriticalFindings(limit: number = 10) {
+    return this.request<CapabilityFinding[]>(`/capabilities/findings/critical?limit=${limit}`);
+  }
+
+  /**
+   * Perform a quick scan of a domain
+   */
+  async quickScan(domain: string) {
+    return this.request<{
+      domain: string;
+      started_at: string;
+      completed_at: string;
+      jobs: CapabilityJob[];
+      summary: { capabilities_run: number; total_findings: number; duration_seconds: number };
+      risk_score: any;
+    }>("/capabilities/quick-scan", {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    });
+  }
+
+  /**
+   * Get capability statistics
+   */
+  async getCapabilityStats() {
+    return this.request<any>("/capabilities/stats");
+  }
+
+  /**
+   * Get recent capability events for live feed
+   */
+  async getCapabilityEvents(limit: number = 50) {
+    return this.request<{ events: any[]; count: number }>(`/capabilities/events?limit=${limit}`);
+  }
 }
 
 // Export singleton instance
@@ -234,6 +381,16 @@ export const queryKeys = {
   reports: ["reports"],
   collectors: ["collectors"],
   settings: ["settings"],
+  // Capabilities
+  capabilities: ["capabilities"],
+  capability: (id: string) => ["capability", id],
+  jobs: (params?: any) => ["jobs", params],
+  job: (id: string) => ["job", id],
+  jobFindings: (jobId: string) => ["jobFindings", jobId],
+  findings: (params?: any) => ["findings", params],
+  criticalFindings: ["criticalFindings"],
+  capabilityStats: ["capabilityStats"],
+  capabilityEvents: ["capabilityEvents"],
 };
 
 

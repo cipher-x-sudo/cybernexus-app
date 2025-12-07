@@ -2,61 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "SPF record allows any sender (+all)",
-    severity: "critical" as const,
-    description: "Your SPF record ends with '+all' which allows any server to send email on behalf of your domain. This makes email spoofing trivial.",
-    evidence: "v=spf1 include:_spf.google.com +all\n\nThe '+all' mechanism should be '-all' (hard fail) or '~all' (soft fail)",
-    recommendations: [
-      "Change '+all' to '-all' in your SPF record",
-      "Test email delivery after change",
-      "Monitor for bounce rate changes",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "2",
-    title: "DMARC policy set to 'none'",
-    severity: "high" as const,
-    description: "Your DMARC policy is set to 'none' which means failed authentication emails are still delivered. This provides no protection against spoofing.",
-    evidence: "v=DMARC1; p=none; rua=mailto:dmarc@company.com\n\nPolicy 'none' = monitoring only, no enforcement",
-    recommendations: [
-      "Upgrade DMARC policy to 'quarantine' or 'reject'",
-      "Review DMARC reports before changing policy",
-      "Ensure all legitimate sending sources are authorized",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "3",
-    title: "No DKIM records found",
-    severity: "high" as const,
-    description: "No DKIM records were found for common selectors. Without DKIM, recipients cannot verify that emails were not modified in transit.",
-    evidence: "Checked selectors: default, google, selector1, selector2, k1, k2\nResult: No valid DKIM records found",
-    recommendations: [
-      "Configure DKIM signing for your domain",
-      "Publish DKIM public key in DNS",
-      "Verify DKIM alignment with SPF",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "4",
-    title: "Missing aggregate report URI",
-    severity: "medium" as const,
-    description: "Your DMARC record does not have an aggregate report URI (rua). You won't receive reports about email authentication results.",
-    evidence: "Current: v=DMARC1; p=none\nRecommended: v=DMARC1; p=none; rua=mailto:dmarc@company.com",
-    recommendations: [
-      "Add rua= tag to receive aggregate reports",
-      "Set up a mailbox to receive DMARC reports",
-      "Use a DMARC analysis service",
-    ],
-    timestamp: "Just now",
-  },
-];
-
 export default function EmailSecurityPage() {
   return (
     <CapabilityPage
@@ -72,7 +17,6 @@ export default function EmailSecurityPage() {
       color="amber"
       inputLabel="Domain to check"
       inputPlaceholder="example.com"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -121,4 +65,3 @@ export default function EmailSecurityPage() {
     />
   );
 }
-

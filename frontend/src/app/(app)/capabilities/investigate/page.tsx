@@ -2,61 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "Suspicious domain registration",
-    severity: "high" as const,
-    description: "The investigated domain was registered recently and uses privacy protection, common characteristics of malicious domains.",
-    evidence: "Domain: suspicious-login.com\nRegistration: 7 days ago\nRegistrar: NameCheap\nWHOIS: Privacy protected",
-    recommendations: [
-      "Block the domain in security controls",
-      "Alert users about potential phishing",
-      "Monitor for similar domain registrations",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "2",
-    title: "Page mimics legitimate site",
-    severity: "high" as const,
-    description: "Visual analysis shows the page is designed to impersonate a legitimate login page with high similarity.",
-    evidence: "Visual similarity: 94%\nLogo present: Yes\nForm action: External server\nScreenshot captured",
-    recommendations: [
-      "Report to hosting provider",
-      "Add to blocklist",
-      "Conduct user awareness campaign",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "3",
-    title: "Third-party tracking scripts",
-    severity: "medium" as const,
-    description: "The page loads multiple external scripts that may be collecting user data or performing additional malicious actions.",
-    evidence: "External scripts: 8\nTracking domains:\n- analytics-malware.com\n- tracker.suspicious.net\n- cdn.evilsite.ru",
-    recommendations: [
-      "Block identified tracking domains",
-      "Analyze script behavior",
-      "Check for data exfiltration",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "4",
-    title: "Domain tree analysis complete",
-    severity: "info" as const,
-    description: "Full resource tree captured showing all domains and resources loaded by the page.",
-    evidence: "Total requests: 47\nUnique domains: 12\nResources captured: All\nHAR file available",
-    recommendations: [
-      "Review the full domain tree",
-      "Identify suspicious third-party resources",
-      "Export evidence for incident response",
-    ],
-    timestamp: "Just now",
-  },
-];
-
 export default function InvestigationPage() {
   return (
     <CapabilityPage
@@ -72,7 +17,6 @@ export default function InvestigationPage() {
       color="orange"
       inputLabel="URL or domain to investigate"
       inputPlaceholder="https://suspicious-site.com or suspicious.com"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -128,4 +72,3 @@ export default function InvestigationPage() {
     />
   );
 }
-

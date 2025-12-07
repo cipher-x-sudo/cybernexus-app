@@ -2,49 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "Weak password detected for admin account",
-    severity: "critical" as const,
-    description: "The administrator account uses a password that was found in common password lists. This account is highly vulnerable to credential attacks.",
-    evidence: "Account: administrator\nPassword pattern: Common word + numbers\nAttempts before success: 12",
-    recommendations: [
-      "Immediately reset the password",
-      "Enforce strong password policy",
-      "Enable multi-factor authentication",
-      "Implement account lockout",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "2",
-    title: "Multiple accounts vulnerable to spray attack",
-    severity: "high" as const,
-    description: "Several accounts were found using the same weak password, indicating poor password hygiene across the organization.",
-    evidence: "Affected accounts: 5\nCommon password: Summer2024!\nDepartment: Sales",
-    recommendations: [
-      "Force password reset for affected accounts",
-      "Implement password uniqueness checks",
-      "Conduct security awareness training",
-    ],
-    timestamp: "Just now",
-  },
-  {
-    id: "3",
-    title: "No account lockout policy",
-    severity: "medium" as const,
-    description: "The system does not implement account lockout after failed attempts, allowing unlimited password guessing.",
-    evidence: "Attempts tested: 100\nLockout triggered: No\nRate limiting: None detected",
-    recommendations: [
-      "Implement account lockout after 5-10 failed attempts",
-      "Add progressive delays between attempts",
-      "Alert on suspicious authentication patterns",
-    ],
-    timestamp: "Just now",
-  },
-];
-
 export default function AuthTestingPage() {
   return (
     <CapabilityPage
@@ -60,7 +17,6 @@ export default function AuthTestingPage() {
       color="rose"
       inputLabel="Target system (RDP/domain)"
       inputPlaceholder="domain.local or 192.168.1.100"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -106,4 +62,3 @@ export default function AuthTestingPage() {
     />
   );
 }
-

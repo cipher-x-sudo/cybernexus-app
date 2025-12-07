@@ -2,60 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "CRLF injection vulnerability",
-    severity: "high" as const,
-    description: "The server is vulnerable to CRLF injection via the redirect mechanism. This could allow HTTP response splitting attacks.",
-    evidence: "URL: https://example.com/redirect?url=%0d%0aSet-Cookie:malicious=true\nResponse: HTTP headers injected successfully",
-    recommendations: [
-      "Sanitize user input in redirects",
-      "Use URL encoding properly",
-      "Implement strict redirect validation",
-    ],
-    timestamp: "30m ago",
-  },
-  {
-    id: "2",
-    title: "Path traversal via misconfigured alias",
-    severity: "high" as const,
-    description: "Nginx alias misconfiguration allows path traversal attacks, potentially exposing sensitive files outside the web root.",
-    evidence: "URL: https://example.com/static../etc/passwd\nVulnerable: Yes\nServer: nginx/1.18.0",
-    recommendations: [
-      "Fix alias configuration in nginx",
-      "Ensure trailing slashes are consistent",
-      "Review all location blocks",
-    ],
-    timestamp: "30m ago",
-  },
-  {
-    id: "3",
-    title: "Outdated Nginx version with known CVEs",
-    severity: "medium" as const,
-    description: "The server is running an outdated version of Nginx with known security vulnerabilities.",
-    evidence: "Server: nginx/1.14.2\nCVE-2019-20372: Integer overflow\nCVE-2021-23017: DNS resolver vulnerability",
-    recommendations: [
-      "Upgrade Nginx to latest stable version",
-      "Subscribe to security advisories",
-      "Implement automated patching",
-    ],
-    timestamp: "30m ago",
-  },
-  {
-    id: "4",
-    title: "HTTP PURGE method enabled",
-    severity: "low" as const,
-    description: "The PURGE HTTP method is accessible from external networks. This could be used for cache poisoning attacks.",
-    evidence: "Method: PURGE /index.html\nResponse: 200 OK\nCache cleared: Yes",
-    recommendations: [
-      "Restrict PURGE method to internal IPs",
-      "Add authentication for cache operations",
-    ],
-    timestamp: "30m ago",
-  },
-];
-
 export default function InfrastructurePage() {
   return (
     <CapabilityPage
@@ -71,7 +17,6 @@ export default function InfrastructurePage() {
       color="emerald"
       inputLabel="Target URL"
       inputPlaceholder="https://example.com"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -120,4 +65,3 @@ export default function InfrastructurePage() {
     />
   );
 }
-

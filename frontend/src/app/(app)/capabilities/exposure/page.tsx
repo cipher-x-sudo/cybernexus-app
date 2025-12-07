@@ -2,62 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "Exposed admin panel discovered",
-    severity: "critical" as const,
-    description: "An administrative interface was found publicly accessible without authentication. This could allow attackers to gain unauthorized access to your systems.",
-    evidence: "URL: https://example.com/wp-admin\nStatus: 200 OK\nAuthentication: None required",
-    recommendations: [
-      "Restrict access to admin panels by IP",
-      "Implement strong authentication",
-      "Consider moving admin to a separate subdomain",
-      "Enable rate limiting",
-    ],
-    timestamp: "1h ago",
-  },
-  {
-    id: "2",
-    title: "Backup file exposed",
-    severity: "high" as const,
-    description: "A database backup file was found accessible on the web server. This could contain sensitive data including credentials.",
-    evidence: "URL: https://example.com/backup.sql.gz\nFile size: 45MB\nLast modified: 2024-01-10",
-    recommendations: [
-      "Remove backup files from web root",
-      "Implement access controls",
-      "Use proper backup storage solutions",
-    ],
-    timestamp: "1h ago",
-  },
-  {
-    id: "3",
-    title: "Git repository exposed",
-    severity: "high" as const,
-    description: "The .git directory is accessible, potentially exposing source code and commit history including sensitive information.",
-    evidence: "URL: https://example.com/.git/config\nRepository detected: Yes",
-    recommendations: [
-      "Block access to .git directory",
-      "Add .git to .htaccess deny rules",
-      "Review git history for secrets",
-    ],
-    timestamp: "1h ago",
-  },
-  {
-    id: "4",
-    title: "Sensitive file indexed by search engines",
-    severity: "medium" as const,
-    description: "Sensitive documents were found indexed by Google, making them discoverable via search queries.",
-    evidence: 'Query: site:example.com filetype:pdf "confidential"\nResults: 12 documents found',
-    recommendations: [
-      "Remove sensitive files from public directories",
-      "Request removal from search engine indices",
-      "Implement robots.txt restrictions",
-    ],
-    timestamp: "1h ago",
-  },
-];
-
 export default function ExposureDiscoveryPage() {
   return (
     <CapabilityPage
@@ -73,7 +17,6 @@ export default function ExposureDiscoveryPage() {
       color="cyan"
       inputLabel="Target domain"
       inputPlaceholder="example.com"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -123,4 +66,3 @@ export default function ExposureDiscoveryPage() {
     />
   );
 }
-

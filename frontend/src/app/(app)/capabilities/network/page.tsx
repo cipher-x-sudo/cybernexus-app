@@ -2,49 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "HTTP tunneling detected",
-    severity: "high" as const,
-    description: "Suspicious HTTP traffic patterns indicate possible tunneling activity. An attacker may be using HTTP to bypass firewall restrictions.",
-    evidence: "Source: 10.0.0.50:54321\nDestination: External IP\nPattern: Long-lived HTTP POST with binary data\nDuration: 2h 34m",
-    recommendations: [
-      "Investigate the source workstation",
-      "Review proxy logs for anomalies",
-      "Consider implementing SSL inspection",
-      "Block unauthorized proxy traffic",
-    ],
-    timestamp: "15m ago",
-  },
-  {
-    id: "2",
-    title: "Possible DNS tunneling",
-    severity: "medium" as const,
-    description: "Unusual DNS query patterns detected that may indicate data exfiltration via DNS tunneling.",
-    evidence: "Query volume: 500 queries/min\nSubdomain entropy: High\nDestination: Unknown DNS server",
-    recommendations: [
-      "Analyze DNS query logs",
-      "Implement DNS filtering",
-      "Monitor for high-entropy subdomains",
-    ],
-    timestamp: "1h ago",
-  },
-  {
-    id: "3",
-    title: "Unauthorized SOCKS proxy detected",
-    severity: "medium" as const,
-    description: "A SOCKS proxy service was detected running on an internal workstation, potentially allowing unauthorized network access.",
-    evidence: "Host: 10.0.0.25\nPort: 1080\nType: SOCKS5\nStatus: Active",
-    recommendations: [
-      "Disable the unauthorized proxy",
-      "Investigate how it was installed",
-      "Scan for similar services",
-    ],
-    timestamp: "2h ago",
-  },
-];
-
 export default function NetworkSecurityPage() {
   return (
     <CapabilityPage
@@ -60,7 +17,6 @@ export default function NetworkSecurityPage() {
       color="blue"
       inputLabel="Network segment or IP range"
       inputPlaceholder="192.168.1.0/24 or 10.0.0.1"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -109,4 +65,3 @@ export default function NetworkSecurityPage() {
     />
   );
 }
-

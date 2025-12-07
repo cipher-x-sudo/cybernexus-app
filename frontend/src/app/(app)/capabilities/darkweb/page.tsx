@@ -2,49 +2,6 @@
 
 import { CapabilityPage } from "@/components/capabilities/CapabilityPage";
 
-const sampleFindings = [
-  {
-    id: "1",
-    title: "Credentials found on dark web marketplace",
-    severity: "critical" as const,
-    description: "Employee email and password combo found listed for sale on a prominent dark web marketplace. The credentials appear to be from a recent breach.",
-    evidence: "user@company.com:******* (partially redacted)\nFound on: DarkMarket\nListing date: 2024-01-15",
-    recommendations: [
-      "Immediately reset the affected password",
-      "Enable multi-factor authentication",
-      "Monitor for unauthorized access",
-      "Notify the affected employee",
-    ],
-    timestamp: "2h ago",
-  },
-  {
-    id: "2",
-    title: "Brand impersonation site detected",
-    severity: "high" as const,
-    description: "A phishing site mimicking your company's login page has been discovered on the dark web. The site is actively collecting credentials.",
-    evidence: "URL: c0mpany-login.onion\nSimilarity score: 94%\nStatus: Active",
-    recommendations: [
-      "Report to hosting provider",
-      "Alert employees about the threat",
-      "Monitor for credential stuffing attacks",
-    ],
-    timestamp: "4h ago",
-  },
-  {
-    id: "3",
-    title: "Company mentioned in threat actor forum",
-    severity: "medium" as const,
-    description: "Your organization was mentioned in a hacking forum discussion about potential targets. No specific attack plans were observed.",
-    evidence: "Forum: HackingForum\nThread: \"Corporate targets Q1 2024\"\nMention context: Listed among potential targets",
-    recommendations: [
-      "Increase monitoring",
-      "Review perimeter security",
-      "Conduct security awareness training",
-    ],
-    timestamp: "1d ago",
-  },
-];
-
 export default function DarkWebPage() {
   return (
     <CapabilityPage
@@ -60,7 +17,6 @@ export default function DarkWebPage() {
       color="purple"
       inputLabel="Keywords to monitor"
       inputPlaceholder="company-name, @domain.com, brand-name"
-      findings={sampleFindings}
       configOptions={
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -109,4 +65,3 @@ export default function DarkWebPage() {
     />
   );
 }
-

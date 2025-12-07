@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
 import { GlassButton } from "@/components/ui/glass-button";
 import Link from "next/link";
+import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 
 interface Finding {
   id: string;
@@ -25,9 +26,56 @@ interface CapabilityPageProps {
   color: string;
   inputLabel: string;
   inputPlaceholder: string;
-  findings?: Finding[];
   configOptions?: React.ReactNode;
-  onScan?: (target: string, config: Record<string, unknown>) => Promise<void>;
+}
+
+// Convert API finding to display finding
+function convertFinding(apiFinding: CapabilityFinding): Finding {
+  // Format evidence as string for display
+  let evidenceStr = "";
+  if (apiFinding.evidence) {
+    try {
+      evidenceStr = Object.entries(apiFinding.evidence)
+        .map(([key, value]) => {
+          if (typeof value === "object") {
+            return `${key}: ${JSON.stringify(value, null, 2)}`;
+          }
+          return `${key}: ${value}`;
+        })
+        .join("\n");
+    } catch {
+      evidenceStr = JSON.stringify(apiFinding.evidence, null, 2);
+    }
+  }
+
+  // Format timestamp
+  const timestamp = apiFinding.discovered_at
+    ? formatRelativeTime(new Date(apiFinding.discovered_at))
+    : "Just now";
+
+  return {
+    id: apiFinding.id,
+    title: apiFinding.title,
+    severity: apiFinding.severity,
+    description: apiFinding.description,
+    evidence: evidenceStr,
+    recommendations: apiFinding.recommendations || [],
+    timestamp,
+  };
+}
+
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }
 
 export function CapabilityPage({
@@ -39,15 +87,16 @@ export function CapabilityPage({
   color,
   inputLabel,
   inputPlaceholder,
-  findings = [],
   configOptions,
-  onScan,
 }: CapabilityPageProps) {
   const [target, setTarget] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
 
   const getColorClasses = () => {
     const colors: Record<string, { accent: string; bg: string; border: string; glow: string }> = {
@@ -99,36 +148,73 @@ export function CapabilityPage({
 
   const colors = getColorClasses();
 
+  // Poll for job status
+  const pollJobStatus = useCallback(async (jobId: string) => {
+    try {
+      const job = await api.getJobStatus(jobId);
+      setCurrentJob(job);
+      setProgress(job.progress);
+
+      if (job.status === "completed") {
+        // Fetch findings
+        const apiFindings = await api.getJobFindings(jobId);
+        const convertedFindings = apiFindings.map(convertFinding);
+        setFindings(convertedFindings);
+        setIsScanning(false);
+        setProgress(100);
+        return true; // Done
+      } else if (job.status === "failed") {
+        setError(job.error || "Scan failed");
+        setIsScanning(false);
+        return true; // Done
+      }
+      return false; // Keep polling
+    } catch (err) {
+      console.error("Error polling job status:", err);
+      return false;
+    }
+  }, []);
+
   const handleScan = async () => {
     if (!target.trim()) return;
+    
     setIsScanning(true);
     setProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) {
-          clearInterval(progressInterval);
-          return 95;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 500);
+    setError(null);
+    setFindings([]);
+    setSelectedFinding(null);
 
     try {
-      if (onScan) {
-        await onScan(target, {});
-      } else {
-        // Simulate scan
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      }
-      setProgress(100);
-    } finally {
-      clearInterval(progressInterval);
+      // Create job via API
+      const job = await api.createCapabilityJob({
+        capability: id,
+        target: target.trim(),
+        priority: "normal",
+      });
+
+      setCurrentJob(job);
+
+      // Poll for job completion
+      const pollInterval = setInterval(async () => {
+        const done = await pollJobStatus(job.id);
+        if (done) {
+          clearInterval(pollInterval);
+        }
+      }, 1000);
+
+      // Timeout after 5 minutes
       setTimeout(() => {
-        setIsScanning(false);
-        setProgress(0);
-      }, 500);
+        clearInterval(pollInterval);
+        if (isScanning) {
+          setError("Scan timed out");
+          setIsScanning(false);
+        }
+      }, 300000);
+
+    } catch (err) {
+      console.error("Scan error:", err);
+      setError(err instanceof Error ? err.message : "Failed to start scan");
+      setIsScanning(false);
     }
   };
 
@@ -149,7 +235,7 @@ export function CapabilityPage({
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
-            href="/dashboard"
+            href="/capabilities"
             className="mt-1 p-2 rounded-lg hover:bg-white/[0.05] transition-colors"
           >
             <svg className="w-5 h-5 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -218,11 +304,20 @@ export function CapabilityPage({
             </div>
           </div>
 
+          {/* Error message */}
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono animate-fade-in">
+              {error}
+            </div>
+          )}
+
           {/* Progress bar */}
           {isScanning && (
             <div className="space-y-2 animate-fade-in">
               <div className="flex justify-between text-xs font-mono">
-                <span className="text-white/50">Scanning...</span>
+                <span className="text-white/50">
+                  {currentJob?.status === "running" ? "Scanning..." : "Starting..."}
+                </span>
                 <span className={colors.accent}>{Math.round(progress)}%</span>
               </div>
               <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
@@ -270,7 +365,7 @@ export function CapabilityPage({
                 <p className="text-sm text-white/30 mt-1">Enter a target and start a scan</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {findings.map((finding) => {
                   const styles = getSeverityStyles(finding.severity);
                   return (
@@ -288,18 +383,18 @@ export function CapabilityPage({
                       <div className="flex items-start gap-3">
                         <span
                           className={cn(
-                            "px-2 py-0.5 text-xs font-mono uppercase rounded",
+                            "px-2 py-0.5 text-xs font-mono uppercase rounded flex-shrink-0",
                             styles.bg,
                             styles.text
                           )}
                         >
                           {finding.severity}
                         </span>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-white">{finding.title}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{finding.title}</p>
                           <p className="text-xs text-white/40 mt-1 line-clamp-2">{finding.description}</p>
                         </div>
-                        <span className="text-xs text-white/30">{finding.timestamp}</span>
+                        <span className="text-xs text-white/30 flex-shrink-0">{finding.timestamp}</span>
                       </div>
                     </button>
                   );
@@ -335,22 +430,24 @@ export function CapabilityPage({
 
                 <div>
                   <h4 className="text-xs font-mono text-white/50 mb-2">Evidence</h4>
-                  <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto">
-                    {selectedFinding.evidence}
+                  <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    {selectedFinding.evidence || "No evidence available"}
                   </pre>
                 </div>
 
-                <div>
-                  <h4 className="text-xs font-mono text-white/50 mb-2">Recommendations</h4>
-                  <ul className="space-y-1">
-                    {selectedFinding.recommendations.map((rec, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-white/70">
-                        <span className={colors.accent}>•</span>
-                        {rec}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {selectedFinding.recommendations.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-mono text-white/50 mb-2">Recommendations</h4>
+                    <ul className="space-y-1">
+                      {selectedFinding.recommendations.map((rec, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-white/70">
+                          <span className={colors.accent}>•</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-8 text-center">
@@ -365,4 +462,3 @@ export function CapabilityPage({
 }
 
 export default CapabilityPage;
-

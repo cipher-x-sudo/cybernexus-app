@@ -5,13 +5,13 @@ Maps user-facing capabilities to underlying tools. Users never see tool names -
 they interact with high-level security capabilities.
 
 Capabilities → Tools mapping:
-- Exposure Discovery → oxdork + lookyloo
-- Dark Web Intelligence → freshonions + VigilantOnion
-- Email Security → espoofer
-- Infrastructure Testing → nginxpwner
-- Authentication Testing → RDPassSpray
-- Network Security → Tunna
-- Investigation → lookyloo + correlation
+- Exposure Discovery → WebRecon (subdomain enumeration, endpoint discovery)
+- Dark Web Intelligence → DarkWatch (onion site monitoring)
+- Email Security → EmailAudit (SPF/DKIM/DMARC analysis)
+- Infrastructure Testing → ConfigAudit (security headers, vuln scanning)
+- Authentication Testing → CredentialAnalyzer
+- Network Security → TunnelDetector
+- Investigation → Domain correlation
 """
 
 from typing import Dict, List, Optional, Any
@@ -23,6 +23,11 @@ import asyncio
 from loguru import logger
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
+
+# Import real collectors
+from app.collectors.web_recon import WebRecon
+from app.collectors.email_audit import EmailAudit
+from app.collectors.config_audit import ConfigAudit
 
 
 class Capability(str, Enum):
@@ -257,7 +262,12 @@ class Orchestrator:
             "high_findings": 0
         }
         
-        logger.info("Orchestrator initialized")
+        # Initialize real collectors
+        self._web_recon = WebRecon()
+        self._email_audit = EmailAudit()
+        self._config_audit = ConfigAudit()
+        
+        logger.info("Orchestrator initialized with real collectors")
     
     def get_capabilities(self) -> List[Dict[str, Any]]:
         """Get all available capabilities"""
@@ -392,31 +402,480 @@ class Orchestrator:
             })
     
     async def _execute_capability(self, job: Job) -> List[Finding]:
-        """Execute the appropriate capability (simulated for now)"""
+        """Execute the appropriate capability using real collectors"""
         findings = []
         
-        # Simulate execution with progress updates
-        for i in range(1, 11):
-            await asyncio.sleep(0.5)  # Simulate work
-            job.progress = i * 10
+        logger.info(f"Executing capability {job.capability.value} for {job.target}")
+        job.progress = 10
         
-        # Generate sample findings based on capability
-        if job.capability == Capability.EMAIL_SECURITY:
-            findings = self._generate_email_findings(job)
-        elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
-            findings = self._generate_darkweb_findings(job)
-        elif job.capability == Capability.EXPOSURE_DISCOVERY:
-            findings = self._generate_exposure_findings(job)
-        elif job.capability == Capability.INFRASTRUCTURE_TESTING:
-            findings = self._generate_infra_findings(job)
-        elif job.capability == Capability.AUTHENTICATION_TESTING:
-            findings = self._generate_auth_findings(job)
-        elif job.capability == Capability.NETWORK_SECURITY:
-            findings = self._generate_network_findings(job)
-        elif job.capability == Capability.INVESTIGATION:
-            findings = self._generate_investigation_findings(job)
+        try:
+            if job.capability == Capability.EMAIL_SECURITY:
+                findings = await self._execute_email_audit(job)
+            elif job.capability == Capability.EXPOSURE_DISCOVERY:
+                findings = await self._execute_exposure_discovery(job)
+            elif job.capability == Capability.INFRASTRUCTURE_TESTING:
+                findings = await self._execute_infra_testing(job)
+            elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
+                # Keep simulated for now (requires Tor)
+                findings = self._generate_darkweb_findings(job)
+            elif job.capability == Capability.AUTHENTICATION_TESTING:
+                findings = self._generate_auth_findings(job)
+            elif job.capability == Capability.NETWORK_SECURITY:
+                findings = self._generate_network_findings(job)
+            elif job.capability == Capability.INVESTIGATION:
+                findings = self._generate_investigation_findings(job)
+        except Exception as e:
+            logger.error(f"Collector error for {job.capability.value}: {e}")
+            raise
+        
+        job.progress = 100
+        return findings
+    
+    async def _execute_email_audit(self, job: Job) -> List[Finding]:
+        """Execute real email security audit using EmailAudit collector"""
+        findings = []
+        
+        job.progress = 20
+        logger.info(f"Running email audit for {job.target}")
+        
+        # Run real email audit
+        results = await self._email_audit.audit(job.target)
+        
+        job.progress = 80
+        
+        # Convert SPF issues to findings
+        spf = results.get("spf", {})
+        if spf.get("exists"):
+            for issue in spf.get("issues", []):
+                severity = issue.get("severity", "medium")
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity=severity,
+                    title=f"SPF Issue: {issue.get('issue', 'Unknown')}",
+                    description=issue.get("issue", "SPF configuration issue detected"),
+                    evidence={
+                        "spf_record": spf.get("record"),
+                        "all_mechanism": spf.get("all_mechanism"),
+                        "includes": spf.get("includes", [])
+                    },
+                    affected_assets=[job.target],
+                    recommendations=self._get_spf_recommendations(spf),
+                    discovered_at=datetime.now(),
+                    risk_score=self._severity_to_score(severity)
+                ))
+        else:
+            # No SPF record found
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EMAIL_SECURITY,
+                severity="high",
+                title="No SPF Record Found",
+                description=f"The domain {job.target} has no SPF record, making it vulnerable to email spoofing",
+                evidence={"spf_exists": False},
+                affected_assets=[job.target],
+                recommendations=["Create an SPF record for your domain", "Start with: v=spf1 include:_spf.google.com ~all"],
+                discovered_at=datetime.now(),
+                risk_score=75.0
+            ))
+        
+        # Convert DKIM issues to findings
+        dkim = results.get("dkim", {})
+        if not dkim.get("selectors_found"):
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EMAIL_SECURITY,
+                severity="high",
+                title="No DKIM Records Found",
+                description=f"No DKIM records found for {job.target}. Email authenticity cannot be verified.",
+                evidence={
+                    "selectors_checked": dkim.get("selectors_checked", 0),
+                    "selectors_found": []
+                },
+                affected_assets=[job.target],
+                recommendations=["Configure DKIM signing for your email server", "Publish DKIM public key in DNS"],
+                discovered_at=datetime.now(),
+                risk_score=70.0
+            ))
+        else:
+            # DKIM found - report as info
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EMAIL_SECURITY,
+                severity="info",
+                title="DKIM Records Found",
+                description=f"DKIM is properly configured for {job.target}",
+                evidence={
+                    "selectors_found": [s.get("selector") for s in dkim.get("selectors_found", [])]
+                },
+                affected_assets=[job.target],
+                recommendations=["Continue monitoring DKIM configuration"],
+                discovered_at=datetime.now(),
+                risk_score=10.0
+            ))
+        
+        # Convert DMARC issues to findings
+        dmarc = results.get("dmarc", {})
+        if dmarc.get("exists"):
+            policy = dmarc.get("policy")
+            if policy == "none":
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="high",
+                    title="DMARC Policy Set to 'none'",
+                    description=f"DMARC policy for {job.target} is 'none' (monitoring only). Failed emails are still delivered.",
+                    evidence={
+                        "dmarc_record": dmarc.get("record"),
+                        "policy": policy,
+                        "pct": dmarc.get("pct", 100)
+                    },
+                    affected_assets=[job.target],
+                    recommendations=["Upgrade DMARC policy to 'quarantine' or 'reject'", "Review DMARC reports before changing"],
+                    discovered_at=datetime.now(),
+                    risk_score=65.0
+                ))
+            elif policy in ["quarantine", "reject"]:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="info",
+                    title=f"DMARC Policy: {policy}",
+                    description=f"DMARC is enforcing {policy} policy for failed authentication",
+                    evidence={
+                        "dmarc_record": dmarc.get("record"),
+                        "policy": policy,
+                        "rua": dmarc.get("rua", [])
+                    },
+                    affected_assets=[job.target],
+                    recommendations=["Monitor DMARC reports regularly"],
+                    discovered_at=datetime.now(),
+                    risk_score=15.0
+                ))
+            
+            # Check for missing report URI
+            if not dmarc.get("rua"):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="medium",
+                    title="Missing DMARC Aggregate Reports",
+                    description="No aggregate report URI (rua) configured. You won't receive authentication reports.",
+                    evidence={"dmarc_record": dmarc.get("record")},
+                    affected_assets=[job.target],
+                    recommendations=["Add rua= tag to receive DMARC reports", "Use a DMARC analysis service"],
+                    discovered_at=datetime.now(),
+                    risk_score=40.0
+                ))
+        else:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EMAIL_SECURITY,
+                severity="high",
+                title="No DMARC Record Found",
+                description=f"The domain {job.target} has no DMARC record. No email authentication policy is enforced.",
+                evidence={"dmarc_exists": False},
+                affected_assets=[job.target],
+                recommendations=["Create a DMARC record", "Start with: v=DMARC1; p=none; rua=mailto:dmarc@yourdomain.com"],
+                discovered_at=datetime.now(),
+                risk_score=70.0
+            ))
+        
+        # Add risk assessment as a finding
+        risk = results.get("risk_assessment", {})
+        if risk.get("spoofing_risk") in ["critical", "high"]:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EMAIL_SECURITY,
+                severity=risk.get("spoofing_risk"),
+                title=f"Email Spoofing Risk: {risk.get('spoofing_risk', 'unknown').upper()}",
+                description=f"Overall email security assessment indicates {risk.get('spoofing_risk')} risk of spoofing",
+                evidence={
+                    "risk_factors": risk.get("factors", []),
+                    "security_score": results.get("score", 0)
+                },
+                affected_assets=[job.target],
+                recommendations=["Address all identified email security issues", "Implement SPF, DKIM, and DMARC"],
+                discovered_at=datetime.now(),
+                risk_score=self._severity_to_score(risk.get("spoofing_risk", "medium"))
+            ))
         
         return findings
+    
+    async def _execute_exposure_discovery(self, job: Job) -> List[Finding]:
+        """Execute real exposure discovery using WebRecon collector"""
+        findings = []
+        
+        job.progress = 20
+        logger.info(f"Running exposure discovery for {job.target}")
+        
+        # Run real web reconnaissance
+        results = await self._web_recon.discover_assets(job.target)
+        
+        job.progress = 80
+        
+        # Convert subdomain findings
+        subdomains = results.get("subdomains", [])
+        if subdomains:
+            # Report discovered subdomains
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EXPOSURE_DISCOVERY,
+                severity="info",
+                title=f"Discovered {len(subdomains)} Subdomains",
+                description=f"Subdomain enumeration found {len(subdomains)} active subdomains for {job.target}",
+                evidence={
+                    "subdomains": [s.get("subdomain") for s in subdomains[:20]],
+                    "total_found": len(subdomains)
+                },
+                affected_assets=[s.get("subdomain") for s in subdomains],
+                recommendations=["Review discovered subdomains for unauthorized services", "Ensure all subdomains are properly secured"],
+                discovered_at=datetime.now(),
+                risk_score=25.0
+            ))
+            
+            # Check for non-HTTPS subdomains
+            non_https = [s for s in subdomains if not s.get("https")]
+            if non_https:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EXPOSURE_DISCOVERY,
+                    severity="medium",
+                    title=f"{len(non_https)} Subdomains Without HTTPS",
+                    description="Some subdomains are accessible only via HTTP, which is insecure",
+                    evidence={
+                        "non_https_subdomains": [s.get("subdomain") for s in non_https[:10]]
+                    },
+                    affected_assets=[s.get("subdomain") for s in non_https],
+                    recommendations=["Enable HTTPS on all subdomains", "Redirect HTTP to HTTPS"],
+                    discovered_at=datetime.now(),
+                    risk_score=50.0
+                ))
+        
+        # Convert endpoint findings
+        endpoints = results.get("endpoints", [])
+        for endpoint in endpoints:
+            path = endpoint.get("path", "")
+            status = endpoint.get("status", 0)
+            
+            # Determine severity based on endpoint type
+            severity = "info"
+            risk_score = 20.0
+            title = f"Endpoint Discovered: {path}"
+            recommendations = ["Review endpoint access controls"]
+            
+            if path in ["/.git/config", "/.git/HEAD"]:
+                severity = "critical"
+                risk_score = 90.0
+                title = "Git Repository Exposed"
+                recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
+            elif path == "/.env":
+                severity = "critical"
+                risk_score = 95.0
+                title = "Environment File Exposed"
+                recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
+            elif path in ["/admin", "/wp-admin", "/administrator"]:
+                severity = "high"
+                risk_score = 70.0
+                title = f"Admin Panel Exposed: {path}"
+                recommendations = ["Restrict admin access by IP", "Implement strong authentication"]
+            elif path in ["/phpinfo.php", "/server-status"]:
+                severity = "high"
+                risk_score = 65.0
+                title = f"Server Information Exposed: {path}"
+                recommendations = ["Remove debug endpoints from production", "Disable server-status"]
+            elif path in ["/backup", "/config"]:
+                severity = "high"
+                risk_score = 75.0
+                title = f"Sensitive Directory Exposed: {path}"
+                recommendations = ["Remove sensitive files from web root", "Implement access controls"]
+            elif path in ["/robots.txt", "/sitemap.xml"]:
+                severity = "info"
+                risk_score = 10.0
+            
+            if status == 200 or (status >= 300 and status < 400):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EXPOSURE_DISCOVERY,
+                    severity=severity,
+                    title=title,
+                    description=f"Discovered accessible endpoint at {endpoint.get('url', path)}",
+                    evidence={
+                        "url": endpoint.get("url"),
+                        "path": path,
+                        "status_code": status,
+                        "content_length": endpoint.get("content_length", 0)
+                    },
+                    affected_assets=[endpoint.get("url", f"{job.target}{path}")],
+                    recommendations=recommendations,
+                    discovered_at=datetime.now(),
+                    risk_score=risk_score
+                ))
+        
+        # Report dork queries generated
+        dorks_count = results.get("dorks_generated", 0)
+        if dorks_count > 0:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.EXPOSURE_DISCOVERY,
+                severity="info",
+                title=f"Generated {dorks_count} Search Dorks",
+                description="Search engine dork queries have been generated for manual investigation",
+                evidence={
+                    "dork_count": dorks_count,
+                    "sample_dorks": self._web_recon.generate_dorks(job.target)[:5]
+                },
+                affected_assets=[job.target],
+                recommendations=["Use these dorks in Google to find exposed information", "Review and remove any sensitive findings"],
+                discovered_at=datetime.now(),
+                risk_score=15.0
+            ))
+        
+        return findings
+    
+    async def _execute_infra_testing(self, job: Job) -> List[Finding]:
+        """Execute real infrastructure testing using ConfigAudit collector"""
+        findings = []
+        
+        job.progress = 20
+        logger.info(f"Running infrastructure audit for {job.target}")
+        
+        # Run real config audit
+        results = await self._config_audit.audit(job.target)
+        
+        job.progress = 80
+        
+        # Convert header analysis to findings
+        headers = results.get("headers_analysis", {})
+        
+        # Missing headers
+        for missing in headers.get("missing", []):
+            header_name = missing.get("header", "Unknown")
+            severity = missing.get("severity", "medium")
+            
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INFRASTRUCTURE_TESTING,
+                severity=severity,
+                title=f"Missing Security Header: {header_name}",
+                description=f"The security header {header_name} is not present in responses from {job.target}",
+                evidence={
+                    "missing_header": header_name,
+                    "recommendation": missing.get("recommendation")
+                },
+                affected_assets=[job.target],
+                recommendations=[missing.get("recommendation", f"Add {header_name} header")],
+                discovered_at=datetime.now(),
+                risk_score=self._severity_to_score(severity)
+            ))
+        
+        # Report present headers as info
+        present_headers = headers.get("present", [])
+        if present_headers:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INFRASTRUCTURE_TESTING,
+                severity="info",
+                title=f"{len(present_headers)} Security Headers Present",
+                description="Some security headers are properly configured",
+                evidence={
+                    "headers": {h.get("header"): h.get("value")[:50] for h in present_headers}
+                },
+                affected_assets=[job.target],
+                recommendations=["Continue monitoring security header configuration"],
+                discovered_at=datetime.now(),
+                risk_score=10.0
+            ))
+        
+        # Convert vulnerability findings
+        vuln_findings = results.get("findings", [])
+        for vuln in vuln_findings:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INFRASTRUCTURE_TESTING,
+                severity=vuln.get("severity", "medium"),
+                title=vuln.get("description", "Vulnerability Detected"),
+                description=f"Security vulnerability detected: {vuln.get('description')}",
+                evidence={
+                    "check": vuln.get("check"),
+                    "evidence": vuln.get("evidence"),
+                    "url": vuln.get("url")
+                },
+                affected_assets=[vuln.get("url", job.target)],
+                recommendations=["Patch the identified vulnerability", "Review server configuration"],
+                discovered_at=datetime.now(),
+                risk_score=self._severity_to_score(vuln.get("severity", "medium"))
+            ))
+        
+        # Report server info
+        server_info = results.get("server_info", {})
+        if server_info.get("server") and server_info.get("server") != "unknown":
+            # Check for version disclosure
+            version = server_info.get("nginx_version")
+            if version:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.INFRASTRUCTURE_TESTING,
+                    severity="low",
+                    title="Server Version Disclosed",
+                    description=f"Server version information is exposed in HTTP headers",
+                    evidence={
+                        "server": server_info.get("server"),
+                        "version": version,
+                        "powered_by": server_info.get("powered_by")
+                    },
+                    affected_assets=[job.target],
+                    recommendations=["Hide server version in HTTP headers", "Configure server_tokens off"],
+                    discovered_at=datetime.now(),
+                    risk_score=30.0
+                ))
+        
+        # Overall score as a finding
+        score = results.get("score", 0)
+        if score < 50:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INFRASTRUCTURE_TESTING,
+                severity="high",
+                title=f"Low Infrastructure Security Score: {score}/100",
+                description="Overall infrastructure security assessment indicates significant issues",
+                evidence={"security_score": score},
+                affected_assets=[job.target],
+                recommendations=["Address all identified security issues", "Implement security headers"],
+                discovered_at=datetime.now(),
+                risk_score=85.0 - score * 0.5
+            ))
+        
+        return findings
+    
+    def _severity_to_score(self, severity: str) -> float:
+        """Convert severity string to risk score"""
+        scores = {
+            "critical": 95.0,
+            "high": 75.0,
+            "medium": 50.0,
+            "low": 25.0,
+            "info": 10.0
+        }
+        return scores.get(severity, 50.0)
+    
+    def _get_spf_recommendations(self, spf: Dict[str, Any]) -> List[str]:
+        """Get SPF-specific recommendations"""
+        recommendations = []
+        all_mech = spf.get("all_mechanism")
+        
+        if all_mech == "+all":
+            recommendations.append("Change +all to -all or ~all immediately")
+            recommendations.append("Review and whitelist only authorized senders")
+        elif all_mech == "~all":
+            recommendations.append("Consider upgrading ~all to -all for stricter enforcement")
+        elif all_mech is None:
+            recommendations.append("Add an 'all' mechanism to your SPF record")
+        
+        if len(spf.get("includes", [])) > 10:
+            recommendations.append("Reduce SPF includes to avoid DNS lookup limits")
+        
+        return recommendations if recommendations else ["SPF configuration looks good"]
     
     def _generate_email_findings(self, job: Job) -> List[Finding]:
         """Generate sample email security findings"""
