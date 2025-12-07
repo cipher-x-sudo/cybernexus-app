@@ -1,16 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
 import { cn, formatDate } from "@/lib/utils";
-
-interface Report {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  createdAt: Date;
-}
 
 const reportTypes = [
   {
@@ -51,50 +43,41 @@ const reportTypes = [
   },
 ];
 
-// Generate reports only on client to avoid hydration mismatch
-function generateRecentReports(): Report[] {
-  const now = Date.now();
-  return [
-    {
-      id: "1",
-      name: "Q4 2024 Executive Summary",
-      type: "executive",
-      status: "completed",
-      createdAt: new Date(now - 2 * 24 * 60 * 60000),
-    },
-    {
-      id: "2",
-      name: "Incident #1234 - Data Breach",
-      type: "incident",
-      status: "completed",
-      createdAt: new Date(now - 5 * 24 * 60 * 60000),
-    },
-    {
-      id: "3",
-      name: "Monthly Technical Report",
-      type: "technical",
-      status: "generating",
-      createdAt: new Date(now - 60 * 60000),
-    },
-    {
-      id: "4",
-      name: "SOC 2 Compliance Audit",
-      type: "compliance",
-      status: "completed",
-      createdAt: new Date(now - 14 * 24 * 60 * 60000),
-    },
-  ];
-}
+const recentReports = [
+  {
+    id: "1",
+    name: "Q4 2024 Executive Summary",
+    type: "executive",
+    status: "completed",
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60000),
+  },
+  {
+    id: "2",
+    name: "Incident #1234 - Data Breach",
+    type: "incident",
+    status: "completed",
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60000),
+  },
+  {
+    id: "3",
+    name: "Monthly Technical Report",
+    type: "technical",
+    status: "generating",
+    createdAt: new Date(Date.now() - 60 * 60000),
+  },
+  {
+    id: "4",
+    name: "SOC 2 Compliance Audit",
+    type: "compliance",
+    status: "completed",
+    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60000),
+  },
+];
 
 export default function ReportsPage() {
-  const [recentReports, setRecentReports] = useState<Report[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [reportName, setReportName] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-
-  useEffect(() => {
-    setRecentReports(generateRecentReports());
-  }, []);
 
   const handleGenerate = () => {
     console.log("Generating report:", { selectedType, reportName, dateRange });

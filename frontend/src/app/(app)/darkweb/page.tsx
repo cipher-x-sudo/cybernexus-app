@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
@@ -16,66 +16,62 @@ interface Mention {
   author?: string;
 }
 
-// Generate mentions only on client to avoid hydration mismatch
-function generateMockMentions(): Mention[] {
-  const now = Date.now();
-  return [
-    {
-      id: "1",
-      title: "Company.com database for sale",
-      content: "Fresh dump from company.com. 500k records including emails, passwords (hashed), personal info. Contact via PM for samples.",
-      source: "marketplace",
-      severity: "critical",
-      keywords: ["company.com", "database", "dump"],
-      url: "http://dark...onion/listing/12345",
-      timestamp: new Date(now - 30 * 60000),
-      author: "DataBroker99",
-    },
-    {
-      id: "2",
-      title: "Looking for company.com access",
-      content: "Will pay $5k for valid VPN credentials or RDP access to company.com infrastructure. Must be recent and working.",
-      source: "forum",
-      severity: "high",
-      keywords: ["company.com", "access", "VPN"],
-      url: "http://forum...onion/thread/78901",
-      timestamp: new Date(now - 2 * 60 * 60000),
-      author: "AccessSeeker",
-    },
-    {
-      id: "3",
-      title: "company.com employee list",
-      content: "List of 200+ employees with positions and emails scraped from LinkedIn",
-      source: "paste_site",
-      severity: "medium",
-      keywords: ["company.com", "employees", "LinkedIn"],
-      url: "https://paste.../abc123",
-      timestamp: new Date(now - 12 * 60 * 60000),
-    },
-    {
-      id: "4",
-      title: "Leaked API keys discussion",
-      content: "Found some company.com API keys on GitHub. Testing if they work.",
-      source: "telegram",
-      severity: "high",
-      keywords: ["company.com", "API", "GitHub"],
-      url: "t.me/leak_chat/...",
-      timestamp: new Date(now - 24 * 60 * 60000),
-      author: "anon_researcher",
-    },
-    {
-      id: "5",
-      title: "Company infrastructure mapping",
-      content: "Sharing my recon results for company.com. Found 15 subdomains, 3 with potential vulns.",
-      source: "discord",
-      severity: "medium",
-      keywords: ["company.com", "recon", "subdomain"],
-      url: "discord.gg/...",
-      timestamp: new Date(now - 48 * 60 * 60000),
-      author: "ReconMaster",
-    },
-  ];
-}
+const mockMentions: Mention[] = [
+  {
+    id: "1",
+    title: "Company.com database for sale",
+    content: "Fresh dump from company.com. 500k records including emails, passwords (hashed), personal info. Contact via PM for samples.",
+    source: "marketplace",
+    severity: "critical",
+    keywords: ["company.com", "database", "dump"],
+    url: "http://dark...onion/listing/12345",
+    timestamp: new Date(Date.now() - 30 * 60000),
+    author: "DataBroker99",
+  },
+  {
+    id: "2",
+    title: "Looking for company.com access",
+    content: "Will pay $5k for valid VPN credentials or RDP access to company.com infrastructure. Must be recent and working.",
+    source: "forum",
+    severity: "high",
+    keywords: ["company.com", "access", "VPN"],
+    url: "http://forum...onion/thread/78901",
+    timestamp: new Date(Date.now() - 2 * 60 * 60000),
+    author: "AccessSeeker",
+  },
+  {
+    id: "3",
+    title: "company.com employee list",
+    content: "List of 200+ employees with positions and emails scraped from LinkedIn",
+    source: "paste_site",
+    severity: "medium",
+    keywords: ["company.com", "employees", "LinkedIn"],
+    url: "https://paste.../abc123",
+    timestamp: new Date(Date.now() - 12 * 60 * 60000),
+  },
+  {
+    id: "4",
+    title: "Leaked API keys discussion",
+    content: "Found some company.com API keys on GitHub. Testing if they work.",
+    source: "telegram",
+    severity: "high",
+    keywords: ["company.com", "API", "GitHub"],
+    url: "t.me/leak_chat/...",
+    timestamp: new Date(Date.now() - 24 * 60 * 60000),
+    author: "anon_researcher",
+  },
+  {
+    id: "5",
+    title: "Company infrastructure mapping",
+    content: "Sharing my recon results for company.com. Found 15 subdomains, 3 with potential vulns.",
+    source: "discord",
+    severity: "medium",
+    keywords: ["company.com", "recon", "subdomain"],
+    url: "discord.gg/...",
+    timestamp: new Date(Date.now() - 48 * 60 * 60000),
+    author: "ReconMaster",
+  },
+];
 
 const sourceIcons = {
   forum: "💬",
@@ -98,16 +94,11 @@ const sourceLabels = {
 };
 
 export default function DarkWebPage() {
-  const [mentions, setMentions] = useState<Mention[]>([]);
   const [selectedMention, setSelectedMention] = useState<Mention | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
 
-  useEffect(() => {
-    setMentions(generateMockMentions());
-  }, []);
-
-  const filteredMentions = mentions.filter((mention) => {
+  const filteredMentions = mockMentions.filter((mention) => {
     if (sourceFilter !== "all" && mention.source !== sourceFilter) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -142,10 +133,10 @@ export default function DarkWebPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Mentions", value: mentions.length },
-          { label: "Critical", value: mentions.filter((m) => m.severity === "critical").length },
-          { label: "This Week", value: mentions.length }, // All mock data is within a week
-          { label: "Sources", value: new Set(mentions.map((m) => m.source)).size },
+          { label: "Total Mentions", value: mockMentions.length },
+          { label: "Critical", value: mockMentions.filter((m) => m.severity === "critical").length },
+          { label: "This Week", value: mockMentions.filter((m) => m.timestamp > new Date(Date.now() - 7 * 24 * 60 * 60000)).length },
+          { label: "Sources", value: new Set(mockMentions.map((m) => m.source)).size },
         ].map((stat) => (
           <GlassCard key={stat.label} padding="lg">
             <p className="text-sm font-mono text-white/50 mb-1">{stat.label}</p>
