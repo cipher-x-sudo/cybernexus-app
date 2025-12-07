@@ -22,7 +22,7 @@ import uuid
 import asyncio
 from loguru import logger
 
-from app.core.dsa import HashMap, Heap, AVLTree
+from app.core.dsa import HashMap, MinHeap, AVLTree
 
 
 class Capability(str, Enum):
@@ -232,7 +232,7 @@ class Orchestrator:
         """Initialize the orchestrator"""
         # Job storage (using custom DSA)
         self._jobs = HashMap()  # job_id -> Job
-        self._job_queue = Heap()  # Priority queue for pending jobs
+        self._job_queue = MinHeap()  # Priority queue for pending jobs (lower priority value = higher priority)
         self._findings_index = AVLTree()  # Indexed by risk_score for fast retrieval
         
         # Job tracking
