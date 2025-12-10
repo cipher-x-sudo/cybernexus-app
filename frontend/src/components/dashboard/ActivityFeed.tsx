@@ -14,51 +14,30 @@ interface ActivityItem {
   timestamp: Date;
 }
 
-// Generate mock activities only on client to avoid hydration mismatch
-function generateMockActivities(): ActivityItem[] {
-  const now = Date.now();
-  return [
-    {
-      id: "1",
-      type: "threat",
-      title: "New APT Campaign Detected",
-      description: "APT29 activity targeting energy sector",
-      severity: "critical",
-      timestamp: new Date(now - 2 * 60000),
-    },
-    {
-      id: "2",
-      type: "credential",
-      title: "Credentials Found on Dark Web",
-      description: "5 employee credentials in recent breach dump",
-      severity: "high",
-      timestamp: new Date(now - 15 * 60000),
-    },
-    {
-      id: "3",
-      type: "scan",
-      title: "Weekly Scan Completed",
-      description: "Analyzed 1,247 assets, 3 new findings",
-      severity: "info",
-      timestamp: new Date(now - 60 * 60000),
-    },
-    {
-      id: "4",
-      type: "darkweb",
-      title: "Organization Mentioned",
-      description: "Your domain found on paste site",
-      severity: "medium",
-      timestamp: new Date(now - 2 * 60 * 60000),
-    },
-    {
-      id: "5",
-      type: "alert",
-      title: "Phishing Domain Registered",
-      description: "Lookalike domain registered targeting your brand",
-      severity: "high",
-      timestamp: new Date(now - 3 * 60 * 60000),
-    },
-  ];
+// Fetch activities from timeline API
+async function fetchActivities(): Promise<ActivityItem[]> {
+  try {
+    const response = await fetch('/api/timeline/recent?n=20');
+    if (!response.ok) {
+      throw new Error('Failed to fetch activities');
+    }
+    const data = await response.json();
+    // Map timeline events to ActivityItem format
+    return data.map((event: any) => ({
+      id: event.id,
+      type: event.type === 'threat_detected' ? 'threat' : 
+            event.type === 'credential_leaked' ? 'credential' :
+            event.type === 'scan_completed' ? 'scan' :
+            event.type === 'dark_web_mention' ? 'darkweb' : 'alert',
+      title: event.title,
+      description: event.description,
+      severity: event.severity,
+      timestamp: new Date(event.timestamp),
+    }));
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    return [];
+  }
 }
 
 export function ActivityFeed() {
@@ -66,22 +45,23 @@ export function ActivityFeed() {
   const [displayedCount, setDisplayedCount] = useState(0);
 
   useEffect(() => {
-    // Generate activities client-side only
-    const mockActivities = generateMockActivities();
-    setActivities(mockActivities);
-    
-    // Simulate typing effect for activity items
-    const timer = setInterval(() => {
-      setDisplayedCount((prev) => {
-        if (prev >= mockActivities.length) {
-          clearInterval(timer);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 500);
+    // Fetch activities from API
+    fetchActivities().then((fetchedActivities) => {
+      setActivities(fetchedActivities);
+      
+      // Simulate typing effect for activity items
+      const timer = setInterval(() => {
+        setDisplayedCount((prev) => {
+          if (prev >= fetchedActivities.length) {
+            clearInterval(timer);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 500);
 
-    return () => clearInterval(timer);
+      return () => clearInterval(timer);
+    });
   }, []);
 
   const typeIcons = {

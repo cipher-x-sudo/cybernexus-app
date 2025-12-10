@@ -416,8 +416,7 @@ class Orchestrator:
             elif job.capability == Capability.INFRASTRUCTURE_TESTING:
                 findings = await self._execute_infra_testing(job)
             elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
-                # Keep simulated for now (requires Tor)
-                findings = self._generate_darkweb_findings(job)
+                findings = await self._execute_darkweb_intelligence(job)
             elif job.capability == Capability.AUTHENTICATION_TESTING:
                 findings = self._generate_auth_findings(job)
             elif job.capability == Capability.NETWORK_SECURITY:
@@ -906,22 +905,78 @@ class Orchestrator:
             )
         ]
     
-    def _generate_darkweb_findings(self, job: Job) -> List[Finding]:
-        """Generate sample dark web findings"""
-        return [
-            Finding(
-                id=f"find-{uuid.uuid4().hex[:8]}",
-                capability=Capability.DARK_WEB_INTELLIGENCE,
-                severity="critical",
-                title="Credential Dump Detected",
-                description=f"Credentials associated with {job.target} found in dark web database",
-                evidence={"source": "darkweb_forum", "records_count": 150},
-                affected_assets=[job.target],
-                recommendations=["Force password reset for affected accounts", "Enable MFA"],
-                discovered_at=datetime.now(),
-                risk_score=95.0
-            )
-        ]
+    async def _execute_darkweb_intelligence(self, job: Job) -> List[Finding]:
+        """Execute real dark web intelligence collection"""
+        findings = []
+        
+        try:
+            # Use DarkWatch collector
+            from app.collectors.dark_watch import DarkWatch
+            dark_watch = DarkWatch(monitored_keywords=[job.target] if job.target else [])
+            
+            # Discover URLs using engines
+            urls = dark_watch._discover_urls_with_engines()
+            
+            # Limit initial crawl to avoid overwhelming
+            crawl_limit = min(10, len(urls))
+            
+            # Crawl and analyze
+            for url in urls[:crawl_limit]:
+                try:
+                    site = dark_watch.crawl_site(url, depth=1)
+                    
+                    # Convert to Finding objects if keywords matched
+                    if site.keywords_matched:
+                        finding = Finding(
+                            id=f"find-{uuid.uuid4().hex[:8]}",
+                            capability=Capability.DARK_WEB_INTELLIGENCE,
+                            severity=self._map_threat_to_severity(site.threat_level.value),
+                            title=f"Brand mention found: {site.title}",
+                            description=f"Keyword '{job.target}' found on {site.onion_url}",
+                            evidence={"site": site.to_dict()},
+                            affected_assets=[job.target] if job.target else [],
+                            recommendations=["Review dark web mention", "Monitor for data leaks"],
+                            discovered_at=datetime.now(),
+                            risk_score=site.risk_score
+                        )
+                        findings.append(finding)
+                    
+                    # Also create findings for high-risk entities
+                    for entity in site.extracted_entities:
+                        if entity.entity_type in ["email", "credit_card"]:
+                            finding = Finding(
+                                id=f"find-{uuid.uuid4().hex[:8]}",
+                                capability=Capability.DARK_WEB_INTELLIGENCE,
+                                severity="high" if entity.entity_type == "credit_card" else "medium",
+                                title=f"{entity.entity_type.title()} found on dark web",
+                                description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
+                                evidence={"entity": entity.to_dict(), "site": site.onion_url},
+                                affected_assets=[entity.value],
+                                recommendations=["Investigate exposure", "Take remediation steps"],
+                                discovered_at=datetime.now(),
+                                risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
+                            )
+                            findings.append(finding)
+                
+                except Exception as e:
+                    logger.error(f"Error crawling {url}: {e}")
+                    continue
+        
+        except Exception as e:
+            logger.error(f"Error in dark web intelligence collection: {e}")
+        
+        return findings
+    
+    def _map_threat_to_severity(self, threat_level: str) -> str:
+        """Map threat level to severity string."""
+        mapping = {
+            "critical": "critical",
+            "high": "high",
+            "medium": "medium",
+            "low": "low",
+            "info": "info"
+        }
+        return mapping.get(threat_level.lower(), "info")
     
     def _generate_exposure_findings(self, job: Job) -> List[Finding]:
         """Generate sample exposure findings"""

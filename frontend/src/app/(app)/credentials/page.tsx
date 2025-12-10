@@ -15,61 +15,19 @@ interface Credential {
   status: "active" | "resolved" | "investigating";
 }
 
-// Generate credentials only on client to avoid hydration mismatch
-function generateMockCredentials(): Credential[] {
-  const now = Date.now();
-  return [
-    {
-      id: "1",
-      email: "admin@company.com",
-      domain: "company.com",
-      password: "p@$$w0rd123",
-      source: "Data Breach - MegaCorp",
-      severity: "critical",
-      foundAt: new Date(now - 2 * 60 * 60000),
-      status: "active",
-    },
-    {
-      id: "2",
-      email: "john.doe@company.com",
-      domain: "company.com",
-      password: "JohnDoe2024!",
-      source: "Paste Site",
-      severity: "high",
-      foundAt: new Date(now - 24 * 60 * 60000),
-      status: "investigating",
-    },
-    {
-      id: "3",
-      email: "sarah.smith@company.com",
-      domain: "company.com",
-      password: "S@rah123",
-      source: "Dark Web Forum",
-      severity: "high",
-      foundAt: new Date(now - 3 * 24 * 60 * 60000),
-      status: "resolved",
-    },
-    {
-      id: "4",
-      email: "dev@company.com",
-      domain: "company.com",
-      password: "dev_pass_temp",
-      source: "GitHub Commit",
-      severity: "medium",
-      foundAt: new Date(now - 7 * 24 * 60 * 60000),
-      status: "active",
-    },
-    {
-      id: "5",
-      email: "support@company.com",
-      domain: "company.com",
-      password: "Support2023",
-      source: "Stealer Logs",
-      severity: "critical",
-      foundAt: new Date(now - 12 * 60 * 60000),
-      status: "active",
-    },
-  ];
+// Fetch credentials from API
+async function fetchCredentials(): Promise<Credential[]> {
+  try {
+    const response = await fetch('/api/credentials');
+    if (!response.ok) {
+      throw new Error('Failed to fetch credentials');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching credentials:', error);
+    return [];
+  }
 }
 
 export default function CredentialsPage() {
@@ -79,7 +37,7 @@ export default function CredentialsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
-    setCredentials(generateMockCredentials());
+    fetchCredentials().then(setCredentials);
   }, []);
 
   const filteredCredentials = credentials.filter((cred) => {

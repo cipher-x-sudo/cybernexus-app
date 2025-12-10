@@ -73,56 +73,8 @@ class TimelineStats(BaseModel):
 events_db: List[dict] = []
 event_counter = 0
 
-# Sample events
-sample_events = [
-    {
-        "id": "EVT-00000001",
-        "type": EventType.THREAT_DETECTED,
-        "title": "Critical vulnerability detected",
-        "description": "CVE-2024-1234 found on production server",
-        "severity": EventSeverity.CRITICAL,
-        "timestamp": datetime.utcnow() - timedelta(hours=2),
-        "source": "ConfigAudit",
-        "related_entities": ["192.168.1.100"],
-        "metadata": {"cve": "CVE-2024-1234"}
-    },
-    {
-        "id": "EVT-00000002",
-        "type": EventType.CREDENTIAL_LEAKED,
-        "title": "Credentials found in breach database",
-        "description": "3 employee credentials discovered in recent data breach",
-        "severity": EventSeverity.HIGH,
-        "timestamp": datetime.utcnow() - timedelta(hours=5),
-        "source": "DarkWatch",
-        "related_entities": ["user1@company.com", "user2@company.com"],
-        "metadata": {"breach_name": "MegaBreachDB"}
-    },
-    {
-        "id": "EVT-00000003",
-        "type": EventType.SCAN_COMPLETED,
-        "title": "Domain reconnaissance completed",
-        "description": "Discovered 47 subdomains for company.com",
-        "severity": EventSeverity.INFO,
-        "timestamp": datetime.utcnow() - timedelta(hours=12),
-        "source": "WebRecon",
-        "related_entities": ["company.com"],
-        "metadata": {"subdomains_found": 47}
-    },
-    {
-        "id": "EVT-00000004",
-        "type": EventType.DARK_WEB_MENTION,
-        "title": "Company mentioned on dark web forum",
-        "description": "Brand name mentioned in threat actor discussion",
-        "severity": EventSeverity.MEDIUM,
-        "timestamp": datetime.utcnow() - timedelta(days=1),
-        "source": "KeywordMonitor",
-        "related_entities": ["darkwebforum.onion"],
-        "metadata": {"keyword_match": "company"}
-    }
-]
-
-# Initialize sample data
-events_db = sample_events.copy()
+# Events will be populated from real collector activity
+# No sample data - events are created dynamically from collectors
 
 
 def generate_event_id() -> str:

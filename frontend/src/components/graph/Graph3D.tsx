@@ -19,31 +19,41 @@ const entityTypes = {
   vulnerability: { color: "#eab308", shape: "tetrahedron" },
 };
 
-// Sample data
-const sampleNodes = [
-  { id: "1", type: "threat", label: "APT29", x: 0, y: 0, z: 0 },
-  { id: "2", type: "ip_address", label: "192.168.1.1", x: 3, y: 1, z: -2 },
-  { id: "3", type: "domain", label: "malware.com", x: -3, y: 2, z: 1 },
-  { id: "4", type: "credential", label: "admin@corp", x: 2, y: -2, z: 3 },
-  { id: "5", type: "actor", label: "CozyBear", x: -2, y: 3, z: -1 },
-  { id: "6", type: "asset", label: "Server-01", x: 4, y: -1, z: 2 },
-  { id: "7", type: "vulnerability", label: "CVE-2024-001", x: -1, y: -3, z: -2 },
-  { id: "8", type: "file_hash", label: "abc123...def", x: 1, y: 2, z: 4 },
-];
+// Graph data types
+type GraphNode = {
+  id: string;
+  type: string;
+  label: string;
+  x?: number;
+  y?: number;
+  z?: number;
+};
 
-const sampleEdges = [
-  { source: "1", target: "2" },
-  { source: "1", target: "3" },
-  { source: "1", target: "5" },
-  { source: "2", target: "6" },
-  { source: "3", target: "4" },
-  { source: "5", target: "7" },
-  { source: "6", target: "8" },
-  { source: "7", target: "8" },
-];
+type GraphEdge = {
+  source: string;
+  target: string;
+};
+
+// Fetch graph data from API
+async function fetchGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
+  try {
+    const response = await fetch('/api/graph/');
+    if (!response.ok) {
+      throw new Error('Failed to fetch graph data');
+    }
+    const data = await response.json();
+    return {
+      nodes: data.nodes || [],
+      edges: data.edges || []
+    };
+  } catch (error) {
+    console.error('Error fetching graph data:', error);
+    return { nodes: [], edges: [] };
+  }
+}
 
 interface NodeProps {
-  node: typeof sampleNodes[0];
+  node: GraphNode;
   isHovered: boolean;
   isSelected: boolean;
   onHover: (id: string | null) => void;
@@ -91,7 +101,7 @@ function Node3D({ node, isHovered, isSelected, onHover, onClick }: NodeProps) {
   }, [config.shape]);
 
   return (
-    <group position={[node.x, node.y, node.z]}>
+    <group position={[node.x || 0, node.y || 0, node.z || 0]}>
       <mesh
         ref={meshRef}
         onPointerOver={() => onHover(node.id)}
@@ -144,8 +154,8 @@ function Edge3D({ source, target, highlighted }: { source: THREE.Vector3; target
 }
 
 function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
-  nodes: typeof sampleNodes;
-  edges: typeof sampleEdges;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
   hoveredNode: string | null;
   selectedNode: string | null;
   onHover: (id: string | null) => void;
@@ -154,7 +164,7 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
   const nodePositions = useMemo(() => {
     const positions: Record<string, THREE.Vector3> = {};
     nodes.forEach((node) => {
-      positions[node.id] = new THREE.Vector3(node.x, node.y, node.z);
+      positions[node.id] = new THREE.Vector3(node.x || 0, node.y || 0, node.z || 0);
     });
     return positions;
   }, [nodes]);
@@ -214,6 +224,8 @@ export function Graph3D() {
   const [visibleTypes, setVisibleTypes] = useState<string[]>(Object.keys(entityTypes));
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [edges, setEdges] = useState<GraphEdge[]>([]);
 
   useEffect(() => {
     // Check WebGL support
@@ -228,22 +240,28 @@ export function Graph3D() {
     } catch (e) {
       setHasError(true);
     }
+    
+    // Fetch graph data
+    fetchGraphData().then((data) => {
+      setNodes(data.nodes);
+      setEdges(data.edges);
+    });
   }, []);
 
   const filteredNodes = useMemo(() => {
-    return sampleNodes.filter((node) => {
+    return nodes.filter((node) => {
       if (!visibleTypes.includes(node.type)) return false;
       if (searchQuery && !node.label.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [searchQuery, visibleTypes]);
+  }, [nodes, searchQuery, visibleTypes]);
 
   const filteredEdges = useMemo(() => {
     const nodeIds = new Set(filteredNodes.map((n) => n.id));
-    return sampleEdges.filter(
+    return edges.filter(
       (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)
     );
-  }, [filteredNodes]);
+  }, [edges, filteredNodes]);
 
   const toggleType = (type: string) => {
     setVisibleTypes((prev) =>
@@ -252,7 +270,7 @@ export function Graph3D() {
   };
 
   const selectedNodeData = selectedNode
-    ? sampleNodes.find((n) => n.id === selectedNode)
+    ? nodes.find((n) => n.id === selectedNode)
     : null;
 
   if (hasError) {
@@ -406,7 +424,7 @@ export function Graph3D() {
               <div className="bg-white/5 rounded-lg p-3">
                 <p className="text-xs text-amber-500/70 mb-1 font-mono uppercase">Connections</p>
                 <p className="font-mono text-white text-lg">
-                  {sampleEdges.filter(
+                  {filteredEdges.filter(
                     (e) => e.source === selectedNode || e.target === selectedNode
                   ).length}
                 </p>

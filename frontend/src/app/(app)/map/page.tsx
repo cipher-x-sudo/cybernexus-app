@@ -14,26 +14,42 @@ interface ThreatLocation {
   count: number;
 }
 
-const mockThreats: ThreatLocation[] = [
-  { id: "1", lat: 40.7128, lng: -74.006, severity: "critical", type: "APT", label: "New York", count: 15 },
-  { id: "2", lat: 51.5074, lng: -0.1278, severity: "high", type: "Malware", label: "London", count: 8 },
-  { id: "3", lat: 35.6762, lng: 139.6503, severity: "critical", type: "Ransomware", label: "Tokyo", count: 12 },
-  { id: "4", lat: 55.7558, lng: 37.6173, severity: "high", type: "APT", label: "Moscow", count: 23 },
-  { id: "5", lat: -23.5505, lng: -46.6333, severity: "medium", type: "Phishing", label: "São Paulo", count: 5 },
-  { id: "6", lat: 1.3521, lng: 103.8198, severity: "low", type: "Scan", label: "Singapore", count: 3 },
-  { id: "7", lat: 48.8566, lng: 2.3522, severity: "medium", type: "DDoS", label: "Paris", count: 7 },
-  { id: "8", lat: -33.8688, lng: 151.2093, severity: "low", type: "Probe", label: "Sydney", count: 2 },
-  { id: "9", lat: 39.9042, lng: 116.4074, severity: "critical", type: "APT", label: "Beijing", count: 31 },
-  { id: "10", lat: 28.6139, lng: 77.209, severity: "high", type: "Botnet", label: "New Delhi", count: 11 },
-];
+// Fetch threat locations from API
+async function fetchThreatLocations(): Promise<ThreatLocation[]> {
+  try {
+    const response = await fetch('/api/threats?with_location=true');
+    if (!response.ok) {
+      throw new Error('Failed to fetch threat locations');
+    }
+    const data = await response.json();
+    // Map threats to ThreatLocation format if needed
+    return data.map((threat: any) => ({
+      id: threat.id,
+      lat: threat.metadata?.location?.lat || 0,
+      lng: threat.metadata?.location?.lng || 0,
+      severity: threat.severity,
+      type: threat.category,
+      label: threat.metadata?.location?.label || threat.title,
+      count: 1
+    })).filter((t: ThreatLocation) => t.lat !== 0 && t.lng !== 0);
+  } catch (error) {
+    console.error('Error fetching threat locations:', error);
+    return [];
+  }
+}
 
 export default function MapPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedThreat, setSelectedThreat] = useState<ThreatLocation | null>(null);
   const [hoveredThreat, setHoveredThreat] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [threats, setThreats] = useState<ThreatLocation[]>([]);
 
-  const filteredThreats = mockThreats.filter(
+  useEffect(() => {
+    fetchThreatLocations().then(setThreats);
+  }, []);
+
+  const filteredThreats = threats.filter(
     (t) => filter === "all" || t.severity === filter
   );
 

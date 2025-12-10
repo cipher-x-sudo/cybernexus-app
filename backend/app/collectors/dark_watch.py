@@ -41,6 +41,19 @@ from core.dsa.trie import Trie
 from core.dsa.linked_list import DoublyLinkedList
 from core.dsa.heap import MinHeap
 
+# Import dark web crawlers and extractors
+from .crawlers.tor_connector import TorConnector
+from .crawlers.url_database import URLDatabase
+from .crawlers.discovery_engines import (
+    GistEngine, RedditEngine, SecurityNewsEngine,
+    DarkWebEngine, SearchEngine, PastebinEngine
+)
+from .extractors.site_crawler import crawl_onion_site, extract_entities as extract_entities_from_content
+from .extractors.utils import (
+    email_util, bitcoin_util, language_detector
+)
+from app.config import settings
+
 
 class SiteCategory(Enum):
     """Categories of dark web sites"""
@@ -277,21 +290,18 @@ class DarkWatch:
         return hashlib.sha256(normalized.encode()).hexdigest()
     
     def _detect_language(self, text: str) -> str:
-        """Simple language detection based on common words"""
-        # Simplified - in production use langdetect or similar
-        english_words = {'the', 'and', 'is', 'in', 'to', 'of', 'for', 'with'}
-        russian_words = {'и', 'в', 'на', 'не', 'что', 'это'}
-        german_words = {'und', 'der', 'die', 'das', 'ist', 'nicht'}
+        """Detect language using language detector utility."""
+        if not text or len(text) < 10:
+            return 'unknown'
         
-        words = set(text.lower().split()[:100])
-        
-        scores = {
-            'en': len(words & english_words),
-            'ru': len(words & russian_words),
-            'de': len(words & german_words)
-        }
-        
-        return max(scores, key=scores.get) if max(scores.values()) > 0 else 'unknown'
+        try:
+            return language_detector.detect_language(text)
+        except Exception:
+            # Fallback to simple detection
+            english_words = {'the', 'and', 'is', 'in', 'to', 'of', 'for', 'with'}
+            words = set(text.lower().split()[:100])
+            scores = {'en': len(words & english_words)}
+            return max(scores, key=scores.get) if max(scores.values()) > 0 else 'unknown'
     
     def _categorize_site(self, content: str, title: str) -> SiteCategory:
         """Categorize site based on content analysis"""
@@ -414,89 +424,192 @@ class DarkWatch:
         
         return matches
     
-    def _simulate_crawl(self, url: str) -> Dict[str, Any]:
+    def _crawl_site_real(self, onion_url: str) -> Dict[str, Any]:
         """
-        Simulate crawling an onion site.
-        In production, this would use Tor + requests/aiohttp.
+        Crawl onion site using real tools.
         
-        Returns simulated page data.
+        Args:
+            onion_url: The .onion URL to crawl
+            
+        Returns:
+            Dictionary with site data
         """
-        # Generate simulated content based on URL patterns
-        site_types = [
-            {
-                "title": "DarkMarket - Anonymous Marketplace",
-                "content": """
-                Welcome to DarkMarket - The largest anonymous marketplace on the dark web.
-                
-                Categories: Drugs, Fraud, Hacking Services, Digital Goods
-                
-                Contact: vendor@protonmail.com | admin@securemail.onion
-                Bitcoin: 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
-                Monero: 4AdUndXHHZ6cfufTMvppY6JwXNouMBzSkbLYfpAV5Usx3skxNgYeYTRj5UzqtReoS44qo9mtmXCqY45DJ852K5Jv2684Rge
-                
-                PGP Key Available: -----BEGIN PGP PUBLIC KEY BLOCK-----
-                
-                New vendors welcome! Escrow service available.
-                SSH Fingerprint: SHA256:uNiXK+dR5SFfZ7fP3Q2dMzN8lXY=
-                """,
-                "category": SiteCategory.MARKETPLACE
-            },
-            {
-                "title": "LeakForums - Data Breach Community",
-                "content": """
-                LeakForums - Your source for leaked databases and credentials
-                
-                Latest Leaks:
-                - Company XYZ Database (500K users) - Full combo list
-                - Banking Institution Dump - Credit card data available
-                - Fortune 500 breach - Employee credentials
-                
-                Premium members get access to:
-                - Fresh dumps daily
-                - Fullz with SSN
-                - Credit cards with CVV: 4532015112830366
-                
-                Contact: leaker@tormail.com
-                Bitcoin donations: 3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy
-                
-                Forum rules apply. No refunds.
-                """,
-                "category": SiteCategory.LEAK_SITE
-            },
-            {
-                "title": "RansomHub - Enterprise Solutions",
-                "content": """
-                RansomHub Ransomware Group
-                
-                Recent Victims:
-                - MegaCorp Inc - 2TB encrypted, $5M ransom
-                - Healthcare Systems - Patient data locked
-                - Government Agency - Classified files
-                
-                Decrypt service: ransomhub@onionmail.org
-                Bitcoin wallet: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh
-                
-                We publish all data if payment not received.
-                Next deadline: 72 hours
-                
-                Contact for negotiation.
-                """,
-                "category": SiteCategory.RANSOMWARE
-            }
-        ]
+        # Use keyword-focused crawler if keywords are monitored
+        if self.monitored_keywords:
+            return self._crawl_with_keyword_monitor(onion_url)
+        else:
+            # Use comprehensive site analyzer
+            return self._crawl_with_site_analyzer(onion_url)
+    
+    def _crawl_with_keyword_monitor(self, onion_url: str) -> Dict[str, Any]:
+        """
+        Crawl using keyword-focused approach.
         
-        # Select random type or based on URL hash
-        import random
-        site_data = random.choice(site_types)
+        Args:
+            onion_url: URL to crawl
+            
+        Returns:
+            Dictionary with site data
+        """
+        try:
+            # Initialize TorConnector
+            connector = TorConnector(
+                proxy_host=settings.TOR_PROXY_HOST,
+                proxy_port=settings.TOR_PROXY_PORT,
+                proxy_type=settings.TOR_PROXY_TYPE,
+                timeout=settings.TOR_TIMEOUT,
+                score_categorie=settings.CRAWLER_SCORE_CATEGORIE,
+                score_keywords=settings.CRAWLER_SCORE_KEYWORDS,
+                count_categories=settings.CRAWLER_COUNT_CATEGORIES,
+                db_path=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
+                db_name=settings.CRAWLER_DB_NAME
+            )
+            
+            # Check if URL exists in database
+            url_data = connector.database.select_url(url=onion_url)
+            if not url_data:
+                connector.database.save(
+                    url=onion_url,
+                    source="Script",
+                    type="URI",
+                    baseurl=onion_url
+                )
+                url_data = connector.database.select_url(url=onion_url)
+            
+            if url_data:
+                # Crawl the URL
+                result = connector.crawler(url_data[0])
+                
+                if result.get("status") == "online":
+                    return {
+                        "title": result.get("title", "Untitled"),
+                        "content": result.get("content", ""),
+                        "category": self._map_category_from_string(result.get("category", "unknown")),
+                        "linked_onions": connector.more_urls(onion_url) or [],
+                        "keywords_matched": result.get("keywords_matched", ""),
+                        "score_categorie": result.get("score_categorie", 0),
+                        "score_keywords": result.get("score_keywords", 0)
+                    }
         
-        # Add some related onion links
-        site_data["linked_onions"] = [
-            "http://abc123xyz456abc1.onion",
-            "http://def789ghi012def7.onion",
-            "http://" + "a" * 56 + ".onion",
-        ]
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in keyword monitor crawl: {e}")
         
-        return site_data
+        # Fallback to site analyzer
+        return self._crawl_with_site_analyzer(onion_url)
+    
+    def _crawl_with_site_analyzer(self, onion_url: str) -> Dict[str, Any]:
+        """
+        Crawl using comprehensive site analysis.
+        
+        Args:
+            onion_url: URL to crawl
+            
+        Returns:
+            Dictionary with site data
+        """
+        try:
+            # Use site_crawler function
+            site_data = crawl_onion_site(
+                onion_url,
+                proxy_host=settings.TOR_PROXY_HOST,
+                proxy_port=settings.TOR_PROXY_PORT,
+                proxy_type=settings.TOR_PROXY_TYPE,
+                timeout=settings.TOR_TIMEOUT
+            )
+            
+            if site_data.get("status") == "online":
+                return {
+                    "title": site_data.get("title", "Untitled"),
+                    "content": site_data.get("text", ""),
+                    "category": self._categorize_site(site_data.get("text", ""), site_data.get("title", "")),
+                    "linked_onions": [link.replace("http://", "").replace("https://", "") 
+                                     for link in site_data.get("links", []) 
+                                     if ".onion" in link],
+                    "emails": site_data.get("emails", []),
+                    "bitcoin_addresses": site_data.get("bitcoin_addresses", []),
+                    "language": site_data.get("language", "unknown")
+                }
+        
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in site analyzer crawl: {e}")
+        
+        return {
+            "title": "Unknown",
+            "content": "",
+            "category": SiteCategory.UNKNOWN,
+            "linked_onions": []
+        }
+    
+    def _map_category_from_string(self, category_str: str) -> SiteCategory:
+        """Map category string to SiteCategory enum."""
+        category_lower = category_str.lower()
+        if "market" in category_lower:
+            return SiteCategory.MARKETPLACE
+        elif "forum" in category_lower:
+            return SiteCategory.FORUM
+        elif "leak" in category_lower:
+            return SiteCategory.LEAK_SITE
+        elif "ransom" in category_lower:
+            return SiteCategory.RANSOMWARE
+        elif "card" in category_lower:
+            return SiteCategory.CARDING
+        elif "drug" in category_lower:
+            return SiteCategory.DRUGS
+        elif "hack" in category_lower:
+            return SiteCategory.HACKING
+        else:
+            return SiteCategory.UNKNOWN
+    
+    def _discover_urls_with_engines(self) -> List[str]:
+        """
+        Discover URLs using discovery engines.
+        
+        Returns:
+            List of discovered URLs
+        """
+        urls = []
+        
+        try:
+            # Use each engine
+            engines = [
+                GistEngine(),
+                RedditEngine(),
+                SecurityNewsEngine(),
+                DarkWebEngine(),
+                SearchEngine()
+            ]
+            
+            for engine in engines:
+                try:
+                    discovered = engine.discover_urls()
+                    if discovered:
+                        urls.extend(discovered)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.debug(f"Engine {engine.__class__.__name__} error: {e}")
+                    continue
+            
+            # Store in URLDatabase
+            db = URLDatabase(
+                dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
+                dbname=settings.CRAWLER_DB_NAME
+            )
+            
+            for url in urls:
+                if not db.compare(url):
+                    db.save(url=url, source="DiscoveryEngine", type="Domain")
+        
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error discovering URLs: {e}")
+        
+        return list(set(urls))  # Return unique URLs
     
     def crawl_site(self, onion_url: str, depth: int = 1) -> OnionSite:
         """
@@ -518,8 +631,8 @@ class DarkWatch:
         # Add to bloom filter
         self.url_filter.add(onion_url)
         
-        # Simulate crawl
-        page_data = self._simulate_crawl(onion_url)
+        # Real crawl
+        page_data = self._crawl_site_real(onion_url)
         
         site_id = self._generate_site_id(onion_url)
         content = page_data["content"]
@@ -527,6 +640,29 @@ class DarkWatch:
         
         # Extract entities
         entities = self._extract_entities(content, onion_url)
+        
+        # Also extract from site_data if available (from site analyzer)
+        if "emails" in page_data:
+            for email in page_data["emails"]:
+                entities.append(ExtractedEntity(
+                    entity_type="email",
+                    value=email,
+                    context=content[:200] if content else "",
+                    source_url=onion_url,
+                    discovered_at=now,
+                    confidence=1.0
+                ))
+        
+        if "bitcoin_addresses" in page_data:
+            for addr in page_data["bitcoin_addresses"]:
+                entities.append(ExtractedEntity(
+                    entity_type="bitcoin",
+                    value=addr,
+                    context=content[:200] if content else "",
+                    source_url=onion_url,
+                    discovered_at=now,
+                    confidence=1.0
+                ))
         
         # Extract linked onion sites
         linked_sites = page_data.get("linked_onions", [])
@@ -545,7 +681,10 @@ class DarkWatch:
         )
         
         # Detect language
-        language = self._detect_language(content)
+        if "language" in page_data and page_data["language"] != "unknown":
+            language = page_data["language"]
+        else:
+            language = self._detect_language(content)
         
         # Create site object
         now = datetime.now()

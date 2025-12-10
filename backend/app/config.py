@@ -39,8 +39,24 @@ class Settings(BaseSettings):
     # Collectors
     TOR_PROXY_HOST: str = "localhost"
     TOR_PROXY_PORT: int = 9050
+    TOR_PROXY_TYPE: str = "socks5h"
+    TOR_TIMEOUT: int = 30
     REQUEST_TIMEOUT: int = 30
     MAX_CONCURRENT_REQUESTS: int = 10
+    
+    # Dark Web Intelligence - Keyword-Focused Crawler
+    CRAWLER_DB_PATH: str = "crawlers"
+    CRAWLER_DB_NAME: str = "url_database.db"
+    CRAWLER_SCORE_CATEGORIE: int = 20
+    CRAWLER_SCORE_KEYWORDS: int = 40
+    CRAWLER_COUNT_CATEGORIES: int = 5
+    CRAWLER_DAYS_TIME: int = 10
+    
+    # Dark Web Intelligence - Site Analyzer (if using separate DB)
+    ANALYZER_DB_HOST: Optional[str] = None
+    ANALYZER_DB_NAME: Optional[str] = None
+    ANALYZER_DB_USER: Optional[str] = None
+    ANALYZER_DB_PASS: Optional[str] = None
     
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30

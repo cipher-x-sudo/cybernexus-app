@@ -100,45 +100,8 @@ class ThreatStats(BaseModel):
 threats_db: dict = {}
 threat_counter = 0
 
-# Sample threats
-sample_threats = [
-    {
-        "id": "THR-00000001",
-        "title": "Exposed AWS S3 Bucket",
-        "description": "Publicly accessible S3 bucket containing sensitive customer data",
-        "severity": ThreatSeverity.CRITICAL,
-        "status": ThreatStatus.ACTIVE,
-        "category": ThreatCategory.MISCONFIGURATION,
-        "source": "WebRecon",
-        "score": 95.0,
-        "affected_entities": ["s3.amazonaws.com/company-backup"],
-        "indicators": ["s3://company-backup"],
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "mitre_tactics": ["TA0001", "TA0010"],
-        "recommendations": ["Restrict bucket access", "Enable encryption"]
-    },
-    {
-        "id": "THR-00000002",
-        "title": "Leaked Credentials on Dark Web",
-        "description": "Employee credentials found on dark web marketplace",
-        "severity": ThreatSeverity.HIGH,
-        "status": ThreatStatus.INVESTIGATING,
-        "category": ThreatCategory.CREDENTIAL_EXPOSURE,
-        "source": "DarkWatch",
-        "score": 85.0,
-        "affected_entities": ["admin@company.com"],
-        "indicators": ["admin@company.com:****"],
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "mitre_tactics": ["TA0006"],
-        "recommendations": ["Reset affected passwords", "Enable MFA"]
-    }
-]
-
-# Initialize sample data
-for threat in sample_threats:
-    threats_db[threat["id"]] = threat
+# Threats will be populated from real collector findings
+# No sample data - threats are created dynamically from DarkWatch and other collectors
 
 
 def generate_threat_id() -> str:

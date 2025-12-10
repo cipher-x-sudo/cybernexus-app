@@ -69,21 +69,10 @@ class ClusterResult(BaseModel):
     center: Optional[str] = None
 
 
-# Sample graph data (will be replaced with custom Graph DSA)
-sample_nodes = [
-    GraphNode(id="1", label="example.com", type="domain", severity="medium"),
-    GraphNode(id="2", label="192.168.1.1", type="ip", severity="low"),
-    GraphNode(id="3", label="admin@example.com", type="email", severity="high"),
-    GraphNode(id="4", label="malware.exe", type="malware", severity="critical"),
-    GraphNode(id="5", label="APT-29", type="actor", severity="critical"),
-]
-
-sample_edges = [
-    GraphEdge(id="e1", source="1", target="2", relation=RelationType.RESOLVES_TO),
-    GraphEdge(id="e2", source="3", target="1", relation=RelationType.ASSOCIATED_WITH),
-    GraphEdge(id="e3", source="4", target="2", relation=RelationType.COMMUNICATES_WITH),
-    GraphEdge(id="e4", source="5", target="4", relation=RelationType.USES),
-]
+# Graph data will be populated from real DarkWatch site relationships
+# No sample data - graph is built dynamically from collected intelligence
+sample_nodes = []
+sample_edges = []
 
 
 @router.get("/", response_model=GraphData)
