@@ -7,7 +7,7 @@ Adapted from freshonions-torscraper.
 
 import re
 from typing import List
-from Crypto.Hash import SHA256
+from Cryptodome.Hash import SHA256
 
 
 REGEX = re.compile(r'\b[13][a-zA-Z1-9]{26,34}\b')
