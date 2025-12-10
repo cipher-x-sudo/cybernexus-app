@@ -237,8 +237,8 @@ class DarkWatch:
         Args:
             monitored_keywords: Keywords/brands to monitor
         """
-        # Bloom filter for URL deduplication (10M capacity, 0.1% FP rate)
-        self.url_filter = BloomFilter(capacity=10_000_000, error_rate=0.001)
+        # Bloom filter for URL deduplication (10M expected items, 0.1% FP rate)
+        self.url_filter = BloomFilter(expected_items=10_000_000, false_positive_rate=0.001)
         
         # Graph for site relationships
         self.site_graph = Graph(directed=True)
