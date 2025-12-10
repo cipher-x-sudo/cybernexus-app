@@ -10,3 +10,4 @@ data/*
 !data/.gitkeep
 .DS_Store
 
+# Ensure dark_watch directory is not included
