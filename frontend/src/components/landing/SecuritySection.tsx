@@ -130,7 +130,7 @@ export function SecuritySection() {
                 </p>
               </div>
               <a
-                href="#"
+                href="/dashboard"
                 className="px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono text-sm hover:bg-amber-500/30 transition-colors"
               >
                 Contact Security Team

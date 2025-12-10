@@ -147,7 +147,7 @@ export function FAQSection() {
           <div className="glass rounded-2xl p-8 inline-block">
             <p className="text-white mb-4">Still have questions?</p>
             <a
-              href="#"
+              href="/dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono text-sm hover:bg-amber-500/30 transition-colors"
             >
               <svg

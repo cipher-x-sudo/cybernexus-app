@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { GlassButton } from "@/components/ui";
 import { GlitchText } from "@/components/effects";
@@ -18,6 +19,7 @@ const navLinks = [
 export function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,6 +28,14 @@ export function LandingNav() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleSignIn = () => {
+    router.push("/dashboard");
+  };
+
+  const handleTryFree = () => {
+    router.push("/dashboard");
+  };
 
   return (
     <nav
@@ -75,10 +85,10 @@ export function LandingNav() {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex items-center space-x-3">
-            <GlassButton variant="ghost" size="sm">
+            <GlassButton variant="ghost" size="sm" onClick={handleSignIn}>
               Sign In
             </GlassButton>
-            <GlassButton variant="primary" size="sm">
+            <GlassButton variant="primary" size="sm" onClick={handleTryFree}>
               Try Free
             </GlassButton>
           </div>
@@ -128,10 +138,10 @@ export function LandingNav() {
                 </a>
               ))}
               <div className="flex flex-col space-y-2 pt-4 border-t border-white/[0.05]">
-                <GlassButton variant="ghost" size="sm">
+                <GlassButton variant="ghost" size="sm" onClick={handleSignIn}>
                   Sign In
                 </GlassButton>
-                <GlassButton variant="primary" size="sm">
+                <GlassButton variant="primary" size="sm" onClick={handleTryFree}>
                   Try Free
                 </GlassButton>
               </div>

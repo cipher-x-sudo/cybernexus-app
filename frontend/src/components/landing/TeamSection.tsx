@@ -134,7 +134,7 @@ export function TeamSection() {
         <div className="mt-16 text-center">
           <p className="text-white/50 mb-4">Want to join our team?</p>
           <a
-            href="#"
+            href="/dashboard"
             className="inline-flex items-center gap-2 text-amber-400 font-mono hover:text-amber-300 transition-colors"
           >
             View open positions

@@ -11,28 +11,28 @@ const footerLinks = {
     { label: "Integrations", href: "#integrations" },
     { label: "Pricing", href: "#pricing" },
     { label: "Changelog", href: "/changelog" },
-    { label: "Roadmap", href: "#" },
+    { label: "Roadmap", href: "/dashboard" },
   ],
   Resources: [
-    { label: "Documentation", href: "#" },
-    { label: "API Reference", href: "#" },
-    { label: "Blog", href: "#" },
-    { label: "Case Studies", href: "#" },
-    { label: "Webinars", href: "#" },
+    { label: "Documentation", href: "/help" },
+    { label: "API Reference", href: "/help" },
+    { label: "Blog", href: "/dashboard" },
+    { label: "Case Studies", href: "/dashboard" },
+    { label: "Webinars", href: "/dashboard" },
   ],
   Company: [
-    { label: "About", href: "#" },
+    { label: "About", href: "/dashboard" },
     { label: "Team", href: "#team" },
-    { label: "Careers", href: "#" },
-    { label: "Press", href: "#" },
-    { label: "Contact", href: "#" },
+    { label: "Careers", href: "/dashboard" },
+    { label: "Press", href: "/dashboard" },
+    { label: "Contact", href: "/dashboard" },
   ],
   Legal: [
-    { label: "Privacy Policy", href: "#" },
-    { label: "Terms of Service", href: "#" },
+    { label: "Privacy Policy", href: "/dashboard" },
+    { label: "Terms of Service", href: "/dashboard" },
     { label: "Security", href: "#security" },
-    { label: "GDPR", href: "#" },
-    { label: "Bug Bounty", href: "#" },
+    { label: "GDPR", href: "/dashboard" },
+    { label: "Bug Bounty", href: "/dashboard" },
   ],
 };
 
@@ -157,12 +157,28 @@ export function Footer() {
                 <ul className="space-y-2">
                   {links.map((link) => (
                     <li key={link.label}>
-                      <a
-                        href={link.href}
-                        className="text-sm text-white/50 hover:text-amber-400 transition-colors"
-                      >
-                        {link.label}
-                      </a>
+                      {link.href.startsWith("#") ? (
+                        <a
+                          href={link.href}
+                          className="text-sm text-white/50 hover:text-amber-400 transition-colors"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const element = document.querySelector(link.href);
+                            if (element) {
+                              element.scrollIntoView({ behavior: "smooth" });
+                            }
+                          }}
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link
+                          href={link.href}
+                          className="text-sm text-white/50 hover:text-amber-400 transition-colors"
+                        >
+                          {link.label}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

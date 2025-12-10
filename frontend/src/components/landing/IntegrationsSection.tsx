@@ -209,7 +209,7 @@ export function IntegrationsSection() {
                 </p>
               </div>
               <a
-                href="#"
+                href="/help"
                 className="font-mono text-sm text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap"
               >
                 View API Docs →

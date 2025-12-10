@@ -1,12 +1,28 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { GlassButton } from "@/components/ui";
 import { TypingText } from "@/components/effects";
 import { cn } from "@/lib/utils";
 
 export function HeroSection() {
   const globeRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  const handleGetStarted = () => {
+    router.push("/dashboard");
+  };
+
+  const handleWatchDemo = () => {
+    // Scroll to how-it-works section or open demo
+    const element = document.getElementById("how-it-works");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    } else {
+      router.push("/dashboard");
+    }
+  };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
@@ -53,6 +69,7 @@ export function HeroSection() {
               <GlassButton
                 variant="primary"
                 size="lg"
+                onClick={handleGetStarted}
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -64,6 +81,7 @@ export function HeroSection() {
               <GlassButton
                 variant="secondary"
                 size="lg"
+                onClick={handleWatchDemo}
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />

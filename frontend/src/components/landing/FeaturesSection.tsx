@@ -137,7 +137,7 @@ export function FeaturesSection() {
                   {/* Learn more link */}
                   <div className="mt-5 pt-5 border-t border-white/[0.05]">
                     <a
-                      href="#"
+                      href="/dashboard"
                       className="inline-flex items-center text-sm font-mono text-amber-400 hover:text-amber-300 transition-colors group/link"
                     >
                       Learn more
