@@ -42,14 +42,14 @@ from core.dsa.linked_list import DoublyLinkedList
 from core.dsa.heap import MinHeap
 
 # Import dark web crawlers and extractors
-from .crawlers.tor_connector import TorConnector
-from .crawlers.url_database import URLDatabase
-from .crawlers.discovery_engines import (
+from app.collectors.dark_watch.crawlers.tor_connector import TorConnector
+from app.collectors.dark_watch.crawlers.url_database import URLDatabase
+from app.collectors.dark_watch.crawlers.discovery_engines import (
     GistEngine, RedditEngine, SecurityNewsEngine,
     DarkWebEngine, SearchEngine, PastebinEngine
 )
-from .extractors.site_crawler import crawl_onion_site, extract_entities as extract_entities_from_content
-from .extractors.utils import (
+from app.collectors.dark_watch.extractors.site_crawler import crawl_onion_site, extract_entities as extract_entities_from_content
+from app.collectors.dark_watch.extractors.utils import (
     email_util, bitcoin_util, language_detector
 )
 from app.config import settings
