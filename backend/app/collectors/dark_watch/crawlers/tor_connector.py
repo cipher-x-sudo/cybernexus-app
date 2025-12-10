@@ -17,7 +17,11 @@ from random import choice
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-import yara
+try:
+    import yara
+    YARA_AVAILABLE = True
+except ImportError:
+    YARA_AVAILABLE = False
 
 from app.config import settings
 from .url_database import URLDatabase
@@ -99,6 +103,10 @@ class TorConnector:
         Returns:
             List of YARA matches
         """
+        if not YARA_AVAILABLE:
+            self.logger.debug("YARA not available, skipping rule check")
+            return []
+        
         if raw is None or not os.path.exists(yarafile):
             return []
         
