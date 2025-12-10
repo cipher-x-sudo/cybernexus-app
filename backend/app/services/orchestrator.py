@@ -927,10 +927,18 @@ class Orchestrator:
                         dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
                         dbname=settings.CRAWLER_DB_NAME
                     )
-                    # Get some URLs from database
-                    db_urls = db.get_all_urls(limit=10)
-                    if db_urls:
-                        urls = [url_data.get("url") or url_data.get("baseurl") for url_data in db_urls if url_data.get("url") or url_data.get("baseurl")]
+                    # Get some URLs from database (select returns tuples: id, type, url, title, baseurl, ...)
+                    db_records = db.select()
+                    if db_records:
+                        # Extract URLs from tuples (url is index 2, baseurl is index 4)
+                        urls = []
+                        for record in db_records[:10]:  # Limit to 10
+                            url = record[2] if len(record) > 2 and record[2] else None
+                            baseurl = record[4] if len(record) > 4 and record[4] else None
+                            if url:
+                                urls.append(url)
+                            elif baseurl:
+                                urls.append(baseurl)
                         logger.info(f"Found {len(urls)} URLs from database")
                 except Exception as e:
                     logger.warning(f"Could not get URLs from database: {e}")
