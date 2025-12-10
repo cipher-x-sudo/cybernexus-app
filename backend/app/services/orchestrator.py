@@ -917,8 +917,45 @@ class Orchestrator:
             # Discover URLs using engines
             urls = dark_watch._discover_urls_with_engines()
             
+            # If no URLs discovered, try to get URLs from database
+            if not urls:
+                logger.info("No URLs discovered from engines, checking database...")
+                try:
+                    from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
+                    from app.config import settings
+                    db = URLDatabase(
+                        dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
+                        dbname=settings.CRAWLER_DB_NAME
+                    )
+                    # Get some URLs from database
+                    db_urls = db.get_all_urls(limit=10)
+                    if db_urls:
+                        urls = [url_data.get("url") or url_data.get("baseurl") for url_data in db_urls if url_data.get("url") or url_data.get("baseurl")]
+                        logger.info(f"Found {len(urls)} URLs from database")
+                except Exception as e:
+                    logger.warning(f"Could not get URLs from database: {e}")
+            
+            # If still no URLs, create a finding indicating no data available
+            if not urls:
+                logger.warning("No URLs available for dark web intelligence collection")
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title="Dark Web Intelligence: No URLs Discovered",
+                    description=f"Dark web intelligence collection completed but no URLs were discovered for target '{job.target}'. This may indicate: 1) Discovery engines need configuration, 2) No dark web activity found, 3) Network/proxy connectivity issues.",
+                    evidence={"target": job.target, "status": "no_urls_discovered"},
+                    affected_assets=[job.target] if job.target else [],
+                    recommendations=["Check Tor proxy configuration", "Verify discovery engine settings", "Review network connectivity"],
+                    discovered_at=datetime.now(),
+                    risk_score=10.0
+                )
+                findings.append(finding)
+                return findings
+            
             # Limit initial crawl to avoid overwhelming
             crawl_limit = min(10, len(urls))
+            logger.info(f"Crawling {crawl_limit} URLs for dark web intelligence")
             
             # Crawl and analyze
             for url in urls[:crawl_limit]:
@@ -961,9 +998,40 @@ class Orchestrator:
                 except Exception as e:
                     logger.error(f"Error crawling {url}: {e}")
                     continue
+            
+            # If no findings created but URLs were crawled, create info finding
+            if not findings and urls:
+                logger.info(f"Crawled {len(urls[:crawl_limit])} URLs but no matches found for '{job.target}'")
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title=f"Dark Web Scan Complete: No Matches for '{job.target}'",
+                    description=f"Scanned {len(urls[:crawl_limit])} dark web sites but found no mentions of '{job.target}' or high-risk entities.",
+                    evidence={"target": job.target, "urls_scanned": len(urls[:crawl_limit])},
+                    affected_assets=[job.target] if job.target else [],
+                    recommendations=["Continue monitoring", "Review search terms if needed"],
+                    discovered_at=datetime.now(),
+                    risk_score=5.0
+                )
+                findings.append(finding)
         
         except Exception as e:
-            logger.error(f"Error in dark web intelligence collection: {e}")
+            logger.error(f"Error in dark web intelligence collection: {e}", exc_info=True)
+            # Create error finding
+            finding = Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.DARK_WEB_INTELLIGENCE,
+                severity="info",
+                title="Dark Web Intelligence Collection Error",
+                description=f"An error occurred during dark web intelligence collection: {str(e)}",
+                evidence={"error": str(e), "target": job.target if job.target else "unknown"},
+                affected_assets=[job.target] if job.target else [],
+                recommendations=["Check logs for details", "Verify configuration"],
+                discovered_at=datetime.now(),
+                risk_score=0.0
+            )
+            findings.append(finding)
         
         return findings
     
