@@ -20,6 +20,7 @@ from datetime import datetime
 from enum import Enum
 import uuid
 import asyncio
+import time
 from loguru import logger
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
@@ -909,7 +910,6 @@ class Orchestrator:
         """Execute real dark web intelligence collection with batch processing and incremental storage"""
         findings = []
         from app.config import settings
-        import time
         
         batch_size = settings.DARKWEB_BATCH_SIZE
         

@@ -158,38 +158,50 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
     The job will execute the appropriate capability against the target.
     Results are available via the job status endpoint.
     """
-    orchestrator = get_orchestrator()
-    
-    # Validate capability
     try:
-        capability = Capability(request.capability)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid capability: {request.capability}"
-        )
-    
-    # Map priority
-    priority_map = {
-        "critical": JobPriority.CRITICAL,
-        "high": JobPriority.HIGH,
-        "normal": JobPriority.NORMAL,
-        "low": JobPriority.LOW,
-        "background": JobPriority.BACKGROUND
-    }
-    priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
-    
-    try:
+        logger.info(f"[API] Creating job: capability={request.capability}, target={request.target}, priority={request.priority}")
+        orchestrator = get_orchestrator()
+        
+        # Validate capability
+        try:
+            capability = Capability(request.capability)
+        except ValueError as e:
+            logger.warning(f"[API] Invalid capability: {request.capability}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid capability: {request.capability}"
+            )
+        
+        # Map priority
+        priority_map = {
+            "critical": JobPriority.CRITICAL,
+            "high": JobPriority.HIGH,
+            "normal": JobPriority.NORMAL,
+            "low": JobPriority.LOW,
+            "background": JobPriority.BACKGROUND
+        }
+        priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
+        
         # Create job
-        job = await orchestrator.create_job(
-            capability=capability,
-            target=request.target,
-            config=request.config,
-            priority=priority
-        )
+        try:
+            job = await orchestrator.create_job(
+                capability=capability,
+                target=request.target,
+                config=request.config,
+                priority=priority
+            )
+            logger.info(f"[API] Job created successfully: job_id={job.id}")
+        except Exception as e:
+            logger.error(f"[API] Failed to create job object: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
         # Execute in background
-        background_tasks.add_task(orchestrator.execute_job, job.id)
+        try:
+            background_tasks.add_task(orchestrator.execute_job, job.id)
+            logger.debug(f"[API] Background task added for job_id={job.id}")
+        except Exception as e:
+            logger.error(f"[API] Failed to add background task: {e}", exc_info=True)
+            # Don't fail the request if background task fails, job is still created
         
         return JobResponse(
             id=job.id,
@@ -204,9 +216,12 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
             error=job.error
         )
         
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        logger.error(f"Failed to create job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[API] Unexpected error in create_job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get("/jobs", response_model=List[JobResponse])
