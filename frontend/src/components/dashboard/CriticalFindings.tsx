@@ -174,3 +174,5 @@ export function CriticalFindings({ findings = defaultFindings, className }: Crit
 
 export default CriticalFindings;
 
+
+

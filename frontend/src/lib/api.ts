@@ -363,6 +363,47 @@ class ApiClient {
   async getCapabilityEvents(limit: number = 50) {
     return this.request<{ events: any[]; count: number }>(`/capabilities/events?limit=${limit}`);
   }
+
+  // ============================================================================
+  // Company Profile API
+  // ============================================================================
+
+  /**
+   * Get current company profile
+   */
+  async getCompanyProfile() {
+    return this.request<any>("/company/profile");
+  }
+
+  /**
+   * Create a new company profile
+   */
+  async createCompanyProfile(data: Record<string, any>) {
+    return this.request<any>("/company/profile", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Update company profile (full replace)
+   */
+  async updateCompanyProfile(data: Record<string, any>) {
+    return this.request<any>("/company/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Partially update company profile
+   */
+  async patchCompanyProfile(data: Record<string, any>) {
+    return this.request<any>("/company/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 // Export singleton instance
@@ -391,6 +432,8 @@ export const queryKeys = {
   criticalFindings: ["criticalFindings"],
   capabilityStats: ["capabilityStats"],
   capabilityEvents: ["capabilityEvents"],
+  // Company Profile
+  companyProfile: ["companyProfile"],
 };
 
 

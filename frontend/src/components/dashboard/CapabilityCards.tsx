@@ -277,3 +277,5 @@ export function CapabilityCards({ className, compact = false }: CapabilityCardsP
 
 export default CapabilityCards;
 
+
+

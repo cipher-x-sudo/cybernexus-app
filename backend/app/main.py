@@ -11,7 +11,7 @@ from loguru import logger
 import sys
 
 from app.config import settings, init_directories
-from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities
+from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company
 
 
 @asynccontextmanager
@@ -85,6 +85,7 @@ app.include_router(timeline.router, prefix="/api/v1/timeline", tags=["Timeline"]
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(websocket.router, prefix="/api/v1/ws", tags=["WebSocket"])
 app.include_router(capabilities.router, prefix="/api/v1/capabilities", tags=["Capabilities"])
+app.include_router(company.router, prefix="/api/v1/company", tags=["Company"])
 
 
 @app.get("/", tags=["Health"])
