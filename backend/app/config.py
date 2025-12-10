@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     ANALYZER_DB_USER: Optional[str] = None
     ANALYZER_DB_PASS: Optional[str] = None
     
+    # Dark Web Intelligence - Batch Processing
+    DARKWEB_BATCH_SIZE: int = 4
+    DARKWEB_STREAMING_ENABLED: bool = True
+    
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30
     

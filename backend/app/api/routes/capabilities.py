@@ -15,10 +15,13 @@ Capabilities:
 """
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from loguru import logger
+import json
+import asyncio
 
 from app.services.orchestrator import (
     get_orchestrator, 
@@ -281,9 +284,16 @@ async def get_job(job_id: str):
 
 
 @router.get("/jobs/{job_id}/findings", response_model=List[FindingResponse])
-async def get_job_findings(job_id: str):
+async def get_job_findings(
+    job_id: str,
+    limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return"),
+    offset: int = Query(default=0, ge=0, description="Number of findings to skip")
+):
     """
-    Get findings from a completed job.
+    Get findings from a completed job with pagination support.
+    
+    Returns findings in batches, allowing clients to retrieve data incrementally
+    to avoid timeout issues with large result sets.
     """
     orchestrator = get_orchestrator()
     job = orchestrator.get_job(job_id)
@@ -291,7 +301,13 @@ async def get_job_findings(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return [
+    # Apply pagination
+    total_findings = len(job.findings)
+    paginated_findings = job.findings[offset:offset + limit]
+    
+    logger.debug(f"[API] get_job_findings: job_id={job_id}, total={total_findings}, offset={offset}, limit={limit}, returning={len(paginated_findings)}")
+    
+    findings_response = [
         FindingResponse(
             id=f.id,
             capability=f.capability.value,
@@ -304,8 +320,126 @@ async def get_job_findings(job_id: str):
             discovered_at=f.discovered_at.isoformat(),
             risk_score=f.risk_score
         )
-        for f in job.findings
+        for f in paginated_findings
     ]
+    
+    # Add pagination metadata as response headers (FastAPI allows this via response model)
+    # For now, we'll include it in a custom response format
+    return findings_response
+
+
+@router.get("/jobs/{job_id}/findings/stream")
+async def stream_job_findings(job_id: str):
+    """
+    Stream findings from a job as they become available using Server-Sent Events (SSE).
+    
+    This endpoint allows real-time streaming of findings as they are discovered,
+    preventing timeouts for long-running dark web intelligence jobs.
+    
+    The stream sends:
+    - Findings as they are created (event: finding)
+    - Progress updates (event: progress)
+    - Completion status (event: complete)
+    """
+    from app.config import settings
+    
+    if not settings.DARKWEB_STREAMING_ENABLED:
+        raise HTTPException(status_code=503, detail="Streaming is not enabled")
+    
+    orchestrator = get_orchestrator()
+    job = orchestrator.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    logger.debug(f"[API] Starting SSE stream for job_id={job_id}")
+    
+    async def generate_stream() -> AsyncGenerator[str, None]:
+        """Generate SSE events for findings stream"""
+        last_finding_count = 0
+        check_interval = 1.0  # Check every second
+        max_wait_time = 300  # Wait up to 5 minutes for job completion
+        elapsed_time = 0
+        
+        # Send initial connection event
+        yield f"event: connected\ndata: {json.dumps({'job_id': job_id, 'status': job.status.value})}\n\n"
+        
+        while True:
+            # Refresh job data
+            current_job = orchestrator.get_job(job_id)
+            if not current_job:
+                yield f"event: error\ndata: {json.dumps({'message': 'Job not found'})}\n\n"
+                break
+            
+            current_findings_count = len(current_job.findings)
+            
+            # Send new findings
+            if current_findings_count > last_finding_count:
+                new_findings = current_job.findings[last_finding_count:]
+                logger.debug(f"[API] Streaming {len(new_findings)} new findings for job_id={job_id}")
+                
+                for finding in new_findings:
+                    finding_data = {
+                        "id": finding.id,
+                        "capability": finding.capability.value,
+                        "severity": finding.severity,
+                        "title": finding.title,
+                        "description": finding.description,
+                        "evidence": finding.evidence,
+                        "affected_assets": finding.affected_assets,
+                        "recommendations": finding.recommendations,
+                        "discovered_at": finding.discovered_at.isoformat(),
+                        "risk_score": finding.risk_score
+                    }
+                    yield f"event: finding\ndata: {json.dumps(finding_data)}\n\n"
+                
+                last_finding_count = current_findings_count
+            
+            # Send progress update
+            progress_data = {
+                "job_id": job_id,
+                "status": current_job.status.value,
+                "findings_count": current_findings_count,
+                "progress": current_job.progress,
+                "elapsed_time": elapsed_time
+            }
+            yield f"event: progress\ndata: {json.dumps(progress_data)}\n\n"
+            
+            # Check if job is complete
+            if current_job.status.value in ["completed", "failed", "cancelled"]:
+                completion_data = {
+                    "job_id": job_id,
+                    "status": current_job.status.value,
+                    "total_findings": current_findings_count,
+                    "error": current_job.error
+                }
+                yield f"event: complete\ndata: {json.dumps(completion_data)}\n\n"
+                logger.debug(f"[API] SSE stream completed for job_id={job_id}, total findings={current_findings_count}")
+                break
+            
+            # Check timeout
+            if elapsed_time >= max_wait_time:
+                timeout_data = {
+                    "job_id": job_id,
+                    "message": "Stream timeout reached",
+                    "findings_count": current_findings_count
+                }
+                yield f"event: timeout\ndata: {json.dumps(timeout_data)}\n\n"
+                logger.debug(f"[API] SSE stream timeout for job_id={job_id}")
+                break
+            
+            await asyncio.sleep(check_interval)
+            elapsed_time += check_interval
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+        }
+    )
 
 
 # ============================================================================

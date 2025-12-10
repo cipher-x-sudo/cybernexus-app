@@ -53,6 +53,8 @@ from app.collectors.darkwatch_modules.extractors.utils import (
     email_util, bitcoin_util, language_detector
 )
 from app.config import settings
+from loguru import logger
+import time
 
 
 class SiteCategory(Enum):
@@ -451,8 +453,12 @@ class DarkWatch:
         Returns:
             Dictionary with site data
         """
+        crawl_start_time = time.time()
+        logger.debug(f"[DarkWatch] Starting keyword monitor crawl for {onion_url}")
+        
         try:
             # Initialize TorConnector
+            logger.debug(f"[DarkWatch] Initializing TorConnector for {onion_url}")
             connector = TorConnector(
                 proxy_host=settings.TOR_PROXY_HOST,
                 proxy_port=settings.TOR_PROXY_PORT,
@@ -466,8 +472,13 @@ class DarkWatch:
             )
             
             # Check if URL exists in database
+            logger.debug(f"[DarkWatch] Checking database for {onion_url}")
+            db_check_start = time.time()
             url_data = connector.database.select_url(url=onion_url)
+            db_check_time = time.time() - db_check_start
+            
             if not url_data:
+                logger.debug(f"[DarkWatch] URL not in database, saving {onion_url}")
                 connector.database.save(
                     url=onion_url,
                     source="Script",
@@ -477,10 +488,15 @@ class DarkWatch:
                 url_data = connector.database.select_url(url=onion_url)
             
             if url_data:
+                logger.debug(f"[DarkWatch] Starting crawler for URL ID {url_data[0]} (database check took {db_check_time:.2f}s)")
+                crawl_start = time.time()
                 # Crawl the URL
                 result = connector.crawler(url_data[0])
+                crawl_time = time.time() - crawl_start
                 
                 if result.get("status") == "online":
+                    keywords_matched = result.get("keywords_matched", "")
+                    logger.debug(f"[DarkWatch] Crawl completed for {onion_url} in {crawl_time:.2f}s - Status: online, Keywords matched: {keywords_matched}, Score: {result.get('score_keywords', 0)}")
                     return {
                         "title": result.get("title", "Untitled"),
                         "content": result.get("content", ""),
@@ -490,13 +506,15 @@ class DarkWatch:
                         "score_categorie": result.get("score_categorie", 0),
                         "score_keywords": result.get("score_keywords", 0)
                     }
+                else:
+                    logger.debug(f"[DarkWatch] Crawl completed for {onion_url} in {crawl_time:.2f}s - Status: {result.get('status', 'unknown')}")
         
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error in keyword monitor crawl: {e}")
+            crawl_error_time = time.time() - crawl_start_time
+            logger.error(f"[DarkWatch] Error in keyword monitor crawl for {onion_url} after {crawl_error_time:.2f}s: {e}", exc_info=True)
         
         # Fallback to site analyzer
+        logger.debug(f"[DarkWatch] Falling back to site analyzer for {onion_url}")
         return self._crawl_with_site_analyzer(onion_url)
     
     def _crawl_with_site_analyzer(self, onion_url: str) -> Dict[str, Any]:
@@ -509,8 +527,12 @@ class DarkWatch:
         Returns:
             Dictionary with site data
         """
+        crawl_start_time = time.time()
+        logger.debug(f"[DarkWatch] Starting site analyzer crawl for {onion_url}")
+        
         try:
             # Use site_crawler function
+            logger.debug(f"[DarkWatch] Calling crawl_onion_site for {onion_url}")
             site_data = crawl_onion_site(
                 onion_url,
                 proxy_host=settings.TOR_PROXY_HOST,
@@ -518,8 +540,13 @@ class DarkWatch:
                 proxy_type=settings.TOR_PROXY_TYPE,
                 timeout=settings.TOR_TIMEOUT
             )
+            crawl_time = time.time() - crawl_start_time
             
             if site_data.get("status") == "online":
+                emails_count = len(site_data.get("emails", []))
+                bitcoin_count = len(site_data.get("bitcoin_addresses", []))
+                links_count = len(site_data.get("links", []))
+                logger.debug(f"[DarkWatch] Site analyzer crawl completed for {onion_url} in {crawl_time:.2f}s - Status: online, Emails: {emails_count}, Bitcoin: {bitcoin_count}, Links: {links_count}")
                 return {
                     "title": site_data.get("title", "Untitled"),
                     "content": site_data.get("text", ""),
@@ -531,11 +558,12 @@ class DarkWatch:
                     "bitcoin_addresses": site_data.get("bitcoin_addresses", []),
                     "language": site_data.get("language", "unknown")
                 }
+            else:
+                logger.debug(f"[DarkWatch] Site analyzer crawl completed for {onion_url} in {crawl_time:.2f}s - Status: {site_data.get('status', 'unknown')}")
         
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error in site analyzer crawl: {e}")
+            crawl_error_time = time.time() - crawl_start_time
+            logger.error(f"[DarkWatch] Error in site analyzer crawl for {onion_url} after {crawl_error_time:.2f}s: {e}", exc_info=True)
         
         return {
             "title": "Unknown",
@@ -589,8 +617,6 @@ class DarkWatch:
                     if discovered:
                         urls.extend(discovered)
                 except Exception as e:
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.debug(f"Engine {engine.__class__.__name__} error: {e}")
                     continue
             
@@ -605,8 +631,6 @@ class DarkWatch:
                     db.save(url=url, source="DiscoveryEngine", type="Domain")
         
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error discovering URLs: {e}")
         
         return list(set(urls))  # Return unique URLs
@@ -622,27 +646,46 @@ class DarkWatch:
         Returns:
             OnionSite with extracted data
         """
+        crawl_start_time = time.time()
+        logger.debug(f"[DarkWatch] crawl_site called for {onion_url} (depth={depth})")
+        
         # Check if already crawled recently
         if self.url_filter.contains(onion_url):
             existing = self.sites.get(self._generate_site_id(onion_url))
             if existing:
+                logger.debug(f"[DarkWatch] Site {onion_url} already crawled, returning cached result")
                 return existing
         
         # Add to bloom filter
         self.url_filter.add(onion_url)
+        logger.debug(f"[DarkWatch] Added {onion_url} to URL filter")
         
         # Real crawl
+        logger.debug(f"[DarkWatch] Starting real crawl for {onion_url}")
+        crawl_start = time.time()
         page_data = self._crawl_site_real(onion_url)
+        crawl_time = time.time() - crawl_start
+        logger.debug(f"[DarkWatch] Real crawl completed for {onion_url} in {crawl_time:.2f}s")
         
         site_id = self._generate_site_id(onion_url)
         content = page_data["content"]
         title = page_data["title"]
+        content_length = len(content)
+        logger.debug(f"[DarkWatch] Extracted data for {onion_url}: Title='{title}', Content length={content_length} chars")
         
         # Extract entities
+        entity_extract_start = time.time()
         entities = self._extract_entities(content, onion_url)
+        entity_extract_time = time.time() - entity_extract_start
+        logger.debug(f"[DarkWatch] Extracted {len(entities)} entities from {onion_url} in {entity_extract_time:.2f}s")
+        
+        # Create timestamp once (fix for 'now' variable issue)
+        now = datetime.now()
         
         # Also extract from site_data if available (from site analyzer)
         if "emails" in page_data:
+            email_count = len(page_data["emails"])
+            logger.debug(f"[DarkWatch] Adding {email_count} emails from page_data for {onion_url}")
             for email in page_data["emails"]:
                 entities.append(ExtractedEntity(
                     entity_type="email",
@@ -654,6 +697,8 @@ class DarkWatch:
                 ))
         
         if "bitcoin_addresses" in page_data:
+            bitcoin_count = len(page_data["bitcoin_addresses"])
+            logger.debug(f"[DarkWatch] Adding {bitcoin_count} bitcoin addresses from page_data for {onion_url}")
             for addr in page_data["bitcoin_addresses"]:
                 entities.append(ExtractedEntity(
                     entity_type="bitcoin",
@@ -668,26 +713,39 @@ class DarkWatch:
         linked_sites = page_data.get("linked_onions", [])
         linked_sites.extend(self._extract_onion_links(content))
         linked_sites = list(set(linked_sites))
+        logger.debug(f"[DarkWatch] Found {len(linked_sites)} linked onion sites for {onion_url}")
         
         # Categorize site
+        category_start = time.time()
         category = page_data.get("category", self._categorize_site(content, title))
+        category_time = time.time() - category_start
+        logger.debug(f"[DarkWatch] Categorized {onion_url} as '{category.value}' in {category_time:.3f}s")
         
         # Check keyword matches
+        keyword_check_start = time.time()
         keywords_matched = self._check_keyword_matches(content)
+        keyword_check_time = time.time() - keyword_check_start
+        logger.debug(f"[DarkWatch] Keyword check for {onion_url}: {len(keywords_matched)} matches found in {keyword_check_time:.3f}s - Matches: {keywords_matched}")
         
         # Calculate risk
+        risk_calc_start = time.time()
         risk_score, threat_level = self._calculate_risk_score(
             category, entities, keywords_matched
         )
+        risk_calc_time = time.time() - risk_calc_start
+        logger.debug(f"[DarkWatch] Risk calculation for {onion_url}: Score={risk_score:.2f}, Threat Level={threat_level.value} (calculated in {risk_calc_time:.3f}s)")
         
         # Detect language
         if "language" in page_data and page_data["language"] != "unknown":
             language = page_data["language"]
+            logger.debug(f"[DarkWatch] Language for {onion_url} from page_data: {language}")
         else:
+            lang_detect_start = time.time()
             language = self._detect_language(content)
+            lang_detect_time = time.time() - lang_detect_start
+            logger.debug(f"[DarkWatch] Detected language for {onion_url}: {language} (detected in {lang_detect_time:.3f}s)")
         
         # Create site object
-        now = datetime.now()
         site = OnionSite(
             onion_url=onion_url,
             site_id=site_id,
@@ -707,6 +765,7 @@ class DarkWatch:
         
         # Store site
         self.sites.put(site_id, site)
+        logger.debug(f"[DarkWatch] Stored site {site_id} in sites HashMap")
         
         # Add to graph
         self.site_graph.add_vertex(site_id, {
@@ -714,6 +773,7 @@ class DarkWatch:
             "category": category.value,
             "threat_level": threat_level.value
         })
+        logger.debug(f"[DarkWatch] Added vertex {site_id} to site graph")
         
         # Create edges to linked sites
         for linked_url in linked_sites:
@@ -733,6 +793,9 @@ class DarkWatch:
                 )
                 self.crawl_queue.push(job)
         
+        if linked_sites:
+            logger.debug(f"[DarkWatch] Added {len(linked_sites)} edges and queued {min(depth, len(linked_sites))} linked sites for crawling")
+        
         # Process keyword matches as brand mentions
         for keyword in keywords_matched:
             mention_id = self._generate_mention_id(keyword, onion_url)
@@ -749,6 +812,9 @@ class DarkWatch:
             self.mentions.put(mention_id, mention)
             self.stats["brand_mentions"] += 1
         
+        if keywords_matched:
+            logger.debug(f"[DarkWatch] Created {len(keywords_matched)} brand mentions for {onion_url}")
+        
         # Update history
         self.crawl_history.append({
             "site_id": site_id,
@@ -762,6 +828,9 @@ class DarkWatch:
         self.stats["entities_extracted"] += len(entities)
         self.stats["pages_crawled"] += 1
         self.stats["last_crawl"] = now.isoformat()
+        
+        total_time = time.time() - crawl_start_time
+        logger.debug(f"[DarkWatch] crawl_site completed for {onion_url} in {total_time:.2f}s - Final stats: Entities={len(entities)}, Keywords={len(keywords_matched)}, Risk={risk_score:.2f}")
         
         return site
     

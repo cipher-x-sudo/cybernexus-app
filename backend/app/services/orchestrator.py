@@ -906,29 +906,45 @@ class Orchestrator:
         ]
     
     async def _execute_darkweb_intelligence(self, job: Job) -> List[Finding]:
-        """Execute real dark web intelligence collection"""
+        """Execute real dark web intelligence collection with batch processing and incremental storage"""
         findings = []
+        from app.config import settings
+        import time
+        
+        batch_size = settings.DARKWEB_BATCH_SIZE
         
         try:
+            logger.debug(f"[DarkWeb] Starting intelligence collection for target: {job.target}")
+            start_time = time.time()
+            
             # Use DarkWatch collector
             from app.collectors.dark_watch import DarkWatch
             dark_watch = DarkWatch(monitored_keywords=[job.target] if job.target else [])
+            logger.debug(f"[DarkWeb] DarkWatch collector initialized with keywords: {job.target if job.target else 'none'}")
             
             # Discover URLs using engines
+            logger.debug("[DarkWeb] Starting URL discovery using engines...")
+            discovery_start = time.time()
             urls = dark_watch._discover_urls_with_engines()
+            discovery_time = time.time() - discovery_start
+            logger.debug(f"[DarkWeb] URL discovery completed in {discovery_time:.2f}s. Found {len(urls)} URLs from engines")
             
             # If no URLs discovered, try to get URLs from database
             if not urls:
-                logger.info("No URLs discovered from engines, checking database...")
+                logger.info("[DarkWeb] No URLs discovered from engines, checking database...")
                 try:
                     from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
-                    from app.config import settings
                     db = URLDatabase(
                         dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
                         dbname=settings.CRAWLER_DB_NAME
                     )
+                    logger.debug("[DarkWeb] Database connection established, querying for URLs...")
+                    db_start = time.time()
                     # Get some URLs from database (select returns tuples: id, type, url, title, baseurl, ...)
                     db_records = db.select()
+                    db_time = time.time() - db_start
+                    logger.debug(f"[DarkWeb] Database query completed in {db_time:.2f}s. Retrieved {len(db_records)} records")
+                    
                     if db_records:
                         # Extract URLs from tuples (url is index 2, baseurl is index 4)
                         urls = []
@@ -939,13 +955,13 @@ class Orchestrator:
                                 urls.append(url)
                             elif baseurl:
                                 urls.append(baseurl)
-                        logger.info(f"Found {len(urls)} URLs from database")
+                        logger.info(f"[DarkWeb] Found {len(urls)} URLs from database")
                 except Exception as e:
-                    logger.warning(f"Could not get URLs from database: {e}")
+                    logger.warning(f"[DarkWeb] Could not get URLs from database: {e}", exc_info=True)
             
             # If still no URLs, create a finding indicating no data available
             if not urls:
-                logger.warning("No URLs available for dark web intelligence collection")
+                logger.warning("[DarkWeb] No URLs available for dark web intelligence collection")
                 finding = Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
                     capability=Capability.DARK_WEB_INTELLIGENCE,
@@ -959,73 +975,116 @@ class Orchestrator:
                     risk_score=10.0
                 )
                 findings.append(finding)
+                # Store in job immediately
+                if hasattr(job, 'findings'):
+                    job.findings.extend(findings)
                 return findings
             
             # Limit initial crawl to avoid overwhelming
             crawl_limit = min(10, len(urls))
-            logger.info(f"Crawling {crawl_limit} URLs for dark web intelligence")
+            logger.info(f"[DarkWeb] Total URLs available: {len(urls)}, will crawl {crawl_limit} URLs")
+            logger.debug(f"[DarkWeb] Processing in batches of {batch_size} URLs")
             
-            # Crawl and analyze
-            for url in urls[:crawl_limit]:
-                try:
-                    site = dark_watch.crawl_site(url, depth=1)
-                    
-                    # Convert to Finding objects if keywords matched
-                    if site.keywords_matched:
-                        finding = Finding(
-                            id=f"find-{uuid.uuid4().hex[:8]}",
-                            capability=Capability.DARK_WEB_INTELLIGENCE,
-                            severity=self._map_threat_to_severity(site.threat_level.value),
-                            title=f"Brand mention found: {site.title}",
-                            description=f"Keyword '{job.target}' found on {site.onion_url}",
-                            evidence={"site": site.to_dict()},
-                            affected_assets=[job.target] if job.target else [],
-                            recommendations=["Review dark web mention", "Monitor for data leaks"],
-                            discovered_at=datetime.now(),
-                            risk_score=site.risk_score
-                        )
-                        findings.append(finding)
-                    
-                    # Also create findings for high-risk entities
-                    for entity in site.extracted_entities:
-                        if entity.entity_type in ["email", "credit_card"]:
+            urls_to_crawl = urls[:crawl_limit]
+            total_batches = (len(urls_to_crawl) + batch_size - 1) // batch_size
+            
+            # Process URLs in batches
+            for batch_num in range(total_batches):
+                batch_start_idx = batch_num * batch_size
+                batch_end_idx = min(batch_start_idx + batch_size, len(urls_to_crawl))
+                batch_urls = urls_to_crawl[batch_start_idx:batch_end_idx]
+                batch_num_display = batch_num + 1
+                
+                logger.debug(f"[DarkWeb] Processing batch {batch_num_display}/{total_batches}: URLs {batch_start_idx}-{batch_end_idx-1} ({len(batch_urls)} URLs)")
+                batch_start_time = time.time()
+                
+                # Crawl and analyze each URL in the batch
+                for url_idx, url in enumerate(batch_urls):
+                    url_start_time = time.time()
+                    try:
+                        logger.debug(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Starting crawl of {url}")
+                        site = dark_watch.crawl_site(url, depth=1)
+                        url_crawl_time = time.time() - url_start_time
+                        logger.debug(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - Title: {site.title}, Entities: {len(site.extracted_entities)}, Keywords matched: {len(site.keywords_matched)}")
+                        
+                        batch_findings_count = 0
+                        
+                        # Convert to Finding objects if keywords matched
+                        if site.keywords_matched:
                             finding = Finding(
                                 id=f"find-{uuid.uuid4().hex[:8]}",
                                 capability=Capability.DARK_WEB_INTELLIGENCE,
-                                severity="high" if entity.entity_type == "credit_card" else "medium",
-                                title=f"{entity.entity_type.title()} found on dark web",
-                                description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
-                                evidence={"entity": entity.to_dict(), "site": site.onion_url},
-                                affected_assets=[entity.value],
-                                recommendations=["Investigate exposure", "Take remediation steps"],
+                                severity=self._map_threat_to_severity(site.threat_level.value),
+                                title=f"Brand mention found: {site.title}",
+                                description=f"Keyword '{job.target}' found on {site.onion_url}",
+                                evidence={"site": site.to_dict()},
+                                affected_assets=[job.target] if job.target else [],
+                                recommendations=["Review dark web mention", "Monitor for data leaks"],
                                 discovered_at=datetime.now(),
-                                risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
+                                risk_score=site.risk_score
                             )
                             findings.append(finding)
+                            batch_findings_count += 1
+                            logger.debug(f"[DarkWeb] Batch {batch_num_display}: Created keyword match finding for {url}")
+                        
+                        # Also create findings for high-risk entities
+                        for entity in site.extracted_entities:
+                            if entity.entity_type in ["email", "credit_card"]:
+                                finding = Finding(
+                                    id=f"find-{uuid.uuid4().hex[:8]}",
+                                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                                    severity="high" if entity.entity_type == "credit_card" else "medium",
+                                    title=f"{entity.entity_type.title()} found on dark web",
+                                    description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
+                                    evidence={"entity": entity.to_dict(), "site": site.onion_url},
+                                    affected_assets=[entity.value],
+                                    recommendations=["Investigate exposure", "Take remediation steps"],
+                                    discovered_at=datetime.now(),
+                                    risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
+                                )
+                                findings.append(finding)
+                                batch_findings_count += 1
+                                logger.debug(f"[DarkWeb] Batch {batch_num_display}: Created entity finding for {entity.entity_type} from {url}")
+                        
+                        # Store findings incrementally in job object (for polling/streaming)
+                        if batch_findings_count > 0:
+                            if hasattr(job, 'findings'):
+                                # Only add new findings (avoid duplicates)
+                                existing_ids = {f.id for f in job.findings}
+                                new_findings = [f for f in findings if f.id not in existing_ids]
+                                job.findings.extend(new_findings)
+                                logger.debug(f"[DarkWeb] Batch {batch_num_display}: Stored {len(new_findings)} new findings in job. Total findings so far: {len(job.findings)}")
+                    
+                    except Exception as e:
+                        url_error_time = time.time() - url_start_time
+                        logger.error(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Error crawling {url} after {url_error_time:.2f}s: {e}", exc_info=True)
+                        continue
                 
-                except Exception as e:
-                    logger.error(f"Error crawling {url}: {e}")
-                    continue
+                batch_time = time.time() - batch_start_time
+                logger.info(f"[DarkWeb] Batch {batch_num_display}/{total_batches} completed in {batch_time:.2f}s. Total findings so far: {len(findings)}")
             
             # If no findings created but URLs were crawled, create info finding
             if not findings and urls:
-                logger.info(f"Crawled {len(urls[:crawl_limit])} URLs but no matches found for '{job.target}'")
+                logger.info(f"[DarkWeb] Crawled {len(urls_to_crawl)} URLs but no matches found for '{job.target}'")
                 finding = Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
                     capability=Capability.DARK_WEB_INTELLIGENCE,
                     severity="info",
                     title=f"Dark Web Scan Complete: No Matches for '{job.target}'",
-                    description=f"Scanned {len(urls[:crawl_limit])} dark web sites but found no mentions of '{job.target}' or high-risk entities.",
-                    evidence={"target": job.target, "urls_scanned": len(urls[:crawl_limit])},
+                    description=f"Scanned {len(urls_to_crawl)} dark web sites but found no mentions of '{job.target}' or high-risk entities.",
+                    evidence={"target": job.target, "urls_scanned": len(urls_to_crawl)},
                     affected_assets=[job.target] if job.target else [],
                     recommendations=["Continue monitoring", "Review search terms if needed"],
                     discovered_at=datetime.now(),
                     risk_score=5.0
                 )
                 findings.append(finding)
+                if hasattr(job, 'findings'):
+                    job.findings.append(finding)
         
         except Exception as e:
-            logger.error(f"Error in dark web intelligence collection: {e}", exc_info=True)
+            total_time = time.time() - start_time
+            logger.error(f"[DarkWeb] Error in dark web intelligence collection after {total_time:.2f}s: {e}", exc_info=True)
             # Create error finding
             finding = Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -1040,7 +1099,11 @@ class Orchestrator:
                 risk_score=0.0
             )
             findings.append(finding)
+            if hasattr(job, 'findings'):
+                job.findings.append(finding)
         
+        total_time = time.time() - start_time
+        logger.info(f"[DarkWeb] Dark web intelligence collection completed in {total_time:.2f}s. Total findings: {len(findings)}")
         return findings
     
     def _map_threat_to_severity(self, threat_level: str) -> str:
