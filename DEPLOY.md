@@ -35,7 +35,7 @@ The Tor service is required for Dark Web Intelligence collection. It runs as an 
 
 1. In the same Railway project, click "New Service" → "GitHub Repo"
 2. Select the same repository
-3. **CRITICAL:** Go to **Settings** → **Source** → Set **Root Directory** to: `cybernexus/tor-service`
+3. **CRITICAL:** Go to **Settings** → **Source** → Set **Root Directory** to: `cybernexus/backend/tor-service`
    - This ensures Railway uses the correct Dockerfile (not the root one)
    - Without this, Railway will try to use the wrong Dockerfile and fail
 4. Railway will auto-detect the Dockerfile in that directory and deploy

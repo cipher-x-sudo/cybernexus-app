@@ -16,3 +16,4 @@ HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
 
 # The dperson/torproxy image already has the entrypoint configured
 # It will start Tor and listen on 0.0.0.0:9050 by default
+
