@@ -21,6 +21,15 @@ EXPOSE 9050 9051
 ENV TOR_NewCircuitPeriod=30
 ENV TOR_MaxCircuitDirtiness=60
 
+# Enable detailed logging to stdout/stderr for container visibility
+# Log level: notice (moderately verbose, good for production monitoring)
+# Log to stdout so it appears in container logs
+ENV TOR_Log="notice file /dev/stdout"
+# Enable detailed logging for connections, circuits, and streams
+ENV TOR_LogMessageDomains="GENERAL CIRC STREAM CONN ORCONN HTTPCONN"
+# Use 1 second granularity for timestamps
+ENV TOR_LogTimeGranularity=1
+
 # Health check to verify Tor is running
 HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
     CMD curl --socks5 localhost:9050 -s https://check.torproject.org/api/ip || exit 1

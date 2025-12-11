@@ -30,6 +30,25 @@ The service uses the `dperson/torproxy:latest` image which provides:
 
 The service includes a health check that verifies Tor is running and can connect to the Tor network.
 
+## Logging
+
+The service is configured with detailed logging enabled:
+
+- **Log Level**: `notice` (moderately verbose, good for production monitoring)
+- **Log Output**: stdout/stderr (visible in container logs)
+- **Log Domains**: GENERAL, CIRC (circuits), STREAM (connections), CONN (connections), ORCONN (OR connections), HTTPCONN (HTTP connections)
+
+You will see detailed logs for:
+- New circuit establishment
+- Connection requests through the proxy
+- Stream creation and closure
+- Circuit status changes
+- Error messages and warnings
+
+To view logs:
+- **Docker Compose**: `docker-compose logs -f tor-proxy`
+- **Railway**: Check the service logs in the Railway dashboard
+
 ## Backend Connection
 
 The backend service connects to this Tor service using Railway's internal networking:
