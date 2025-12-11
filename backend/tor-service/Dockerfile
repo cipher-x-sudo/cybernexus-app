@@ -22,13 +22,9 @@ ENV TOR_NewCircuitPeriod=30
 ENV TOR_MaxCircuitDirtiness=60
 
 # Enable detailed logging to stdout/stderr for container visibility
-# Log level: notice (moderately verbose, good for production monitoring)
+# Log level: info (more verbose than notice, shows connections, circuits, streams)
 # Log to stdout so it appears in container logs
-ENV TOR_Log="notice stdout"
-# Enable detailed logging for connections, circuits, and streams
-ENV TOR_LogMessageDomains="GENERAL CIRC STREAM CONN ORCONN HTTPCONN"
-# Use 1 second granularity for timestamps
-ENV TOR_LogTimeGranularity=1
+ENV TOR_Log="info stdout"
 
 # Health check to verify Tor is running
 HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
