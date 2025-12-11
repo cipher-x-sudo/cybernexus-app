@@ -1,5 +1,8 @@
 FROM dperson/torproxy:latest
 
+# Install curl for healthcheck (dperson/torproxy may not have it)
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Expose Tor SOCKS proxy port (9050) and control port (9051)
 EXPOSE 9050 9051
 
