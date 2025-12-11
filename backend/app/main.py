@@ -12,6 +12,7 @@ import sys
 
 from app.config import settings, init_directories
 from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company
+from app.utils import check_tor_connectivity
 
 
 @asynccontextmanager
@@ -32,6 +33,25 @@ async def lifespan(app: FastAPI):
     # Initialize directories
     init_directories()
     logger.info("Data directories initialized")
+    
+    # Check Tor connectivity
+    logger.info("Checking Tor proxy connectivity...")
+    tor_status = check_tor_connectivity()
+    
+    if tor_status["status"] == "connected" and tor_status["is_tor"]:
+        logger.info(
+            f"Tor proxy connected successfully - Exit node: {tor_status.get('ip', 'unknown')}, "
+            f"Response time: {tor_status.get('response_time_ms', 0)}ms"
+        )
+    elif settings.TOR_REQUIRED:
+        error_msg = tor_status.get("error", "Unknown error")
+        logger.error(f"Tor proxy is required but unavailable: {error_msg}")
+        raise RuntimeError(f"Tor proxy connection failed: {error_msg}")
+    else:
+        logger.warning(
+            f"Tor proxy unavailable but not required - Status: {tor_status['status']}, "
+            f"Error: {tor_status.get('error', 'Unknown')}"
+        )
     
     # Initialize DSA structures
     logger.info("Initializing custom DSA structures...")
@@ -103,14 +123,34 @@ async def root():
 @app.get("/api/health", tags=["Health"])
 async def health_check():
     """Detailed health check endpoint."""
+    # Check Tor connectivity
+    tor_status = check_tor_connectivity()
+    
+    # Determine overall health status
+    # If Tor is unavailable but not required, mark as "degraded" not "unhealthy"
+    overall_status = "healthy"
+    if tor_status["status"] != "connected" and settings.TOR_REQUIRED:
+        overall_status = "unhealthy"
+    elif tor_status["status"] != "connected":
+        overall_status = "degraded"
+    
     return {
-        "status": "healthy",
+        "status": overall_status,
         "version": settings.APP_VERSION,
         "services": {
             "api": "operational",
             "graph_engine": "operational",
             "collectors": "operational",
             "websocket": "operational"
+        },
+        "tor_proxy": {
+            "status": tor_status["status"],
+            "is_tor": tor_status["is_tor"],
+            "host": tor_status["host"],
+            "port": tor_status["port"],
+            "response_time_ms": tor_status.get("response_time_ms"),
+            "ip": tor_status.get("ip"),
+            "error": tor_status.get("error")
         }
     }
 

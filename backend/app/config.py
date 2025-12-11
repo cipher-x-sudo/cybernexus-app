@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     TOR_PROXY_PORT: int = Field(default=9050, env="TOR_PROXY_PORT")
     TOR_PROXY_TYPE: str = Field(default="socks5h", env="TOR_PROXY_TYPE")
     TOR_TIMEOUT: int = 30
+    TOR_REQUIRED: bool = Field(default=False, env="TOR_REQUIRED")
+    TOR_HEALTH_CHECK_TIMEOUT: int = Field(default=10, env="TOR_HEALTH_CHECK_TIMEOUT")
     REQUEST_TIMEOUT: int = 30
     MAX_CONCURRENT_REQUESTS: int = 10
     
