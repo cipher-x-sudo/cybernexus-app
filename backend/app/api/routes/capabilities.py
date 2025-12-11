@@ -158,15 +158,29 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
     The job will execute the appropriate capability against the target.
     Results are available via the job status endpoint.
     """
+    import time
+    request_start_time = time.time()
+    
     try:
-        logger.info(f"[API] Creating job: capability={request.capability}, target={request.target}, priority={request.priority}")
+        logger.info(
+            f"[API] [create_job] Request received - capability={request.capability}, "
+            f"target={request.target}, priority={request.priority}, "
+            f"config={request.config}"
+        )
         orchestrator = get_orchestrator()
         
         # Validate capability
+        validation_start = time.time()
         try:
             capability = Capability(request.capability)
+            validation_time = time.time() - validation_start
+            logger.debug(f"[API] [create_job] Capability validation completed in {validation_time:.3f}s")
         except ValueError as e:
-            logger.warning(f"[API] Invalid capability: {request.capability}")
+            validation_time = time.time() - validation_start
+            logger.warning(
+                f"[API] [create_job] Invalid capability after {validation_time:.3f}s: "
+                f"{request.capability}, error={e}"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid capability: {request.capability}"
@@ -181,8 +195,10 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
             "background": JobPriority.BACKGROUND
         }
         priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
+        logger.debug(f"[API] [create_job] Mapped priority: {request.priority} -> {priority.value}")
         
         # Create job
+        job_creation_start = time.time()
         try:
             job = await orchestrator.create_job(
                 capability=capability,
@@ -190,18 +206,42 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
                 config=request.config,
                 priority=priority
             )
-            logger.info(f"[API] Job created successfully: job_id={job.id}")
+            job_creation_time = time.time() - job_creation_start
+            logger.info(
+                f"[API] [create_job] Job created successfully in {job_creation_time:.3f}s - "
+                f"job_id={job.id}, status={job.status.value}, "
+                f"capability={job.capability.value}, target={job.target}"
+            )
         except Exception as e:
-            logger.error(f"[API] Failed to create job object: {e}", exc_info=True)
+            job_creation_time = time.time() - job_creation_start
+            logger.error(
+                f"[API] [create_job] Failed to create job object after {job_creation_time:.3f}s: {e}",
+                exc_info=True
+            )
             raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
         # Execute in background
+        bg_task_start = time.time()
         try:
             background_tasks.add_task(orchestrator.execute_job, job.id)
-            logger.debug(f"[API] Background task added for job_id={job.id}")
+            bg_task_time = time.time() - bg_task_start
+            logger.info(
+                f"[API] [create_job] Background task added in {bg_task_time:.3f}s - "
+                f"job_id={job.id}, will execute {capability.value} against {request.target}"
+            )
         except Exception as e:
-            logger.error(f"[API] Failed to add background task: {e}", exc_info=True)
+            bg_task_time = time.time() - bg_task_start
+            logger.error(
+                f"[API] [create_job] Failed to add background task after {bg_task_time:.3f}s: {e}",
+                exc_info=True
+            )
             # Don't fail the request if background task fails, job is still created
+        
+        total_request_time = time.time() - request_start_time
+        logger.info(
+            f"[API] [create_job] Request completed in {total_request_time:.3f}s - "
+            f"job_id={job.id}, returning response"
+        )
         
         return JobResponse(
             id=job.id,
@@ -218,9 +258,15 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
         
     except HTTPException:
         # Re-raise HTTP exceptions
+        total_request_time = time.time() - request_start_time
+        logger.warning(f"[API] [create_job] Request failed after {total_request_time:.3f}s (HTTPException)")
         raise
     except Exception as e:
-        logger.error(f"[API] Unexpected error in create_job: {e}", exc_info=True)
+        total_request_time = time.time() - request_start_time
+        logger.error(
+            f"[API] [create_job] Unexpected error after {total_request_time:.3f}s: {e}",
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

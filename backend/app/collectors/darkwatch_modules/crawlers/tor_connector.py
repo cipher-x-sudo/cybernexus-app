@@ -160,15 +160,24 @@ class TorConnector:
         crawl_start = time.time()
         
         try:
-            logger.debug(f"[TorConnector] Making request to {url_str} via proxy {self.proxy_host}:{self.proxy_port}")
+            logger.debug(
+                f"[TorConnector] Making request to {url_str} via proxy {self.proxy_type}://{self.proxy_host}:{self.proxy_port}, "
+                f"timeout={self.timeout}s"
+            )
+            request_start = time.time()
             request = self.session.get(
                 f"http://{url_str}",
                 proxies=self.proxies,
                 headers=self.headers,
                 timeout=self.timeout
             )
-            request_time = time.time() - crawl_start
-            logger.info(f"[TorConnector] Request to {url_str} completed in {request_time:.2f}s, status={request.status_code}")
+            request_time = time.time() - request_start
+            response_size = len(request.content) if request.content else 0
+            logger.info(
+                f"[TorConnector] Request to {url_str} completed in {request_time:.2f}s - "
+                f"Status: {request.status_code}, Response size: {response_size} bytes, "
+                f"Content-Type: {request.headers.get('Content-Type', 'unknown')}"
+            )
             
             if request.status_code == 200:
                 logger.info(f"[TorConnector] Updating url status {url_str} for 200.")
@@ -278,7 +287,12 @@ class TorConnector:
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.InvalidURL) as e:
             error_time = time.time() - crawl_start
-            logger.error(f"[TorConnector] Connection error for {url_str} after {error_time:.2f}s: {str(e)}")
+            error_type = type(e).__name__
+            logger.error(
+                f"[TorConnector] Connection error for {url_str} after {error_time:.2f}s - "
+                f"Error type: {error_type}, Error: {str(e)}, "
+                f"Proxy: {self.proxy_type}://{self.proxy_host}:{self.proxy_port}"
+            )
             logger.info(f"[TorConnector] Could not connect to site. Updating url status {url_str} for 404.")
             self.database.update_status(
                 id=url_id,

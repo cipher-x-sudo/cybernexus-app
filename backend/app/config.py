@@ -67,9 +67,14 @@ class Settings(BaseSettings):
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30
     
+    # API Timeouts
+    API_REQUEST_TIMEOUT: int = Field(default=300, env="API_REQUEST_TIMEOUT")  # 5 minutes for long-running jobs
+    DARKWEB_JOB_TIMEOUT: int = Field(default=1800, env="DARKWEB_JOB_TIMEOUT")  # 30 minutes max for darkweb jobs
+    
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    LOG_DETAILED_TIMING: bool = Field(default=True, env="LOG_DETAILED_TIMING")  # Enable verbose timing logs
     
     class Config:
         env_file = ".env"

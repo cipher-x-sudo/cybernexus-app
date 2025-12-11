@@ -912,51 +912,98 @@ class Orchestrator:
         """Execute real dark web intelligence collection with batch processing and incremental storage"""
         findings = []
         from app.config import settings
+        from app.utils import check_tor_connectivity
         
         batch_size = settings.DARKWEB_BATCH_SIZE
         
         try:
-            logger.info(f"[DarkWeb] Starting intelligence collection for target: {job.target}")
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Starting intelligence collection - "
+                f"target={job.target}, batch_size={batch_size}"
+            )
             start_time = time.time()
+            job.progress = 5
+            
+            # Check Tor connectivity before starting
+            logger.info(f"[DarkWeb] [job_id={job.id}] Checking Tor proxy connectivity...")
+            tor_check_start = time.time()
+            tor_status = check_tor_connectivity()
+            tor_check_time = time.time() - tor_check_start
+            if tor_status["status"] == "connected" and tor_status["is_tor"]:
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] Tor proxy verified in {tor_check_time:.2f}s - "
+                    f"Exit node: {tor_status.get('ip')}, Response time: {tor_status.get('response_time_ms')}ms"
+                )
+            else:
+                logger.warning(
+                    f"[DarkWeb] [job_id={job.id}] Tor proxy check failed after {tor_check_time:.2f}s - "
+                    f"Status: {tor_status['status']}, Error: {tor_status.get('error')}"
+                )
             
             # Use DarkWatch collector
             from app.collectors.dark_watch import DarkWatch
-            logger.info(f"[DarkWeb] Initializing DarkWatch collector with keywords: {job.target if job.target else 'none'}")
+            init_start = time.time()
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Initializing DarkWatch collector - "
+                f"keywords={job.target if job.target else 'none'}"
+            )
             dark_watch = DarkWatch(monitored_keywords=[job.target] if job.target else [])
-            logger.info(f"[DarkWeb] DarkWatch collector initialized successfully")
+            init_time = time.time() - init_start
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] DarkWatch collector initialized successfully in {init_time:.2f}s"
+            )
+            job.progress = 10
             
             # Discover URLs using engines
-            logger.info("[DarkWeb] Starting URL discovery using engines...")
+            logger.info(f"[DarkWeb] [job_id={job.id}] Starting URL discovery using engines...")
             discovery_start = time.time()
+            job.progress = 15
             try:
                 urls = dark_watch._discover_urls_with_engines()
                 discovery_time = time.time() - discovery_start
-                logger.info(f"[DarkWeb] URL discovery completed in {discovery_time:.2f}s. Found {len(urls)} URLs from engines")
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery completed in {discovery_time:.2f}s - "
+                    f"Found {len(urls)} URLs from engines"
+                )
+                job.progress = 25
             except Exception as e:
                 discovery_time = time.time() - discovery_start
-                logger.error(f"[DarkWeb] URL discovery failed after {discovery_time:.2f}s: {e}", exc_info=True)
+                logger.error(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery failed after {discovery_time:.2f}s: {e}",
+                    exc_info=True
+                )
                 urls = []  # Continue with empty list, will try database fallback
+                job.progress = 20
             
             # If no URLs discovered, try to get URLs from database
             if not urls:
-                logger.info("[DarkWeb] No URLs discovered from engines, checking database...")
+                logger.info(f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines, checking database...")
                 try:
                     from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
-                    logger.info("[DarkWeb] Connecting to URL database...")
+                    logger.info(f"[DarkWeb] [job_id={job.id}] Connecting to URL database...")
+                    db_init_start = time.time()
                     db = URLDatabase(
                         dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
                         dbname=settings.CRAWLER_DB_NAME
                     )
-                    logger.info("[DarkWeb] Database connection established, querying for URLs...")
+                    db_init_time = time.time() - db_init_start
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Database connection established in {db_init_time:.2f}s, "
+                        f"querying for URLs..."
+                    )
                     db_start = time.time()
                     # Get some URLs from database (select returns tuples: id, type, url, title, baseurl, ...)
                     db_records = db.select()
                     db_time = time.time() - db_start
-                    logger.info(f"[DarkWeb] Database query completed in {db_time:.2f}s. Retrieved {len(db_records)} records")
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Database query completed in {db_time:.2f}s - "
+                        f"Retrieved {len(db_records)} records"
+                    )
                     
                     if db_records:
                         # Extract URLs from tuples (url is index 2, baseurl is index 4)
                         urls = []
+                        extraction_start = time.time()
                         for record in db_records[:10]:  # Limit to 10
                             url = record[2] if len(record) > 2 and record[2] else None
                             baseurl = record[4] if len(record) > 4 and record[4] else None
@@ -964,9 +1011,17 @@ class Orchestrator:
                                 urls.append(url)
                             elif baseurl:
                                 urls.append(baseurl)
-                        logger.info(f"[DarkWeb] Found {len(urls)} URLs from database")
+                        extraction_time = time.time() - extraction_start
+                        logger.info(
+                            f"[DarkWeb] [job_id={job.id}] Extracted {len(urls)} URLs from database "
+                            f"in {extraction_time:.3f}s"
+                        )
+                        job.progress = 25
                 except Exception as e:
-                    logger.warning(f"[DarkWeb] Could not get URLs from database: {e}", exc_info=True)
+                    logger.warning(
+                        f"[DarkWeb] [job_id={job.id}] Could not get URLs from database: {e}",
+                        exc_info=True
+                    )
             
             # If still no URLs, create a finding indicating no data available
             if not urls:
@@ -991,12 +1046,18 @@ class Orchestrator:
             
             # Limit initial crawl to avoid overwhelming
             crawl_limit = min(10, len(urls))
-            logger.info(f"[DarkWeb] Total URLs available: {len(urls)}, will crawl {crawl_limit} URLs")
-            logger.info(f"[DarkWeb] Processing in batches of {batch_size} URLs")
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] URL planning - Total available: {len(urls)}, "
+                f"will crawl: {crawl_limit}, batch_size: {batch_size}"
+            )
             
             urls_to_crawl = urls[:crawl_limit]
             total_batches = (len(urls_to_crawl) + batch_size - 1) // batch_size
-            logger.info(f"[DarkWeb] Will process {total_batches} batches")
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Will process {total_batches} batches, "
+                f"{len(urls_to_crawl)} URLs total"
+            )
+            job.progress = 30
             
             # Process URLs in batches
             for batch_num in range(total_batches):
@@ -1005,17 +1066,41 @@ class Orchestrator:
                 batch_urls = urls_to_crawl[batch_start_idx:batch_end_idx]
                 batch_num_display = batch_num + 1
                 
-                logger.info(f"[DarkWeb] Processing batch {batch_num_display}/{total_batches}: URLs {batch_start_idx}-{batch_end_idx-1} ({len(batch_urls)} URLs)")
+                # Calculate progress percentage
+                batch_progress_base = 30
+                batch_progress_range = 60  # 30% to 90%
+                batch_progress = batch_progress_base + int((batch_num / total_batches) * batch_progress_range)
+                job.progress = batch_progress
+                
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] Processing batch {batch_num_display}/{total_batches} "
+                    f"(progress: {batch_progress}%) - URLs {batch_start_idx}-{batch_end_idx-1} "
+                    f"({len(batch_urls)} URLs)"
+                )
                 batch_start_time = time.time()
                 
                 # Crawl and analyze each URL in the batch
                 for url_idx, url in enumerate(batch_urls):
                     url_start_time = time.time()
+                    url_progress = batch_progress + int((url_idx / len(batch_urls)) * (batch_progress_range / total_batches))
+                    job.progress = url_progress
+                    
                     try:
-                        logger.info(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Starting crawl of {url}")
+                        logger.info(
+                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
+                            f"URL {url_idx+1}/{len(batch_urls)} (progress: {url_progress}%): "
+                            f"Starting crawl of {url}"
+                        )
                         site = dark_watch.crawl_site(url, depth=1)
                         url_crawl_time = time.time() - url_start_time
-                        logger.info(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - Title: {site.title}, Entities: {len(site.extracted_entities)}, Keywords matched: {len(site.keywords_matched)}")
+                        logger.info(
+                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
+                            f"URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - "
+                            f"Title: {site.title[:50] if site.title else 'N/A'}, "
+                            f"Entities: {len(site.extracted_entities)}, "
+                            f"Keywords matched: {len(site.keywords_matched)}, "
+                            f"Threat level: {site.threat_level.value}"
+                        )
                         
                         batch_findings_count = 0
                         
@@ -1067,11 +1152,23 @@ class Orchestrator:
                     
                     except Exception as e:
                         url_error_time = time.time() - url_start_time
-                        logger.error(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Error crawling {url} after {url_error_time:.2f}s: {e}", exc_info=True)
+                        logger.error(
+                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
+                            f"URL {url_idx+1}/{len(batch_urls)}: Error crawling {url} after {url_error_time:.2f}s - "
+                            f"Error type: {type(e).__name__}, Error: {e}",
+                            exc_info=True
+                        )
                         continue
                 
                 batch_time = time.time() - batch_start_time
-                logger.info(f"[DarkWeb] Batch {batch_num_display}/{total_batches} completed in {batch_time:.2f}s. Total findings so far: {len(findings)}")
+                elapsed_total = time.time() - start_time
+                avg_time_per_url = batch_time / len(batch_urls) if batch_urls else 0
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches} completed in {batch_time:.2f}s "
+                    f"(avg {avg_time_per_url:.2f}s/URL) - Total findings: {len(findings)}, "
+                    f"Elapsed time: {elapsed_total:.2f}s"
+                )
+                job.progress = batch_progress_base + int(((batch_num + 1) / total_batches) * batch_progress_range)
             
             # If no findings created but URLs were crawled, create info finding
             if not findings and urls:
@@ -1094,7 +1191,12 @@ class Orchestrator:
         
         except Exception as e:
             total_time = time.time() - start_time
-            logger.error(f"[DarkWeb] Error in dark web intelligence collection after {total_time:.2f}s: {e}", exc_info=True)
+            logger.error(
+                f"[DarkWeb] [job_id={job.id}] Error in dark web intelligence collection after {total_time:.2f}s - "
+                f"Error type: {type(e).__name__}, Error: {e}",
+                exc_info=True
+            )
+            job.progress = 95
             # Create error finding
             finding = Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -1113,7 +1215,12 @@ class Orchestrator:
                 job.findings.append(finding)
         
         total_time = time.time() - start_time
-        logger.info(f"[DarkWeb] Dark web intelligence collection completed in {total_time:.2f}s. Total findings: {len(findings)}")
+        job.progress = 100
+        logger.info(
+            f"[DarkWeb] [job_id={job.id}] Dark web intelligence collection completed in {total_time:.2f}s - "
+            f"Total findings: {len(findings)}, URLs crawled: {len(urls_to_crawl) if 'urls_to_crawl' in locals() else 0}, "
+            f"Average time per finding: {total_time / len(findings) if findings else 0:.2f}s"
+        )
         return findings
     
     def _map_threat_to_severity(self, threat_level: str) -> str:

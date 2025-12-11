@@ -794,6 +794,17 @@ class DarkWatch:
         })
         logger.debug(f"[DarkWatch] Added vertex {site_id} to site graph")
         
+        total_time = time.time() - crawl_start_time
+        logger.info(
+            f"[DarkWatch] crawl_site completed for {onion_url} in {total_time:.2f}s - "
+            f"Title: {site.title[:50] if site.title else 'N/A'}, "
+            f"Entities: {len(site.extracted_entities)}, "
+            f"Keywords matched: {len(site.keywords_matched)}, "
+            f"Threat level: {site.threat_level.value}, "
+            f"Risk score: {site.risk_score:.2f}, "
+            f"Category: {site.category.value}"
+        )
+        
         # Create edges to linked sites
         for linked_url in linked_sites:
             linked_id = self._generate_site_id(linked_url)
