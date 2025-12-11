@@ -600,8 +600,10 @@ class DarkWatch:
             List of discovered URLs
         """
         urls = []
+        discovery_start = time.time()
         
         try:
+            logger.info("[DarkWatch] Starting URL discovery with all engines")
             # Use each engine
             engines = [
                 GistEngine(),
@@ -610,14 +612,23 @@ class DarkWatch:
                 DarkWebEngine(),
                 SearchEngine()
             ]
+            logger.info(f"[DarkWatch] Initialized {len(engines)} discovery engines")
             
             for engine in engines:
+                engine_name = engine.__class__.__name__
                 try:
+                    logger.info(f"[DarkWatch] Running discovery engine: {engine_name}")
+                    engine_start = time.time()
                     discovered = engine.discover_urls()
+                    engine_time = time.time() - engine_start
                     if discovered:
+                        logger.info(f"[DarkWatch] Engine {engine_name} discovered {len(discovered)} URLs in {engine_time:.2f}s")
                         urls.extend(discovered)
+                    else:
+                        logger.info(f"[DarkWatch] Engine {engine_name} found no URLs in {engine_time:.2f}s")
                 except Exception as e:
-                    logger.debug(f"Engine {engine.__class__.__name__} error: {e}")
+                    engine_time = time.time() - engine_start if 'engine_start' in locals() else 0
+                    logger.error(f"[DarkWatch] Engine {engine_name} error after {engine_time:.2f}s: {e}", exc_info=True)
                     continue
             
             # Store in URLDatabase
@@ -626,14 +637,22 @@ class DarkWatch:
                 dbname=settings.CRAWLER_DB_NAME
             )
             
+            logger.info(f"[DarkWatch] Saving {len(urls)} discovered URLs to database")
+            saved_count = 0
             for url in urls:
                 if not db.compare(url):
                     db.save(url=url, source="DiscoveryEngine", type="Domain")
+                    saved_count += 1
+            logger.info(f"[DarkWatch] Saved {saved_count} new URLs to database")
         
         except Exception as e:
-            logger.error(f"Error discovering URLs: {e}")
+            discovery_time = time.time() - discovery_start
+            logger.error(f"[DarkWatch] Error discovering URLs after {discovery_time:.2f}s: {e}", exc_info=True)
         
-        return list(set(urls))  # Return unique URLs
+        total_time = time.time() - discovery_start
+        unique_urls = list(set(urls))
+        logger.info(f"[DarkWatch] URL discovery completed in {total_time:.2f}s. Total: {len(urls)}, Unique: {len(unique_urls)}")
+        return unique_urls
     
     def crawl_site(self, onion_url: str, depth: int = 1) -> OnionSite:
         """
