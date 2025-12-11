@@ -1,6 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "cybernexus/backend/tor-service/Dockerfile"
+# dockerfilePath not needed when root directory is set to cybernexus/backend/tor-service
+# Railway auto-detects Dockerfile in the root directory
+# If auto-detection fails, uncomment the line below:
+# dockerfilePath = "cybernexus/backend/tor-service/Dockerfile"
 
 [deploy]
 numReplicas = 1
