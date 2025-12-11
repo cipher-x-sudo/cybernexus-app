@@ -24,7 +24,7 @@ ENV TOR_MaxCircuitDirtiness=60
 # Enable detailed logging to stdout/stderr for container visibility
 # Log level: notice (moderately verbose, good for production monitoring)
 # Log to stdout so it appears in container logs
-ENV TOR_Log="notice file /dev/stdout"
+ENV TOR_Log="notice stdout"
 # Enable detailed logging for connections, circuits, and streams
 ENV TOR_LogMessageDomains="GENERAL CIRC STREAM CONN ORCONN HTTPCONN"
 # Use 1 second granularity for timestamps
