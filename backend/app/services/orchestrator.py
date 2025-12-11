@@ -913,7 +913,8 @@ class Orchestrator:
         findings = []
         from app.config import settings
         
-        batch_size = settings.DARKWEB_BATCH_SIZE
+        # Default batch size (can be configured via env var if needed)
+        batch_size = getattr(settings, 'DARKWEB_BATCH_SIZE', 4)
         
         try:
             logger.info(f"[DarkWeb] Starting intelligence collection for target: {job.target}")
@@ -927,8 +928,6 @@ class Orchestrator:
             
             # Discover URLs using engines
             logger.info("[DarkWeb] Starting URL discovery using engines...")
-            logger.info(f"[DarkWeb] Note: Some engines require Tor proxy at {settings.TOR_PROXY_HOST}:{settings.TOR_PROXY_PORT}")
-            logger.info(f"[DarkWeb] If Tor is not available, engines will fail gracefully and database URLs will be used")
             discovery_start = time.time()
             try:
                 urls = dark_watch._discover_urls_with_engines()
@@ -937,7 +936,6 @@ class Orchestrator:
             except Exception as e:
                 discovery_time = time.time() - discovery_start
                 logger.error(f"[DarkWeb] URL discovery failed after {discovery_time:.2f}s: {e}", exc_info=True)
-                logger.info(f"[DarkWeb] Continuing with database fallback")
                 urls = []  # Continue with empty list, will try database fallback
             
             # If no URLs discovered, try to get URLs from database

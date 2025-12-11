@@ -37,9 +37,12 @@ class Settings(BaseSettings):
     BLOBS_DIR: Path = Path("data/blobs")
     
     # Collectors
-    TOR_PROXY_HOST: str = "localhost"
-    TOR_PROXY_PORT: int = 9050
-    TOR_PROXY_TYPE: str = "socks5h"
+    # Tor proxy settings - configure via environment variables in Railway
+    # If using separate Tor service: set TOR_PROXY_HOST to the service URL (e.g., tor-service.up.railway.app)
+    # For local development: use localhost
+    TOR_PROXY_HOST: str = Field(default="localhost", description="Tor proxy host (use Railway service URL for production)")
+    TOR_PROXY_PORT: int = Field(default=9050, description="Tor proxy port (use service port in Railway)")
+    TOR_PROXY_TYPE: str = Field(default="socks5h", description="Tor proxy type (socks5h, socks5, http)")
     TOR_TIMEOUT: int = 30
     REQUEST_TIMEOUT: int = 30
     MAX_CONCURRENT_REQUESTS: int = 10
@@ -57,10 +60,6 @@ class Settings(BaseSettings):
     ANALYZER_DB_NAME: Optional[str] = None
     ANALYZER_DB_USER: Optional[str] = None
     ANALYZER_DB_PASS: Optional[str] = None
-    
-    # Dark Web Intelligence - Batch Processing
-    DARKWEB_BATCH_SIZE: int = 4
-    DARKWEB_STREAMING_ENABLED: bool = True
     
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30

@@ -95,18 +95,11 @@ class DarkWebEngine:
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.ChunkedEncodingError,
                 requests.exceptions.ReadTimeout,
-                requests.exceptions.InvalidURL,
-                requests.exceptions.ProxyError) as e:
+                requests.exceptions.InvalidURL) as e:
             error_time = time.time() - discovery_start
-            error_msg = str(e)
-            if 'proxy' in error_msg.lower() or '9050' in error_msg or 'connection refused' in error_msg.lower():
-                logger.error(
-                    f'[DarkWebEngine] Tor proxy connection failed after {error_time:.2f}s. Check if Tor is running on {self.proxy_host}:{self.proxy_port}. Error: {e}'
-                )
-            else:
-                logger.error(
-                    f'[DarkWebEngine] Unable to connect to DiscoverDarkWeb service after {error_time:.2f}s: {e}'
-                )
+            logger.error(
+                f'[DarkWebEngine] Unable to connect to DiscoverDarkWeb service after {error_time:.2f}s: {e}'
+            )
             return []
         
         except Exception as e:
