@@ -80,9 +80,10 @@ services:
     environment:
       - TOR_NewCircuitPeriod=30
       - TOR_MaxCircuitDirtiness=60
-      # Enable detailed logging to stdout/stderr for container visibility
+      # Enable detailed logging to stderr for container visibility
       # Log level: info (more verbose than notice, shows connections, circuits, streams)
-      - TOR_Log=info stdout
+      # Using stderr instead of stdout to avoid parsing issues
+      - TOR_Log=info stderr
     restart: unless-stopped
     networks:
       - cybernexus-network

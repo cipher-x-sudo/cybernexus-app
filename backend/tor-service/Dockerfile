@@ -24,7 +24,8 @@ ENV TOR_MaxCircuitDirtiness=60
 # Enable detailed logging to stdout/stderr for container visibility
 # Log level: info (more verbose than notice, shows connections, circuits, streams)
 # Log to stdout so it appears in container logs
-ENV TOR_Log="info stdout"
+# Note: Set via environment variable in docker-compose or Railway, not here
+# to avoid parsing issues with the entrypoint script
 
 # Health check to verify Tor is running
 HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
