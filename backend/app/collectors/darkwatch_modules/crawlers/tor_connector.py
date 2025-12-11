@@ -276,9 +276,14 @@ class TorConnector:
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.ChunkedEncodingError,
                 requests.exceptions.ReadTimeout,
-                requests.exceptions.InvalidURL) as e:
+                requests.exceptions.InvalidURL,
+                requests.exceptions.ProxyError) as e:
             error_time = time.time() - crawl_start
-            logger.error(f"[TorConnector] Connection error for {url_str} after {error_time:.2f}s: {str(e)}")
+            error_msg = str(e)
+            if 'proxy' in error_msg.lower() or '9050' in error_msg or 'connection refused' in error_msg.lower():
+                logger.error(f"[TorConnector] Tor proxy connection failed for {url_str} after {error_time:.2f}s. Tor proxy may not be running on {self.proxy_host}:{self.proxy_port}. Error: {e}")
+            else:
+                logger.error(f"[TorConnector] Connection error for {url_str} after {error_time:.2f}s: {str(e)}")
             logger.info(f"[TorConnector] Could not connect to site. Updating url status {url_str} for 404.")
             self.database.update_status(
                 id=url_id,

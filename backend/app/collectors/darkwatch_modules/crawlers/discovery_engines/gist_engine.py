@@ -9,22 +9,22 @@ Discovers .onion URLs from GitHub Gist.
 
 import requests
 import re
-import logging
 import urllib.parse
 from random import choice
 import time
 from bs4 import BeautifulSoup
 from typing import List
+from loguru import logger
 
 
 class GistEngine:
     """Engine for discovering URLs from GitHub Gist."""
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
         self.desktop_agents = [
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:60.0) Gecko/20100101 Firefox/60.0'
         ]
+        logger.info("[GistEngine] Initialized (no Tor proxy required)")
     
     @property
     def random_headers(self):
@@ -41,22 +41,26 @@ class GistEngine:
         Returns:
             List of discovered .onion URLs
         """
-        self.logger.info('Starting Gist scraping.')
+        logger.info('[GistEngine] Starting Gist scraping')
         urls = []
+        discovery_start = time.time()
         
         try:
             with requests.Session() as session:
                 headers = self.random_headers
                 
                 # Get initial page
+                logger.info('[GistEngine] Fetching initial Gist search page')
                 request = session.get(
                     'https://gist.github.com/search?l=Text&q=.onion',
-                    headers=headers
+                    headers=headers,
+                    timeout=30
                 )
                 
                 if request.status_code != 200:
-                    self.logger.warning(f"Gist search returned status {request.status_code}")
+                    logger.warning(f"[GistEngine] Gist search returned status {request.status_code}")
                     return []
+                logger.info(f"[GistEngine] Initial page fetched successfully, status={request.status_code}")
                 
                 # Get pagination
                 soup = BeautifulSoup(request.content, features="lxml")
@@ -81,11 +85,12 @@ class GistEngine:
                         pass
                 
                 # Scrape each page
+                logger.info(f"[GistEngine] Found {len(search_urls)} pages to scrape")
                 gist_urls = []
-                for inurl in search_urls:
-                    self.logger.debug(f"Connecting to {inurl}")
+                for idx, inurl in enumerate(search_urls, 1):
+                    logger.debug(f"[GistEngine] Scraping page {idx}/{len(search_urls)}: {inurl}")
                     time.sleep(2)  # Rate limiting
-                    request = session.get(inurl, headers=headers)
+                    request = session.get(inurl, headers=headers, timeout=30)
                     
                     if request.status_code == 200:
                         soup = BeautifulSoup(request.content, features="lxml")
@@ -146,7 +151,10 @@ class GistEngine:
                         continue
         
         except Exception as e:
-            self.logger.error(f"Gist engine error: {e}")
+            discovery_time = time.time() - discovery_start
+            logger.error(f"[GistEngine] Error after {discovery_time:.2f}s: {e}", exc_info=True)
         
-        self.logger.info(f'Found {len(urls)} URLs from Gist')
-        return list(set(urls))  # Return unique URLs
+        discovery_time = time.time() - discovery_start
+        unique_urls = list(set(urls))
+        logger.info(f'[GistEngine] Found {len(unique_urls)} unique URLs from Gist in {discovery_time:.2f}s')
+        return unique_urls
