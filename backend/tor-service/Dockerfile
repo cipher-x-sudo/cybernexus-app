@@ -1,7 +1,18 @@
 FROM dperson/torproxy:latest
 
 # Install curl for healthcheck (dperson/torproxy may not have it)
-RUN apt update && apt install -y curl && rm -rf /var/lib/apt/lists/*
+# Check if curl exists, if not try to install with available package manager
+RUN if ! command -v curl >/dev/null 2>&1; then \
+        if command -v apt-get >/dev/null 2>&1; then \
+            apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*; \
+        elif command -v apk >/dev/null 2>&1; then \
+            apk add --no-cache curl; \
+        elif command -v yum >/dev/null 2>&1; then \
+            yum install -y curl && yum clean all; \
+        else \
+            echo "No package manager found, curl may not be available"; \
+        fi \
+    fi
 
 # Expose Tor SOCKS proxy port (9050) and control port (9051)
 EXPOSE 9050 9051
