@@ -913,8 +913,7 @@ class Orchestrator:
         findings = []
         from app.config import settings
         
-        # Default batch size (can be configured via env var if needed)
-        batch_size = getattr(settings, 'DARKWEB_BATCH_SIZE', 4)
+        batch_size = settings.DARKWEB_BATCH_SIZE
         
         try:
             logger.info(f"[DarkWeb] Starting intelligence collection for target: {job.target}")

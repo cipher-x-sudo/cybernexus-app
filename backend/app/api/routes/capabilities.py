@@ -356,9 +356,9 @@ async def stream_job_findings(job_id: str):
     - Progress updates (event: progress)
     - Completion status (event: complete)
     """
-    # Check if streaming is enabled (default: True, can be disabled via env var)
-    streaming_enabled = getattr(settings, 'DARKWEB_STREAMING_ENABLED', True)
-    if not streaming_enabled:
+    from app.config import settings
+    
+    if not settings.DARKWEB_STREAMING_ENABLED:
         raise HTTPException(status_code=503, detail="Streaming is not enabled")
     
     orchestrator = get_orchestrator()

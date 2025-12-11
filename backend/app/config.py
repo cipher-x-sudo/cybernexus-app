@@ -37,12 +37,12 @@ class Settings(BaseSettings):
     BLOBS_DIR: Path = Path("data/blobs")
     
     # Collectors
-    # Tor proxy settings - configure via environment variables in Railway
-    # If using separate Tor service: set TOR_PROXY_HOST to the service URL (e.g., tor-service.up.railway.app)
-    # For local development: use localhost
-    TOR_PROXY_HOST: str = Field(default="localhost", description="Tor proxy host (use Railway service URL for production)")
-    TOR_PROXY_PORT: int = Field(default=9050, description="Tor proxy port (use service port in Railway)")
-    TOR_PROXY_TYPE: str = Field(default="socks5h", description="Tor proxy type (socks5h, socks5, http)")
+    # Tor proxy host - defaults to "localhost" for local dev
+    # For Railway deployment, set TOR_PROXY_HOST=tor-service via environment variable
+    # Railway automatically resolves service names via internal DNS
+    TOR_PROXY_HOST: str = Field(default="localhost", env="TOR_PROXY_HOST")
+    TOR_PROXY_PORT: int = Field(default=9050, env="TOR_PROXY_PORT")
+    TOR_PROXY_TYPE: str = Field(default="socks5h", env="TOR_PROXY_TYPE")
     TOR_TIMEOUT: int = 30
     REQUEST_TIMEOUT: int = 30
     MAX_CONCURRENT_REQUESTS: int = 10
