@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     CRAWLER_SCORE_KEYWORDS: int = 40
     CRAWLER_COUNT_CATEGORIES: int = 5
     CRAWLER_DAYS_TIME: int = 10
+    DARKWEB_BATCH_SIZE: int = Field(default=5, env="DARKWEB_BATCH_SIZE")  # Number of URLs to process per batch
     
     # Dark Web Intelligence - Site Analyzer (if using separate DB)
     ANALYZER_DB_HOST: Optional[str] = None
