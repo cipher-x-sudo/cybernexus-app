@@ -454,7 +454,7 @@ class DarkWatch:
             Dictionary with site data
         """
         crawl_start_time = time.time()
-        logger.debug(f"[DarkWatch] Starting keyword monitor crawl for {onion_url}")
+        logger.info(f"[DarkWatch] Starting keyword monitor crawl for {onion_url}")
         
         try:
             # Initialize TorConnector
@@ -528,7 +528,7 @@ class DarkWatch:
             Dictionary with site data
         """
         crawl_start_time = time.time()
-        logger.debug(f"[DarkWatch] Starting site analyzer crawl for {onion_url}")
+        logger.info(f"[DarkWatch] Starting site analyzer crawl for {onion_url}")
         
         try:
             # Use site_crawler function
@@ -647,7 +647,7 @@ class DarkWatch:
             OnionSite with extracted data
         """
         crawl_start_time = time.time()
-        logger.debug(f"[DarkWatch] crawl_site called for {onion_url} (depth={depth})")
+        logger.info(f"[DarkWatch] crawl_site called for {onion_url} (depth={depth})")
         
         # Check if already crawled recently
         if self.url_filter.contains(onion_url):
@@ -661,11 +661,11 @@ class DarkWatch:
         logger.debug(f"[DarkWatch] Added {onion_url} to URL filter")
         
         # Real crawl
-        logger.debug(f"[DarkWatch] Starting real crawl for {onion_url}")
+        logger.info(f"[DarkWatch] Starting real crawl for {onion_url}")
         crawl_start = time.time()
         page_data = self._crawl_site_real(onion_url)
         crawl_time = time.time() - crawl_start
-        logger.debug(f"[DarkWatch] Real crawl completed for {onion_url} in {crawl_time:.2f}s")
+        logger.info(f"[DarkWatch] Real crawl completed for {onion_url} in {crawl_time:.2f}s")
         
         site_id = self._generate_site_id(onion_url)
         content = page_data["content"]
@@ -830,7 +830,7 @@ class DarkWatch:
         self.stats["last_crawl"] = now.isoformat()
         
         total_time = time.time() - crawl_start_time
-        logger.debug(f"[DarkWatch] crawl_site completed for {onion_url} in {total_time:.2f}s - Final stats: Entities={len(entities)}, Keywords={len(keywords_matched)}, Risk={risk_score:.2f}")
+        logger.info(f"[DarkWatch] crawl_site completed for {onion_url} in {total_time:.2f}s - Final stats: Entities={len(entities)}, Keywords={len(keywords_matched)}, Risk={risk_score:.2f}")
         
         return site
     

@@ -417,7 +417,9 @@ class Orchestrator:
             elif job.capability == Capability.INFRASTRUCTURE_TESTING:
                 findings = await self._execute_infra_testing(job)
             elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
+                logger.info(f"[Orchestrator] Calling _execute_darkweb_intelligence for job {job.id}")
                 findings = await self._execute_darkweb_intelligence(job)
+                logger.info(f"[Orchestrator] _execute_darkweb_intelligence completed for job {job.id}, returned {len(findings)} findings")
             elif job.capability == Capability.AUTHENTICATION_TESTING:
                 findings = self._generate_auth_findings(job)
             elif job.capability == Capability.NETWORK_SECURITY:
@@ -914,36 +916,43 @@ class Orchestrator:
         batch_size = settings.DARKWEB_BATCH_SIZE
         
         try:
-            logger.debug(f"[DarkWeb] Starting intelligence collection for target: {job.target}")
+            logger.info(f"[DarkWeb] Starting intelligence collection for target: {job.target}")
             start_time = time.time()
             
             # Use DarkWatch collector
             from app.collectors.dark_watch import DarkWatch
+            logger.info(f"[DarkWeb] Initializing DarkWatch collector with keywords: {job.target if job.target else 'none'}")
             dark_watch = DarkWatch(monitored_keywords=[job.target] if job.target else [])
-            logger.debug(f"[DarkWeb] DarkWatch collector initialized with keywords: {job.target if job.target else 'none'}")
+            logger.info(f"[DarkWeb] DarkWatch collector initialized successfully")
             
             # Discover URLs using engines
-            logger.debug("[DarkWeb] Starting URL discovery using engines...")
+            logger.info("[DarkWeb] Starting URL discovery using engines...")
             discovery_start = time.time()
-            urls = dark_watch._discover_urls_with_engines()
-            discovery_time = time.time() - discovery_start
-            logger.debug(f"[DarkWeb] URL discovery completed in {discovery_time:.2f}s. Found {len(urls)} URLs from engines")
+            try:
+                urls = dark_watch._discover_urls_with_engines()
+                discovery_time = time.time() - discovery_start
+                logger.info(f"[DarkWeb] URL discovery completed in {discovery_time:.2f}s. Found {len(urls)} URLs from engines")
+            except Exception as e:
+                discovery_time = time.time() - discovery_start
+                logger.error(f"[DarkWeb] URL discovery failed after {discovery_time:.2f}s: {e}", exc_info=True)
+                urls = []  # Continue with empty list, will try database fallback
             
             # If no URLs discovered, try to get URLs from database
             if not urls:
                 logger.info("[DarkWeb] No URLs discovered from engines, checking database...")
                 try:
                     from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
+                    logger.info("[DarkWeb] Connecting to URL database...")
                     db = URLDatabase(
                         dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
                         dbname=settings.CRAWLER_DB_NAME
                     )
-                    logger.debug("[DarkWeb] Database connection established, querying for URLs...")
+                    logger.info("[DarkWeb] Database connection established, querying for URLs...")
                     db_start = time.time()
                     # Get some URLs from database (select returns tuples: id, type, url, title, baseurl, ...)
                     db_records = db.select()
                     db_time = time.time() - db_start
-                    logger.debug(f"[DarkWeb] Database query completed in {db_time:.2f}s. Retrieved {len(db_records)} records")
+                    logger.info(f"[DarkWeb] Database query completed in {db_time:.2f}s. Retrieved {len(db_records)} records")
                     
                     if db_records:
                         # Extract URLs from tuples (url is index 2, baseurl is index 4)
@@ -983,10 +992,11 @@ class Orchestrator:
             # Limit initial crawl to avoid overwhelming
             crawl_limit = min(10, len(urls))
             logger.info(f"[DarkWeb] Total URLs available: {len(urls)}, will crawl {crawl_limit} URLs")
-            logger.debug(f"[DarkWeb] Processing in batches of {batch_size} URLs")
+            logger.info(f"[DarkWeb] Processing in batches of {batch_size} URLs")
             
             urls_to_crawl = urls[:crawl_limit]
             total_batches = (len(urls_to_crawl) + batch_size - 1) // batch_size
+            logger.info(f"[DarkWeb] Will process {total_batches} batches")
             
             # Process URLs in batches
             for batch_num in range(total_batches):
@@ -995,17 +1005,17 @@ class Orchestrator:
                 batch_urls = urls_to_crawl[batch_start_idx:batch_end_idx]
                 batch_num_display = batch_num + 1
                 
-                logger.debug(f"[DarkWeb] Processing batch {batch_num_display}/{total_batches}: URLs {batch_start_idx}-{batch_end_idx-1} ({len(batch_urls)} URLs)")
+                logger.info(f"[DarkWeb] Processing batch {batch_num_display}/{total_batches}: URLs {batch_start_idx}-{batch_end_idx-1} ({len(batch_urls)} URLs)")
                 batch_start_time = time.time()
                 
                 # Crawl and analyze each URL in the batch
                 for url_idx, url in enumerate(batch_urls):
                     url_start_time = time.time()
                     try:
-                        logger.debug(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Starting crawl of {url}")
+                        logger.info(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Starting crawl of {url}")
                         site = dark_watch.crawl_site(url, depth=1)
                         url_crawl_time = time.time() - url_start_time
-                        logger.debug(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - Title: {site.title}, Entities: {len(site.extracted_entities)}, Keywords matched: {len(site.keywords_matched)}")
+                        logger.info(f"[DarkWeb] Batch {batch_num_display}, URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - Title: {site.title}, Entities: {len(site.extracted_entities)}, Keywords matched: {len(site.keywords_matched)}")
                         
                         batch_findings_count = 0
                         
@@ -1053,7 +1063,7 @@ class Orchestrator:
                                 existing_ids = {f.id for f in job.findings}
                                 new_findings = [f for f in findings if f.id not in existing_ids]
                                 job.findings.extend(new_findings)
-                                logger.debug(f"[DarkWeb] Batch {batch_num_display}: Stored {len(new_findings)} new findings in job. Total findings so far: {len(job.findings)}")
+                                logger.info(f"[DarkWeb] Batch {batch_num_display}: Stored {len(new_findings)} new findings in job. Total findings so far: {len(job.findings)}")
                     
                     except Exception as e:
                         url_error_time = time.time() - url_start_time
