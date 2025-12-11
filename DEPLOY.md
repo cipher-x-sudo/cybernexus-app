@@ -33,12 +33,24 @@ CyberNexus requires **three separate Railway services**:
 
 The Tor service is required for Dark Web Intelligence collection. It runs as an **internal-only service** (no public port).
 
+### Method 1: Root Directory (Recommended)
+
 1. In the same Railway project, click "New Service" → "GitHub Repo"
 2. Select the same repository
 3. **CRITICAL:** Go to **Settings** → **Source** → Set **Root Directory** to: `cybernexus/backend/tor-service`
    - This ensures Railway uses the correct Dockerfile (not the root one)
-   - Without this, Railway will try to use the wrong Dockerfile and fail
-4. Railway will auto-detect the Dockerfile in that directory and deploy
+   - Railway will automatically detect the Dockerfile in that directory
+4. **Do NOT generate a public domain** - this service is internal only
+5. **Important:** Note the service name (Railway will show it, e.g., `tor-service` or `tor-proxy`)
+
+### Method 2: Environment Variable (If Method 1 doesn't work)
+
+1. In the same Railway project, click "New Service" → "GitHub Repo"
+2. Select the same repository
+3. Leave **Root Directory** empty or set to `cybernexus`
+4. Go to **Settings** → **Variables** → Add:
+   - Name: `RAILWAY_DOCKERFILE_PATH`
+   - Value: `cybernexus/backend/tor-service/Dockerfile`
 5. **Do NOT generate a public domain** - this service is internal only
 6. **Important:** Note the service name (Railway will show it, e.g., `tor-service` or `tor-proxy`)
 
