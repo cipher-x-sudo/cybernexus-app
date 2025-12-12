@@ -55,6 +55,7 @@ from app.collectors.darkwatch_modules.extractors.utils import (
 from app.config import settings
 from loguru import logger
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class SiteCategory(Enum):
@@ -594,17 +595,18 @@ class DarkWatch:
     
     def _discover_urls_with_engines(self) -> List[str]:
         """
-        Discover URLs using discovery engines.
+        Discover URLs using discovery engines in parallel.
         
         Returns:
             List of discovered URLs
         """
         urls = []
         discovery_start = time.time()
+        discovery_timeout = settings.DARKWEB_DISCOVERY_TIMEOUT
         
         try:
-            logger.info("[DarkWatch] Starting URL discovery with all engines")
-            # Use each engine
+            logger.info("[DarkWatch] Starting parallel URL discovery with all engines")
+            # Initialize all engines
             engines = [
                 GistEngine(),
                 RedditEngine(),
@@ -612,24 +614,43 @@ class DarkWatch:
                 DarkWebEngine(),
                 SearchEngine()
             ]
-            logger.info(f"[DarkWatch] Initialized {len(engines)} discovery engines")
+            logger.info(f"[DarkWatch] Initialized {len(engines)} discovery engines for parallel execution")
             
-            for engine in engines:
-                engine_name = engine.__class__.__name__
-                try:
-                    logger.info(f"[DarkWatch] Running discovery engine: {engine_name}")
+            # Run all engines in parallel using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(engines)) as executor:
+                # Submit all engine tasks
+                future_to_engine = {
+                    executor.submit(engine.discover_urls): engine 
+                    for engine in engines
+                }
+                
+                # Process completed tasks as they finish
+                for future in as_completed(future_to_engine, timeout=discovery_timeout):
+                    engine = future_to_engine[future]
+                    engine_name = engine.__class__.__name__
                     engine_start = time.time()
-                    discovered = engine.discover_urls()
-                    engine_time = time.time() - engine_start
-                    if discovered:
-                        logger.info(f"[DarkWatch] Engine {engine_name} discovered {len(discovered)} URLs in {engine_time:.2f}s")
-                        urls.extend(discovered)
-                    else:
-                        logger.info(f"[DarkWatch] Engine {engine_name} found no URLs in {engine_time:.2f}s")
-                except Exception as e:
-                    engine_time = time.time() - engine_start if 'engine_start' in locals() else 0
-                    logger.error(f"[DarkWatch] Engine {engine_name} error after {engine_time:.2f}s: {e}", exc_info=True)
-                    continue
+                    
+                    try:
+                        discovered = future.result(timeout=60)  # Individual engine timeout
+                        engine_time = time.time() - engine_start
+                        
+                        if discovered:
+                            logger.info(
+                                f"[DarkWatch] Engine {engine_name} discovered {len(discovered)} URLs "
+                                f"in {engine_time:.2f}s"
+                            )
+                            urls.extend(discovered)
+                        else:
+                            logger.info(
+                                f"[DarkWatch] Engine {engine_name} found no URLs in {engine_time:.2f}s"
+                            )
+                    except Exception as e:
+                        engine_time = time.time() - engine_start
+                        logger.error(
+                            f"[DarkWatch] Engine {engine_name} error after {engine_time:.2f}s: {e}",
+                            exc_info=True
+                        )
+                        continue
             
             # Store in URLDatabase
             db = URLDatabase(
@@ -647,11 +668,17 @@ class DarkWatch:
         
         except Exception as e:
             discovery_time = time.time() - discovery_start
-            logger.error(f"[DarkWatch] Error discovering URLs after {discovery_time:.2f}s: {e}", exc_info=True)
+            logger.error(
+                f"[DarkWatch] Error discovering URLs after {discovery_time:.2f}s: {e}",
+                exc_info=True
+            )
         
         total_time = time.time() - discovery_start
         unique_urls = list(set(urls))
-        logger.info(f"[DarkWatch] URL discovery completed in {total_time:.2f}s. Total: {len(urls)}, Unique: {len(unique_urls)}")
+        logger.info(
+            f"[DarkWatch] Parallel URL discovery completed in {total_time:.2f}s. "
+            f"Total: {len(urls)}, Unique: {len(unique_urls)}"
+        )
         return unique_urls
     
     def crawl_site(self, onion_url: str, depth: int = 1) -> OnionSite:

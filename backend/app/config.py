@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     CRAWLER_DAYS_TIME: int = 10
     DARKWEB_BATCH_SIZE: int = Field(default=5, env="DARKWEB_BATCH_SIZE")  # Number of URLs to process per batch
     
+    # Dark Web Parallel Processing
+    DARKWEB_MAX_WORKERS: int = Field(default=5, env="DARKWEB_MAX_WORKERS")  # Thread pool size for parallel crawling
+    DARKWEB_DISCOVERY_TIMEOUT: int = Field(default=300, env="DARKWEB_DISCOVERY_TIMEOUT")  # 5 min timeout per discovery engine
+    DARKWEB_CRAWL_TIMEOUT: int = Field(default=600, env="DARKWEB_CRAWL_TIMEOUT")  # 10 min timeout per crawl batch
+    
     # Dark Web Intelligence - Site Analyzer (if using separate DB)
     ANALYZER_DB_HOST: Optional[str] = None
     ANALYZER_DB_NAME: Optional[str] = None

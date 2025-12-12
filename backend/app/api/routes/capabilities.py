@@ -98,6 +98,16 @@ class RiskScoreResponse(BaseModel):
     trend: str
 
 
+class IncrementalFindingsResponse(BaseModel):
+    """Incremental findings response with metadata"""
+    findings: List[FindingResponse]
+    has_more: bool
+    total_findings: int
+    new_count: int
+    last_finding_id: Optional[str] = None
+    last_finding_timestamp: Optional[str] = None
+
+
 class QuickScanRequest(BaseModel):
     """Quick scan request"""
     domain: str = Field(..., description="Domain to scan")
@@ -348,25 +358,65 @@ async def get_job(job_id: str):
 async def get_job_findings(
     job_id: str,
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return"),
-    offset: int = Query(default=0, ge=0, description="Number of findings to skip")
+    offset: int = Query(default=0, ge=0, description="Number of findings to skip"),
+    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling")
 ):
     """
-    Get findings from a completed job with pagination support.
+    Get findings from a job with pagination and incremental polling support.
+    
+    Supports two modes:
+    1. Full pagination: Use offset/limit to paginate through all findings
+    2. Incremental polling: Use 'since' parameter to get only new findings since last poll
+       - 'since' can be an ISO timestamp (e.g., "2024-01-01T00:00:00") or a finding ID
+       - Returns only findings discovered after the specified timestamp or finding ID
     
     Returns findings in batches, allowing clients to retrieve data incrementally
     to avoid timeout issues with large result sets.
     """
+    from datetime import datetime as dt
+    
     orchestrator = get_orchestrator()
     job = orchestrator.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Apply pagination
-    total_findings = len(job.findings)
-    paginated_findings = job.findings[offset:offset + limit]
+    # Get findings based on 'since' parameter for incremental polling
+    if since:
+        try:
+            # Try parsing as ISO timestamp first
+            try:
+                since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
+                filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
+                logger.debug(
+                    f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
+                    f"since={since}, found={len(filtered_findings)} new findings"
+                )
+            except (ValueError, AttributeError):
+                # If not a timestamp, treat as finding ID
+                filtered_findings = job.get_findings_since(since_id=since)
+                logger.debug(
+                    f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
+                    f"since={since}, found={len(filtered_findings)} new findings"
+                )
+        except Exception as e:
+            logger.warning(
+                f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
+                f"Falling back to all findings."
+            )
+            filtered_findings = job.findings
+    else:
+        # No 'since' parameter, return all findings (backward compatible)
+        filtered_findings = job.findings
     
-    logger.debug(f"[API] get_job_findings: job_id={job_id}, total={total_findings}, offset={offset}, limit={limit}, returning={len(paginated_findings)}")
+    # Apply pagination to filtered results
+    total_findings = len(filtered_findings)
+    paginated_findings = filtered_findings[offset:offset + limit]
+    
+    logger.debug(
+        f"[API] get_job_findings: job_id={job_id}, total={total_findings}, "
+        f"offset={offset}, limit={limit}, returning={len(paginated_findings)}"
+    )
     
     findings_response = [
         FindingResponse(
@@ -384,9 +434,113 @@ async def get_job_findings(
         for f in paginated_findings
     ]
     
-    # Add pagination metadata as response headers (FastAPI allows this via response model)
-    # For now, we'll include it in a custom response format
     return findings_response
+
+
+@router.get("/jobs/{job_id}/findings/incremental", response_model=IncrementalFindingsResponse)
+async def get_job_findings_incremental(
+    job_id: str,
+    last_finding_id: Optional[str] = Query(None, description="Last received finding ID for incremental polling"),
+    last_timestamp: Optional[str] = Query(None, description="Last received timestamp (ISO format) for incremental polling"),
+    limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return")
+):
+    """
+    Get new findings since last poll (incremental polling endpoint).
+    
+    This endpoint is optimized for continuous polling. It returns only new findings
+    since the last poll, along with metadata to help clients track progress.
+    
+    Usage:
+    1. First call: Don't provide last_finding_id or last_timestamp to get initial findings
+    2. Subsequent calls: Use the last_finding_id or last_timestamp from previous response
+    3. Continue polling until has_more is False or job status is completed
+    
+    Returns:
+    {
+        "findings": [...],           # New findings since last poll
+        "has_more": bool,            # Whether there are more findings available
+        "total_findings": int,       # Total findings in job
+        "new_count": int,            # Number of new findings in this response
+        "last_finding_id": str,      # ID of last finding (for next poll)
+        "last_finding_timestamp": str # Timestamp of last finding (for next poll)
+    }
+    """
+    from datetime import datetime as dt
+    
+    orchestrator = get_orchestrator()
+    job = orchestrator.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    total_findings = len(job.findings)
+    
+    # Get new findings based on last_finding_id or last_timestamp
+    if last_finding_id:
+        new_findings = job.get_findings_since(since_id=last_finding_id)
+        logger.debug(
+            f"[API] get_job_findings_incremental: job_id={job_id}, "
+            f"since_id={last_finding_id}, found={len(new_findings)} new findings"
+        )
+    elif last_timestamp:
+        try:
+            since_timestamp = dt.fromisoformat(last_timestamp.replace('Z', '+00:00'))
+            new_findings = job.get_findings_since(since_timestamp=since_timestamp)
+            logger.debug(
+                f"[API] get_job_findings_incremental: job_id={job_id}, "
+                f"since_timestamp={last_timestamp}, found={len(new_findings)} new findings"
+            )
+        except (ValueError, AttributeError) as e:
+            logger.warning(
+                f"[API] get_job_findings_incremental: Invalid timestamp '{last_timestamp}': {e}. "
+                f"Returning all findings."
+            )
+            new_findings = job.findings
+    else:
+        # First call - return all findings
+        new_findings = job.findings
+        logger.debug(
+            f"[API] get_job_findings_incremental: job_id={job_id}, "
+            f"first call, returning all {len(new_findings)} findings"
+        )
+    
+    # Apply limit
+    limited_findings = new_findings[:limit]
+    new_count = len(limited_findings)
+    has_more = len(new_findings) > limit
+    
+    # Get last finding metadata for next poll
+    last_finding_id_value = None
+    last_finding_timestamp_value = None
+    if limited_findings:
+        last_finding = limited_findings[-1]
+        last_finding_id_value = last_finding.id
+        last_finding_timestamp_value = last_finding.discovered_at.isoformat()
+    
+    findings_response = [
+        FindingResponse(
+            id=f.id,
+            capability=f.capability.value,
+            severity=f.severity,
+            title=f.title,
+            description=f.description,
+            evidence=f.evidence,
+            affected_assets=f.affected_assets,
+            recommendations=f.recommendations,
+            discovered_at=f.discovered_at.isoformat(),
+            risk_score=f.risk_score
+        )
+        for f in limited_findings
+    ]
+    
+    return IncrementalFindingsResponse(
+        findings=findings_response,
+        has_more=has_more,
+        total_findings=total_findings,
+        new_count=new_count,
+        last_finding_id=last_finding_id_value,
+        last_finding_timestamp=last_finding_timestamp_value
+    )
 
 
 @router.get("/jobs/{job_id}/findings/stream")

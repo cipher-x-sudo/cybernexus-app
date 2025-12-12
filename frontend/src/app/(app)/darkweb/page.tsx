@@ -16,15 +16,34 @@ interface Mention {
   author?: string;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
 // Fetch mentions from API
 async function fetchMentions(): Promise<Mention[]> {
   try {
-    const response = await fetch('/api/darkweb/mentions');
+    const response = await fetch(`${API_BASE_URL}/darkweb/mentions`);
     if (!response.ok) {
-      throw new Error('Failed to fetch mentions');
+      // If endpoint doesn't exist or returns error, return empty array
+      if (response.status === 404) {
+        console.warn('Darkweb mentions endpoint not available yet');
+        return [];
+      }
+      throw new Error(`Failed to fetch mentions: ${response.status}`);
     }
     const data = await response.json();
-    return data;
+    
+    // Transform API response to frontend format
+    return data.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      source: item.source as Mention["source"],
+      severity: item.severity as Mention["severity"],
+      keywords: item.keywords || [],
+      url: item.url,
+      timestamp: new Date(item.timestamp),
+      author: item.author
+    }));
   } catch (error) {
     console.error('Error fetching mentions:', error);
     return [];
@@ -98,7 +117,11 @@ export default function DarkWebPage() {
         {[
           { label: "Total Mentions", value: mentions.length },
           { label: "Critical", value: mentions.filter((m) => m.severity === "critical").length },
-          { label: "This Week", value: mentions.length }, // All mock data is within a week
+          { label: "This Week", value: mentions.filter((m) => {
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return m.timestamp >= weekAgo;
+          }).length },
           { label: "Sources", value: new Set(mentions.map((m) => m.source)).size },
         ].map((stat) => (
           <GlassCard key={stat.label} padding="lg">
@@ -156,7 +179,13 @@ export default function DarkWebPage() {
 
             {/* Feed items */}
             <div className="divide-y divide-white/[0.03]">
-              {filteredMentions.map((mention) => (
+              {filteredMentions.length === 0 ? (
+                <div className="p-8 text-center text-white/50">
+                  <p className="font-mono text-sm">No mentions found</p>
+                  <p className="font-mono text-xs mt-2">Submit a dark web intelligence job to start monitoring</p>
+                </div>
+              ) : (
+                filteredMentions.map((mention) => (
                 <div
                   key={mention.id}
                   onClick={() => setSelectedMention(mention)}
@@ -198,7 +227,8 @@ export default function DarkWebPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </GlassCard>
         </div>

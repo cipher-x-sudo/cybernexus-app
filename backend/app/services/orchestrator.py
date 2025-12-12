@@ -21,6 +21,8 @@ from enum import Enum
 import uuid
 import asyncio
 import time
+from threading import Lock
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
@@ -107,6 +109,33 @@ class Job:
     completed_at: Optional[datetime] = None
     findings: List[Finding] = field(default_factory=list)
     error: Optional[str] = None
+    _findings_lock: Lock = field(default_factory=Lock, init=False, repr=False)
+    
+    def add_finding(self, finding: Finding):
+        """Thread-safe method to add a finding"""
+        with self._findings_lock:
+            self.findings.append(finding)
+    
+    def add_findings(self, findings: List[Finding]):
+        """Thread-safe method to add multiple findings"""
+        with self._findings_lock:
+            self.findings.extend(findings)
+    
+    def get_findings_since(self, since_timestamp: Optional[datetime] = None, since_id: Optional[str] = None) -> List[Finding]:
+        """Get findings since a timestamp or finding ID (thread-safe read)"""
+        with self._findings_lock:
+            if since_timestamp:
+                return [f for f in self.findings if f.discovered_at > since_timestamp]
+            elif since_id:
+                # Find the index of the finding with this ID
+                try:
+                    since_index = next(i for i, f in enumerate(self.findings) if f.id == since_id)
+                    return self.findings[since_index + 1:]
+                except StopIteration:
+                    # ID not found, return all findings
+                    return self.findings[:]
+            else:
+                return self.findings[:]
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -262,6 +291,9 @@ class Orchestrator:
             "critical_findings": 0,
             "high_findings": 0
         }
+        
+        # DarkWatch instance storage (for API access to advanced features)
+        self._darkwatch_instances = HashMap()  # job_id -> DarkWatch instance
         
         # Initialize real collectors
         self._web_recon = WebRecon()
@@ -952,6 +984,8 @@ class Orchestrator:
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] DarkWatch collector initialized successfully in {init_time:.2f}s"
             )
+            # Store DarkWatch instance for API access to advanced features
+            self._darkwatch_instances.put(job.id, dark_watch)
             job.progress = 10
             
             # Discover URLs using engines
@@ -1039,9 +1073,8 @@ class Orchestrator:
                     risk_score=10.0
                 )
                 findings.append(finding)
-                # Store in job immediately
-                if hasattr(job, 'findings'):
-                    job.findings.extend(findings)
+                # Store in job immediately (thread-safe)
+                job.add_findings(findings)
                 return findings
             
             # Limit initial crawl to avoid overwhelming
@@ -1052,123 +1085,134 @@ class Orchestrator:
             )
             
             urls_to_crawl = urls[:crawl_limit]
-            total_batches = (len(urls_to_crawl) + batch_size - 1) // batch_size
+            max_workers = settings.DARKWEB_MAX_WORKERS
+            crawl_timeout = settings.DARKWEB_CRAWL_TIMEOUT
+            
             logger.info(
-                f"[DarkWeb] [job_id={job.id}] Will process {total_batches} batches, "
-                f"{len(urls_to_crawl)} URLs total"
+                f"[DarkWeb] [job_id={job.id}] Will process {len(urls_to_crawl)} URLs in parallel "
+                f"with {max_workers} workers"
             )
             job.progress = 30
             
-            # Process URLs in batches
-            for batch_num in range(total_batches):
-                batch_start_idx = batch_num * batch_size
-                batch_end_idx = min(batch_start_idx + batch_size, len(urls_to_crawl))
-                batch_urls = urls_to_crawl[batch_start_idx:batch_end_idx]
-                batch_num_display = batch_num + 1
+            # Helper function to crawl and analyze a single URL
+            def crawl_and_analyze_url(url: str) -> List[Finding]:
+                """Crawl a single URL and return findings (for parallel execution)"""
+                url_findings = []
+                url_start_time = time.time()
                 
-                # Calculate progress percentage
-                batch_progress_base = 30
-                batch_progress_range = 60  # 30% to 90%
-                batch_progress = batch_progress_base + int((batch_num / total_batches) * batch_progress_range)
-                job.progress = batch_progress
-                
-                logger.info(
-                    f"[DarkWeb] [job_id={job.id}] Processing batch {batch_num_display}/{total_batches} "
-                    f"(progress: {batch_progress}%) - URLs {batch_start_idx}-{batch_end_idx-1} "
-                    f"({len(batch_urls)} URLs)"
-                )
-                batch_start_time = time.time()
-                
-                # Crawl and analyze each URL in the batch
-                for url_idx, url in enumerate(batch_urls):
-                    url_start_time = time.time()
-                    url_progress = batch_progress + int((url_idx / len(batch_urls)) * (batch_progress_range / total_batches))
-                    job.progress = url_progress
+                try:
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Starting parallel crawl of {url}"
+                    )
+                    site = dark_watch.crawl_site(url, depth=1)
+                    url_crawl_time = time.time() - url_start_time
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Crawled {url} in {url_crawl_time:.2f}s - "
+                        f"Title: {site.title[:50] if site.title else 'N/A'}, "
+                        f"Entities: {len(site.extracted_entities)}, "
+                        f"Keywords matched: {len(site.keywords_matched)}, "
+                        f"Threat level: {site.threat_level.value}"
+                    )
                     
-                    try:
-                        logger.info(
-                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
-                            f"URL {url_idx+1}/{len(batch_urls)} (progress: {url_progress}%): "
-                            f"Starting crawl of {url}"
+                    # Convert to Finding objects if keywords matched
+                    if site.keywords_matched:
+                        finding = Finding(
+                            id=f"find-{uuid.uuid4().hex[:8]}",
+                            capability=Capability.DARK_WEB_INTELLIGENCE,
+                            severity=self._map_threat_to_severity(site.threat_level.value),
+                            title=f"Brand mention found: {site.title}",
+                            description=f"Keyword '{job.target}' found on {site.onion_url}",
+                            evidence={"site": site.to_dict()},
+                            affected_assets=[job.target] if job.target else [],
+                            recommendations=["Review dark web mention", "Monitor for data leaks"],
+                            discovered_at=datetime.now(),
+                            risk_score=site.risk_score
                         )
-                        site = dark_watch.crawl_site(url, depth=1)
-                        url_crawl_time = time.time() - url_start_time
-                        logger.info(
-                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
-                            f"URL {url_idx+1}/{len(batch_urls)}: Crawled {url} in {url_crawl_time:.2f}s - "
-                            f"Title: {site.title[:50] if site.title else 'N/A'}, "
-                            f"Entities: {len(site.extracted_entities)}, "
-                            f"Keywords matched: {len(site.keywords_matched)}, "
-                            f"Threat level: {site.threat_level.value}"
-                        )
-                        
-                        batch_findings_count = 0
-                        
-                        # Convert to Finding objects if keywords matched
-                        if site.keywords_matched:
+                        url_findings.append(finding)
+                        logger.debug(f"[DarkWeb] Created keyword match finding for {url}")
+                    
+                    # Also create findings for high-risk entities
+                    for entity in site.extracted_entities:
+                        if entity.entity_type in ["email", "credit_card"]:
                             finding = Finding(
                                 id=f"find-{uuid.uuid4().hex[:8]}",
                                 capability=Capability.DARK_WEB_INTELLIGENCE,
-                                severity=self._map_threat_to_severity(site.threat_level.value),
-                                title=f"Brand mention found: {site.title}",
-                                description=f"Keyword '{job.target}' found on {site.onion_url}",
-                                evidence={"site": site.to_dict()},
-                                affected_assets=[job.target] if job.target else [],
-                                recommendations=["Review dark web mention", "Monitor for data leaks"],
+                                severity="high" if entity.entity_type == "credit_card" else "medium",
+                                title=f"{entity.entity_type.title()} found on dark web",
+                                description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
+                                evidence={"entity": entity.to_dict(), "site": site.onion_url},
+                                affected_assets=[entity.value],
+                                recommendations=["Investigate exposure", "Take remediation steps"],
                                 discovered_at=datetime.now(),
-                                risk_score=site.risk_score
+                                risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
                             )
-                            findings.append(finding)
-                            batch_findings_count += 1
-                            logger.debug(f"[DarkWeb] Batch {batch_num_display}: Created keyword match finding for {url}")
-                        
-                        # Also create findings for high-risk entities
-                        for entity in site.extracted_entities:
-                            if entity.entity_type in ["email", "credit_card"]:
-                                finding = Finding(
-                                    id=f"find-{uuid.uuid4().hex[:8]}",
-                                    capability=Capability.DARK_WEB_INTELLIGENCE,
-                                    severity="high" if entity.entity_type == "credit_card" else "medium",
-                                    title=f"{entity.entity_type.title()} found on dark web",
-                                    description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
-                                    evidence={"entity": entity.to_dict(), "site": site.onion_url},
-                                    affected_assets=[entity.value],
-                                    recommendations=["Investigate exposure", "Take remediation steps"],
-                                    discovered_at=datetime.now(),
-                                    risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
-                                )
-                                findings.append(finding)
-                                batch_findings_count += 1
-                                logger.debug(f"[DarkWeb] Batch {batch_num_display}: Created entity finding for {entity.entity_type} from {url}")
-                        
-                        # Store findings incrementally in job object (for polling/streaming)
-                        if batch_findings_count > 0:
-                            if hasattr(job, 'findings'):
-                                # Only add new findings (avoid duplicates)
-                                existing_ids = {f.id for f in job.findings}
-                                new_findings = [f for f in findings if f.id not in existing_ids]
-                                job.findings.extend(new_findings)
-                                logger.info(f"[DarkWeb] Batch {batch_num_display}: Stored {len(new_findings)} new findings in job. Total findings so far: {len(job.findings)}")
+                            url_findings.append(finding)
+                            logger.debug(f"[DarkWeb] Created entity finding for {entity.entity_type} from {url}")
                     
+                except Exception as e:
+                    url_error_time = time.time() - url_start_time
+                    logger.error(
+                        f"[DarkWeb] [job_id={job.id}] Error crawling {url} after {url_error_time:.2f}s - "
+                        f"Error type: {type(e).__name__}, Error: {e}",
+                        exc_info=True
+                    )
+                
+                return url_findings
+            
+            # Process URLs in parallel using ThreadPoolExecutor
+            batch_progress_base = 30
+            batch_progress_range = 60  # 30% to 90%
+            total_urls = len(urls_to_crawl)
+            completed_count = 0
+            
+            crawl_start_time = time.time()
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all URL crawl tasks
+                future_to_url = {
+                    executor.submit(crawl_and_analyze_url, url): url 
+                    for url in urls_to_crawl
+                }
+                
+                # Process completed tasks as they finish
+                for future in as_completed(future_to_url, timeout=crawl_timeout):
+                    url = future_to_url[future]
+                    try:
+                        url_findings = future.result(timeout=120)  # Individual URL timeout
+                        
+                        # Thread-safe addition of findings
+                        if url_findings:
+                            findings.extend(url_findings)
+                            job.add_findings(url_findings)
+                            logger.info(
+                                f"[DarkWeb] [job_id={job.id}] Stored {len(url_findings)} findings from {url}. "
+                                f"Total findings so far: {len(job.findings)}"
+                            )
+                        
+                        # Update progress
+                        completed_count += 1
+                        progress = batch_progress_base + int((completed_count / total_urls) * batch_progress_range)
+                        job.progress = progress
+                        
+                        logger.debug(
+                            f"[DarkWeb] [job_id={job.id}] Progress: {completed_count}/{total_urls} URLs "
+                            f"({progress}%)"
+                        )
+                        
                     except Exception as e:
-                        url_error_time = time.time() - url_start_time
                         logger.error(
-                            f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches}, "
-                            f"URL {url_idx+1}/{len(batch_urls)}: Error crawling {url} after {url_error_time:.2f}s - "
-                            f"Error type: {type(e).__name__}, Error: {e}",
+                            f"[DarkWeb] [job_id={job.id}] Error processing result for {url}: {e}",
                             exc_info=True
                         )
-                        continue
-                
-                batch_time = time.time() - batch_start_time
-                elapsed_total = time.time() - start_time
-                avg_time_per_url = batch_time / len(batch_urls) if batch_urls else 0
-                logger.info(
-                    f"[DarkWeb] [job_id={job.id}] Batch {batch_num_display}/{total_batches} completed in {batch_time:.2f}s "
-                    f"(avg {avg_time_per_url:.2f}s/URL) - Total findings: {len(findings)}, "
-                    f"Elapsed time: {elapsed_total:.2f}s"
-                )
-                job.progress = batch_progress_base + int(((batch_num + 1) / total_batches) * batch_progress_range)
+            
+            crawl_time = time.time() - crawl_start_time
+            elapsed_total = time.time() - start_time
+            avg_time_per_url = crawl_time / total_urls if total_urls > 0 else 0
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Parallel crawl completed in {crawl_time:.2f}s "
+                f"(avg {avg_time_per_url:.2f}s/URL) - Total findings: {len(findings)}, "
+                f"Elapsed time: {elapsed_total:.2f}s"
+            )
+            job.progress = 90
             
             # If no findings created but URLs were crawled, create info finding
             if not findings and urls:
@@ -1186,8 +1230,7 @@ class Orchestrator:
                     risk_score=5.0
                 )
                 findings.append(finding)
-                if hasattr(job, 'findings'):
-                    job.findings.append(finding)
+                job.add_finding(finding)
         
         except Exception as e:
             total_time = time.time() - start_time
@@ -1211,11 +1254,16 @@ class Orchestrator:
                 risk_score=0.0
             )
             findings.append(finding)
-            if hasattr(job, 'findings'):
-                job.findings.append(finding)
+            job.add_finding(finding)
         
         total_time = time.time() - start_time
         job.progress = 100
+        
+        # Ensure DarkWatch instance is stored (in case it wasn't stored earlier)
+        if 'dark_watch' in locals() and dark_watch:
+            self._darkwatch_instances.put(job.id, dark_watch)
+            logger.debug(f"[DarkWeb] [job_id={job.id}] DarkWatch instance stored for API access")
+        
         logger.info(
             f"[DarkWeb] [job_id={job.id}] Dark web intelligence collection completed in {total_time:.2f}s - "
             f"Total findings: {len(findings)}, URLs crawled: {len(urls_to_crawl) if 'urls_to_crawl' in locals() else 0}, "
@@ -1352,6 +1400,22 @@ class Orchestrator:
     def get_job(self, job_id: str) -> Optional[Job]:
         """Get a job by ID"""
         return self._jobs.get(job_id)
+    
+    def get_darkwatch_instance(self, job_id: str):
+        """Get DarkWatch instance for a job (if available)"""
+        from app.collectors.dark_watch import DarkWatch
+        instance = self._darkwatch_instances.get(job_id)
+        if instance:
+            return instance
+        
+        # If instance not found, check if job exists and is darkweb type
+        job = self.get_job(job_id)
+        if job and job.capability == Capability.DARK_WEB_INTELLIGENCE:
+            # Try to reconstruct from job findings (limited functionality)
+            # For full functionality, instance should be stored during execution
+            logger.warning(f"[Orchestrator] DarkWatch instance not found for job {job_id}, cannot access advanced features")
+        
+        return None
     
     def get_jobs(
         self,
