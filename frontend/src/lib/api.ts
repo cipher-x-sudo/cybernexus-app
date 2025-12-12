@@ -6,6 +6,9 @@ function getApiBaseUrl(): string {
   // In browser, this will be the value that was set at build time
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
+  // Log the env var value for debugging (will show in browser console and server logs)
+  console.log(`[API Config] NEXT_PUBLIC_API_URL = ${envUrl || '(not set)'}`);
+  
   if (envUrl && envUrl !== 'http://localhost:8000/api/v1') {
     // Ensure it ends with /api/v1
     if (!envUrl.endsWith('/api/v1')) {

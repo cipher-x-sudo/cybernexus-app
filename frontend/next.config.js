@@ -1,4 +1,11 @@
 /** @type {import('next').NextConfig} */
+// Log environment variable during build (will show in Railway logs)
+console.log('========================================');
+console.log('[Railway Build] Environment Variables:');
+console.log(`NEXT_PUBLIC_API_URL = ${process.env.NEXT_PUBLIC_API_URL || '(not set - will use localhost fallback)'}`);
+console.log(`NODE_ENV = ${process.env.NODE_ENV || 'development'}`);
+console.log('========================================');
+
 const nextConfig = {
   reactStrictMode: true,
   // Environment variables that will be available at build time
