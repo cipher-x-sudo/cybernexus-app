@@ -1,37 +1,11 @@
 "use client";
 
-// Get API URL - simple configuration
-function getApiBaseUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  
-  // If env var is set, use it
-  if (envUrl) {
-    // Ensure it ends with /api/v1
-    if (!envUrl.endsWith('/api/v1')) {
-      return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
-    }
-    return envUrl;
-  }
-  
-  // If not set, check if we're in local development (browser only)
-  if (typeof window !== "undefined" && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return "http://localhost:8000/api/v1";
-  }
-  
-  // Production without env var - only throw in browser (not during SSR/build)
-  if (typeof window !== "undefined") {
-    console.error(
-      "❌ NEXT_PUBLIC_API_URL not set! Set it in Railway → Settings → Variables"
-    );
-    throw new Error("NEXT_PUBLIC_API_URL environment variable is required");
-  }
-  
-  // During SSR/build, return a placeholder to allow build to complete
-  return "https://PLACEHOLDER-NOT-CONFIGURED/api/v1";
-}
+// Type declaration for process.env in client components (Next.js replaces these at build time)
+declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
-const API_BASE_URL = getApiBaseUrl();
+// API base URL - set via NEXT_PUBLIC_API_URL environment variable at build time
+// Next.js replaces process.env.NEXT_PUBLIC_* variables at build time with actual values
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 // Types
 export interface ApiResponse<T> {
