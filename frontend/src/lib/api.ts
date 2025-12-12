@@ -26,11 +26,11 @@ function getApiBaseUrl(): string {
       // Backend might be: backend-service-name.up.railway.app
       const frontendService = host.split('.')[0];
       
-      // Common backend service names
+      // Common backend service names (ordered by likelihood)
       const possibleBackendNames = [
+        'cybernexus-backend',  // Most likely based on Railway naming
         'backend',
         'api',
-        'cybernexus-backend',
         'cybernexus-api',
         'dsa-backend'
       ];
