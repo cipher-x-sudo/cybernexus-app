@@ -277,6 +277,34 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# CORS Header Enforcement Middleware
+# Ensures CORS headers are ALWAYS set if CORSMiddleware fails to set them
+class CORSEnforcementMiddleware(BaseHTTPMiddleware):
+    """Middleware to enforce CORS headers on all responses with Origin."""
+    
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        response = await call_next(request)
+        
+        # Only add CORS headers if request has Origin and response doesn't have them
+        if origin and not any(k.lower().startswith("access-control-") for k in response.headers.keys()):
+            logger.warning(
+                f"[CORS ENFORCE] Missing CORS headers on {request.method} {request.url.path}, "
+                f"adding explicitly. Origin: {origin}"
+            )
+            if is_origin_allowed(origin, cors_origins):
+                response.headers["Access-Control-Allow-Origin"] = origin
+                if allow_creds:
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+                logger.info(f"[CORS ENFORCE] Added CORS headers for origin: {origin}")
+            else:
+                logger.warning(f"[CORS ENFORCE] Origin {origin} not allowed, not adding CORS headers")
+        
+        return response
+
+
 # Add CORS debug middleware ALWAYS (for Railway debugging)
 # This helps diagnose CORS issues in production
 app.add_middleware(CORSDebugMiddleware)
@@ -313,6 +341,12 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Add CORS enforcement middleware AFTER CORSMiddleware
+# This ensures headers are always set even if CORSMiddleware fails
+# FastAPI middleware runs in reverse order (last added = first executed)
+# So this runs AFTER CORSMiddleware processes the response
+app.add_middleware(CORSEnforcementMiddleware)
 
 # Explicit OPTIONS handler as fallback for Railway/proxy issues
 # This ensures preflight requests always get proper CORS headers

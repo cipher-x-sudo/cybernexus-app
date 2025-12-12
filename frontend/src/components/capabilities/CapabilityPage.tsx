@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
 import { GlassButton } from "@/components/ui/glass-button";
@@ -97,6 +97,25 @@ export function CapabilityPage({
   const [findings, setFindings] = useState<Finding[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
+  
+  // Refs to track polling state and cleanup on unmount
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPollingRef = useRef(false);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const getColorClasses = () => {
     const colors: Record<string, { accent: string; bg: string; border: string; glow: string }> = {
@@ -178,11 +197,22 @@ export function CapabilityPage({
   const handleScan = async () => {
     if (!target.trim()) return;
     
+    // Clean up any existing polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    
     setIsScanning(true);
     setProgress(0);
     setError(null);
     setFindings([]);
     setSelectedFinding(null);
+    isPollingRef.current = false;
 
     try {
       // Create job via API
@@ -194,27 +224,70 @@ export function CapabilityPage({
 
       setCurrentJob(job);
 
-      // Poll for job completion
-      const pollInterval = setInterval(async () => {
-        const done = await pollJobStatus(job.id);
-        if (done) {
-          clearInterval(pollInterval);
+      // Poll for job completion - slower interval to prevent request backlog
+      pollIntervalRef.current = setInterval(async () => {
+        // Skip if previous request is still in flight
+        if (isPollingRef.current) {
+          console.warn("[Polling] Skipping poll - previous request still pending");
+          return;
         }
-      }, 1000);
+
+        try {
+          isPollingRef.current = true;
+          const done = await pollJobStatus(job.id);
+          if (done && pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+          }
+        } catch (err) {
+          console.error("[Polling] Error polling job status:", err);
+          // On network error, stop polling to prevent backlog
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          setError("Failed to check job status. Please refresh the page.");
+          setIsScanning(false);
+        } finally {
+          isPollingRef.current = false;
+        }
+      }, 3000); // Increased from 1s to 3s to reduce load and prevent CORS preflight backlog
 
       // Timeout after 5 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (isScanning) {
-          setError("Scan timed out");
-          setIsScanning(false);
+      timeoutRef.current = setTimeout(() => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
         }
+        setIsScanning((current: boolean) => {
+          if (current) {
+            setError("Scan timed out");
+            return false;
+          }
+          return current;
+        });
       }, 300000);
 
     } catch (err) {
       console.error("Scan error:", err);
       setError(err instanceof Error ? err.message : "Failed to start scan");
       setIsScanning(false);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   };
 
