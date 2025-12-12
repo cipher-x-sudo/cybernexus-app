@@ -87,6 +87,11 @@ class Settings(BaseSettings):
         env="CORS_ORIGINS",
         description="Comma-separated list of allowed origins, or '*' for all origins"
     )
+    CORS_DEBUG: bool = Field(
+        default=False,
+        env="CORS_DEBUG",
+        description="Enable detailed CORS logging for debugging"
+    )
     
     class Config:
         env_file = ".env"

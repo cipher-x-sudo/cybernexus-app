@@ -5,8 +5,10 @@ Enterprise Threat Intelligence Platform
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import Message
 from loguru import logger
 import sys
 
@@ -99,17 +101,84 @@ def get_cors_origins():
     # Parse comma-separated origins
     origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
     
-    # If no explicit origins, default to allowing all (but without credentials)
-    if not origins:
+    # Validate origin format (must be valid URL)
+    validated_origins = []
+    for origin in origins:
+        if origin.startswith(("http://", "https://")):
+            validated_origins.append(origin)
+        elif settings.CORS_DEBUG:
+            logger.warning(f"Invalid CORS origin format (must start with http:// or https://): {origin}")
+    
+    # If no valid origins, default to allowing all (but without credentials)
+    if not validated_origins:
         return ["*"], False
     
     # If we have explicit origins, we can use credentials
-    return origins, True
+    return validated_origins, True
+
+
+def is_origin_allowed(origin: str, allowed_origins: list) -> bool:
+    """Check if an origin is allowed, supporting wildcard patterns."""
+    if not origin:
+        return False
+    
+    # If wildcard is allowed
+    if "*" in allowed_origins:
+        return True
+    
+    # Exact match
+    if origin in allowed_origins:
+        return True
+    
+    # Check Railway domain patterns (e.g., *.railway.app)
+    for allowed in allowed_origins:
+        if allowed.startswith("*."):
+            domain = allowed[2:]  # Remove "*."
+            if origin.endswith(domain):
+                return True
+    
+    return False
 
 cors_origins, allow_creds = get_cors_origins()
 
 # Log CORS configuration for debugging
-logger.info(f"CORS configuration: origins={cors_origins}, allow_credentials={allow_creds}, environment={settings.ENVIRONMENT}")
+logger.info(f"CORS configuration: origins={cors_origins}, allow_credentials={allow_creds}, environment={settings.ENVIRONMENT}, debug={settings.CORS_DEBUG}")
+
+
+# CORS Request Logging Middleware
+class CORSDebugMiddleware(BaseHTTPMiddleware):
+    """Middleware to log CORS-related requests for debugging."""
+    
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        method = request.method
+        path = request.url.path
+        
+        # Log OPTIONS requests and CORS-related requests
+        if settings.CORS_DEBUG and (method == "OPTIONS" or origin):
+            logger.debug(
+                f"CORS Request: {method} {path} | "
+                f"Origin: {origin} | "
+                f"Allowed: {is_origin_allowed(origin, cors_origins) if origin else 'N/A'}"
+            )
+        
+        response = await call_next(request)
+        
+        # Log CORS response headers
+        if settings.CORS_DEBUG and origin:
+            cors_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower().startswith("access-control-")
+            }
+            if cors_headers:
+                logger.debug(f"CORS Response Headers: {cors_headers}")
+        
+        return response
+
+
+# Add CORS debug middleware if enabled (must be before CORSMiddleware)
+if settings.CORS_DEBUG:
+    app.add_middleware(CORSDebugMiddleware)
 
 # Add CORS middleware - must be added before routes
 app.add_middleware(
@@ -121,6 +190,55 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Explicit OPTIONS handler as fallback for preflight requests
+@app.options("/{full_path:path}")
+async def options_handler(request: Request, full_path: str):
+    """
+    Explicit OPTIONS handler as fallback for CORS preflight requests.
+    This ensures preflight requests are always handled even if CORSMiddleware fails.
+    """
+    origin = request.headers.get("origin")
+    requested_method = request.headers.get("access-control-request-method", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
+    requested_headers = request.headers.get("access-control-request-headers", "*")
+    
+    # Check if origin is allowed
+    if origin and not is_origin_allowed(origin, cors_origins):
+        if settings.CORS_DEBUG:
+            logger.warning(f"CORS: Origin not allowed - {origin}")
+        return Response(
+            status_code=403,
+            content="Origin not allowed",
+            headers={"Access-Control-Allow-Origin": "null"}
+        )
+    
+    # Build CORS headers
+    cors_headers = {
+        "Access-Control-Allow-Methods": requested_method,
+        "Access-Control-Allow-Headers": requested_headers,
+        "Access-Control-Max-Age": "3600",
+    }
+    
+    # Set origin header
+    if "*" in cors_origins:
+        cors_headers["Access-Control-Allow-Origin"] = "*"
+        cors_headers["Access-Control-Allow-Credentials"] = "false"
+    elif origin and is_origin_allowed(origin, cors_origins):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        if allow_creds:
+            cors_headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        # Default to allowing the origin if it's a valid URL
+        if origin and origin.startswith(("http://", "https://")):
+            cors_headers["Access-Control-Allow-Origin"] = origin
+        else:
+            cors_headers["Access-Control-Allow-Origin"] = "*"
+    
+    if settings.CORS_DEBUG:
+        logger.info(f"CORS OPTIONS handler: {full_path} | Origin: {origin} | Headers: {cors_headers}")
+    
+    return Response(status_code=200, headers=cors_headers)
+
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
