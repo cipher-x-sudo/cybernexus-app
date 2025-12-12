@@ -6,16 +6,22 @@ function getApiBaseUrl(): string {
   // In browser, this will be the value that was set at build time
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
-  // Debug logging (will show in browser console)
-  console.log('[API Config] NEXT_PUBLIC_API_URL =', envUrl || '(undefined)');
+  // Check if we're in browser (client-side) vs server-side (build/SSR)
+  const isClient = typeof window !== "undefined";
+  const isBuildTime = !isClient;
+  
+  // Debug logging (will show in browser console and build logs)
+  if (isClient) {
+    console.log('[API Config] NEXT_PUBLIC_API_URL =', envUrl || '(undefined)');
+  }
   
   // Allow localhost only in development mode
-  const isLocalDev = typeof window !== "undefined" && 
+  const isLocalDev = isClient && 
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   
   if (envUrl) {
-    // Don't allow localhost in production (Railway)
-    if (envUrl.includes('localhost') && !isLocalDev) {
+    // Don't allow localhost in production (Railway) - only check at runtime
+    if (isClient && envUrl.includes('localhost') && !isLocalDev) {
       console.error(
         "❌ NEXT_PUBLIC_API_URL is set to localhost in production!\n" +
         "Current value:", envUrl, "\n" +
@@ -33,14 +39,22 @@ function getApiBaseUrl(): string {
     return envUrl;
   }
   
-  // 2. If env var not set, require explicit configuration
+  // 2. If env var not set
   if (isLocalDev) {
-    // Only allow localhost fallback in local development
+    // Only allow localhost fallback in local development (browser only)
     console.warn('[API Config] NEXT_PUBLIC_API_URL not set, using localhost fallback for local dev');
     return "http://localhost:8000/api/v1";
   }
   
-  // Production: fail explicitly
+  // 3. During build time, use a placeholder to allow build to complete
+  // The error will be thrown at runtime when the API is actually called
+  if (isBuildTime) {
+    // Return a placeholder that will cause API calls to fail at runtime
+    // This allows the build to complete successfully
+    return "https://PLACEHOLDER-API-URL-NOT-CONFIGURED.up.railway.app/api/v1";
+  }
+  
+  // 4. Production runtime (browser): fail explicitly
   console.error(
     "❌ NEXT_PUBLIC_API_URL environment variable is not set!\n" +
     "Please set it in Railway:\n" +
