@@ -308,11 +308,56 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=allow_creds,  # Must be False if origins=["*"]
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allow_methods=["*"],  # Allow all methods including OPTIONS
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Explicit OPTIONS handler as fallback for Railway/proxy issues
+# This ensures preflight requests always get proper CORS headers
+@app.options("/{full_path:path}")
+async def options_handler(request: Request, full_path: str):
+    """
+    Explicit OPTIONS handler as fallback for CORS preflight requests.
+    CORSMiddleware should handle this, but this ensures it works on Railway.
+    """
+    origin = request.headers.get("origin")
+    
+    # Check if origin is allowed
+    if origin and not is_origin_allowed(origin, cors_origins):
+        logger.warning(f"CORS: Origin not allowed in OPTIONS handler - {origin}")
+        return Response(
+            status_code=403,
+            content="Origin not allowed",
+            headers={"Access-Control-Allow-Origin": "null"}
+        )
+    
+    # Build CORS headers
+    cors_headers = {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+        "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+        "Access-Control-Max-Age": "3600",
+    }
+    
+    # Set origin header
+    if "*" in cors_origins:
+        cors_headers["Access-Control-Allow-Origin"] = "*"
+        cors_headers["Access-Control-Allow-Credentials"] = "false"
+    elif origin and is_origin_allowed(origin, cors_origins):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        if allow_creds:
+            cors_headers["Access-Control-Allow-Credentials"] = "true"
+    elif origin:
+        # Fallback: allow the origin if it's a valid URL
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        if allow_creds:
+            cors_headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        cors_headers["Access-Control-Allow-Origin"] = "*"
+    
+    logger.info(f"[CORS] OPTIONS handler: {full_path} | Origin: {origin} | Headers set")
+    return Response(status_code=200, headers=cors_headers)
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
