@@ -88,12 +88,33 @@ app = FastAPI(
 )
 
 # Configure CORS
+def get_cors_origins():
+    """Get CORS origins from settings, handling wildcard and Railway domains."""
+    origins_str = settings.CORS_ORIGINS
+    
+    # If "*" is specified, return ["*"] but set allow_credentials=False
+    if origins_str == "*":
+        return ["*"], False
+    
+    # Parse comma-separated origins
+    origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
+    
+    # If no explicit origins, default to allowing all (but without credentials)
+    if not origins:
+        return ["*"], False
+    
+    # If we have explicit origins, we can use credentials
+    return origins, True
+
+cors_origins, allow_creds = get_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for deployment
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=allow_creds,  # Must be False if origins=["*"]
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers

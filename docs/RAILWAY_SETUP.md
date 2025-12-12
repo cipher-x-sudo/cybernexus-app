@@ -94,6 +94,10 @@ However, **this is not reliable** and you should always set `NEXT_PUBLIC_API_URL
 - `TOR_PROXY_HOST` (optional) - Tor service name for dark web features
 - `REDIS_URL` (optional) - Redis connection string
 - `ENVIRONMENT` (optional) - `production` or `development`
+- `CORS_ORIGINS` (optional) - Comma-separated list of allowed origins
+  - Default: `*` (allows all origins, but credentials disabled)
+  - Recommended for Railway: `https://cybernexus.up.railway.app,https://your-frontend-domain.up.railway.app`
+  - Example: `https://cybernexus.up.railway.app,https://localhost:3000`
 
 ### Quick Checklist
 
@@ -111,3 +115,37 @@ However, **this is not reliable** and you should always set `NEXT_PUBLIC_API_URL
 3. Try to create a scan or use any feature
 4. Check the Network tab - requests should go to your Railway backend URL, not `localhost:8000`
 5. If you see `localhost:8000`, the variable wasn't set or the frontend wasn't rebuilt
+
+## CORS Configuration
+
+### Error: `Access-Control-Allow-Origin header is present on the requested resource`
+
+**Cause:** The backend is not allowing requests from your frontend domain.
+
+**Fix:**
+
+1. **Option 1: Set explicit CORS origins (Recommended)**
+   - Go to your **Backend** service in Railway
+   - Navigate to **Settings** → **Variables**
+   - Add variable:
+     - Name: `CORS_ORIGINS`
+     - Value: `https://cybernexus.up.railway.app` (your frontend domain)
+     - For multiple domains: `https://cybernexus.up.railway.app,https://localhost:3000`
+   - Redeploy the backend service
+
+2. **Option 2: Use wildcard (Less secure, but works)**
+   - The backend defaults to `CORS_ORIGINS=*` which allows all origins
+   - However, credentials are disabled when using wildcard
+   - This should work for most cases
+
+**Verify CORS is working:**
+1. Open your frontend in a browser
+2. Open DevTools (F12) → Console
+3. Try to make an API request
+4. You should NOT see CORS errors
+5. Check the Network tab - the OPTIONS preflight request should return 200 OK
+
+**Common CORS Issues:**
+- ❌ `allow_origins=["*"]` with `allow_credentials=True` → Browsers block this
+- ✅ `allow_origins=["*"]` with `allow_credentials=False` → Works (default)
+- ✅ `allow_origins=["https://your-frontend.up.railway.app"]` with `allow_credentials=True` → Best practice

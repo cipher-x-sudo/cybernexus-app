@@ -81,6 +81,13 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
     LOG_DETAILED_TIMING: bool = Field(default=True, env="LOG_DETAILED_TIMING")  # Enable verbose timing logs
     
+    # CORS Configuration
+    CORS_ORIGINS: str = Field(
+        default="*",
+        env="CORS_ORIGINS",
+        description="Comma-separated list of allowed origins, or '*' for all origins"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
