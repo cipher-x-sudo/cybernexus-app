@@ -108,13 +108,18 @@ def get_cors_origins():
 
 cors_origins, allow_creds = get_cors_origins()
 
+# Log CORS configuration for debugging
+logger.info(f"CORS configuration: origins={cors_origins}, allow_credentials={allow_creds}, environment={settings.ENVIRONMENT}")
+
+# Add CORS middleware - must be added before routes
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=allow_creds,  # Must be False if origins=["*"]
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Include routers
