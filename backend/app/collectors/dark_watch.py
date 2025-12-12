@@ -631,7 +631,9 @@ class DarkWatch:
                     engine_start = time.time()
                     
                     try:
-                        discovered = future.result(timeout=60)  # Individual engine timeout
+                        # Individual engine timeout - shorter timeout to fail fast if service unavailable
+                        # DarkWebEngine now uses 15s timeout, so 20s here gives it time to complete
+                        discovered = future.result(timeout=20)  # Reduced from 60s to 20s
                         engine_time = time.time() - engine_start
                         
                         if discovered:

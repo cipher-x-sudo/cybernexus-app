@@ -56,12 +56,17 @@ class DarkWebEngine:
         onionurls = []
         discovery_start = time.time()
         
+        # Use shorter timeout for discovery (15s) - fail fast if service is unavailable
+        # This prevents blocking other discovery engines for too long when service is down
+        # Tor connections can be slow, but 15s is enough to detect if service is truly unavailable
+        discovery_timeout = 15
+        
         try:
-            logger.debug(f'[DarkWebEngine] Making GET request to {url}')
+            logger.debug(f'[DarkWebEngine] Making GET request to {url} with {discovery_timeout}s timeout')
             request = self.session.get(
                 url,
                 proxies=self.proxies,
-                timeout=100
+                timeout=discovery_timeout  # Reduced from 100s to 15s to fail faster
             )
             request_time = time.time() - discovery_start
             logger.info(f'[DarkWebEngine] Request to {url} completed in {request_time:.2f}s, status={request.status_code}')
@@ -95,11 +100,15 @@ class DarkWebEngine:
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.ChunkedEncodingError,
                 requests.exceptions.ReadTimeout,
-                requests.exceptions.InvalidURL) as e:
+                requests.exceptions.ConnectTimeout,
+                requests.exceptions.InvalidURL,
+                requests.exceptions.Timeout) as e:
             error_time = time.time() - discovery_start
-            logger.error(
-                f'[DarkWebEngine] Unable to connect to DiscoverDarkWeb service after {error_time:.2f}s: {e}'
+            logger.warning(
+                f'[DarkWebEngine] DiscoverDarkWeb service unavailable (timeout/error after {error_time:.2f}s): {type(e).__name__}'
             )
+            logger.debug(f'[DarkWebEngine] Error details: {e}')
+            # Return empty list gracefully - other discovery engines will continue
             return []
         
         except Exception as e:
