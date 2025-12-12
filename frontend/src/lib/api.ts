@@ -1,61 +1,34 @@
 "use client";
 
-// Get API URL - simplified version
+// Get API URL - simple configuration
 function getApiBaseUrl(): string {
-  // #region agent log - HYP-A/B/C/D: Debug env var availability
-  const isClient = typeof window !== "undefined";
-  const rawEnv = process.env.NEXT_PUBLIC_API_URL;
-  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Env var check',data:{rawEnv:rawEnv,isClient,type:typeof rawEnv,isUndefined:rawEnv===undefined,isNull:rawEnv===null,envKeys:Object.keys(process.env).filter(k=>k.includes('NEXT_PUBLIC'))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
-  // #region agent log - HYP-D: Check what value we're working with
-  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'After assignment',data:{envUrl,hasValue:!!envUrl,length:envUrl?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-  
-  // Allow localhost fallback only in local development
-  const isLocalDev = isClient && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  
+  // If env var is set, use it
   if (envUrl) {
-    // Normalize URL to end with /api/v1
+    // Ensure it ends with /api/v1
     if (!envUrl.endsWith('/api/v1')) {
-      const normalized = envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Returning normalized URL',data:{normalized},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      return normalized;
+      return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Returning envUrl as-is',data:{envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     return envUrl;
   }
   
-  // If not set, use localhost only for local dev
-  if (isLocalDev) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Using localhost fallback',data:{isLocalDev},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
+  // If not set, check if we're in local development (browser only)
+  if (typeof window !== "undefined" && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return "http://localhost:8000/api/v1";
   }
   
-  // During build/SSR (server-side), return placeholder to allow build to complete
-  // The error will be thrown at runtime in the browser when API is actually called
-  if (!isClient) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Build/SSR: returning placeholder',data:{isClient},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    return "https://PLACEHOLDER-API-URL-NOT-CONFIGURED.up.railway.app/api/v1";
+  // Production without env var - only throw in browser (not during SSR/build)
+  if (typeof window !== "undefined") {
+    console.error(
+      "❌ NEXT_PUBLIC_API_URL not set! Set it in Railway → Settings → Variables"
+    );
+    throw new Error("NEXT_PUBLIC_API_URL environment variable is required");
   }
   
-  // Production runtime (browser) without env var - throw error
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Browser runtime: throwing error - env var not set',data:{isClient,isLocalDev,envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  throw new Error(
-    "NEXT_PUBLIC_API_URL not set. Set it in Railway → Settings → Variables → NEXT_PUBLIC_API_URL = https://cybernexus-backend.up.railway.app/api/v1"
-  );
+  // During SSR/build, return a placeholder to allow build to complete
+  return "https://PLACEHOLDER-NOT-CONFIGURED/api/v1";
 }
 
 const API_BASE_URL = getApiBaseUrl();

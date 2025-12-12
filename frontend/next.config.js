@@ -20,8 +20,8 @@ console.log('\n');
 
 const nextConfig = {
   reactStrictMode: true,
-  // NOTE: Next.js automatically embeds NEXT_PUBLIC_* env vars into the client bundle
-  // No need to manually configure them in the env config
+  // NOTE: NEXT_PUBLIC_* variables are automatically embedded by Next.js at build time
+  // No need for manual env config - Next.js handles it automatically
   // Only use rewrites in development
   async rewrites() {
     // In production, the frontend should call the backend directly via NEXT_PUBLIC_API_URL
