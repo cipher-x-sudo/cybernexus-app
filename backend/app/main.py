@@ -284,32 +284,58 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
+        method = request.method
+        path = request.url.path
+        
         response = await call_next(request)
         
-        # Only add CORS headers if request has Origin and response doesn't have them
-        if origin and not any(k.lower().startswith("access-control-") for k in response.headers.keys()):
-            logger.warning(
-                f"[CORS ENFORCE] Missing CORS headers on {request.method} {request.url.path}, "
-                f"adding explicitly. Origin: {origin}"
+        # Always log for debugging
+        if origin:
+            existing_cors_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower().startswith("access-control-")
+            }
+            logger.info(
+                f"[CORS ENFORCE] {method} {path} | Origin: {origin} | "
+                f"Existing CORS headers: {existing_cors_headers}"
             )
+        
+        # Check if CORS headers are missing - check multiple ways to be sure
+        has_cors_headers = any(
+            k.lower().startswith("access-control-") 
+            for k in response.headers.keys()
+        )
+        
+        # Always add CORS headers if request has Origin header (regardless of method)
+        if origin:
+            if not has_cors_headers:
+                logger.warning(
+                    f"[CORS ENFORCE] Missing CORS headers on {method} {path}, "
+                    f"adding explicitly. Origin: {origin}"
+                )
+            else:
+                logger.info(f"[CORS ENFORCE] CORS headers already present on {method} {path}")
+            
+            # Always set CORS headers if origin is allowed
             if is_origin_allowed(origin, cors_origins):
                 response.headers["Access-Control-Allow-Origin"] = origin
                 if allow_creds:
                     response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
                 response.headers["Access-Control-Allow-Headers"] = "*"
-                logger.info(f"[CORS ENFORCE] Added CORS headers for origin: {origin}")
+                logger.info(f"[CORS ENFORCE] Set CORS headers for {method} {path} - origin: {origin}")
             else:
                 logger.warning(f"[CORS ENFORCE] Origin {origin} not allowed, not adding CORS headers")
         
         return response
 
 
-# Add CORS debug middleware ALWAYS (for Railway debugging)
-# This helps diagnose CORS issues in production
-app.add_middleware(CORSDebugMiddleware)
-
 # Add CORS middleware - must be added before routes
+# IMPORTANT: Order matters - FastAPI middleware runs in reverse order on requests
+# but normal order on responses. We want:
+# 1. CORSEnforcementMiddleware (last added, runs first on response) - adds headers if missing
+# 2. CORSMiddleware (middle) - should add headers
+# 3. CORSDebugMiddleware (first added, runs last on response) - logs everything
 # #region agent log - Hypothesis A/E: Log CORSMiddleware configuration
 try:
     with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
@@ -342,11 +368,20 @@ app.add_middleware(
     max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-# Add CORS enforcement middleware AFTER CORSMiddleware
+# Add CORS enforcement middleware FIRST (will run last on response)
 # This ensures headers are always set even if CORSMiddleware fails
-# FastAPI middleware runs in reverse order (last added = first executed)
-# So this runs AFTER CORSMiddleware processes the response
+# FastAPI middleware runs in reverse order (last added = first executed on request)
+# On response, it runs in normal order (first added = first executed)
+# So: CORSDebugMiddleware (first) -> CORSMiddleware (second) -> CORSEnforcementMiddleware (third)
+# On response: CORSEnforcementMiddleware runs first, then CORSMiddleware, then CORSDebugMiddleware logs
+
+# Add CORS enforcement middleware FIRST so it runs last on response
 app.add_middleware(CORSEnforcementMiddleware)
+logger.info("[CORS] CORSEnforcementMiddleware added - will enforce CORS headers on all responses")
+
+# Add CORS debug middleware LAST so it runs first on response (logs after all headers are set)
+app.add_middleware(CORSDebugMiddleware)
+logger.info("[CORS] CORSDebugMiddleware added - will log CORS request/response details")
 
 # Explicit OPTIONS handler as fallback for Railway/proxy issues
 # This ensures preflight requests always get proper CORS headers
