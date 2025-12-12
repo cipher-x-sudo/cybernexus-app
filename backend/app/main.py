@@ -331,11 +331,16 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
 
 
 # Add CORS middleware - must be added before routes
-# IMPORTANT: Order matters - FastAPI middleware runs in reverse order on requests
-# but normal order on responses. We want:
-# 1. CORSEnforcementMiddleware (last added, runs first on response) - adds headers if missing
-# 2. CORSMiddleware (middle) - should add headers
-# 3. CORSDebugMiddleware (first added, runs last on response) - logs everything
+# IMPORTANT: FastAPI middleware order - LAST added runs FIRST on response
+# We want execution order on RESPONSE:
+# 1. CORSDebugMiddleware (runs last, logs final headers)
+# 2. CORSEnforcementMiddleware (runs middle, ensures headers are set)
+# 3. CORSMiddleware (runs first, tries to set headers)
+#
+# So we need to add in REVERSE order:
+# - CORSDebugMiddleware added LAST (runs last on response)
+# - CORSEnforcementMiddleware added MIDDLE (runs middle on response)
+# - CORSMiddleware added FIRST (runs first on response)
 # #region agent log - Hypothesis A/E: Log CORSMiddleware configuration
 try:
     with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
@@ -358,6 +363,10 @@ except Exception:
     pass
 # #endregion
 
+# Add middleware in REVERSE order of desired execution
+# (Last added = first executed on response)
+
+# 1. CORSMiddleware - tries to set CORS headers (runs FIRST on response)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -367,19 +376,13 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+logger.info("[CORS] CORSMiddleware added - will attempt to set CORS headers")
 
-# Add CORS enforcement middleware FIRST (will run last on response)
-# This ensures headers are always set even if CORSMiddleware fails
-# FastAPI middleware runs in reverse order (last added = first executed on request)
-# On response, it runs in normal order (first added = first executed)
-# So: CORSDebugMiddleware (first) -> CORSMiddleware (second) -> CORSEnforcementMiddleware (third)
-# On response: CORSEnforcementMiddleware runs first, then CORSMiddleware, then CORSDebugMiddleware logs
-
-# Add CORS enforcement middleware FIRST so it runs last on response
+# 2. CORSEnforcementMiddleware - ensures headers are set if CORSMiddleware fails (runs MIDDLE on response)
 app.add_middleware(CORSEnforcementMiddleware)
-logger.info("[CORS] CORSEnforcementMiddleware added - will enforce CORS headers on all responses")
+logger.info("[CORS] CORSEnforcementMiddleware added - will enforce CORS headers if missing")
 
-# Add CORS debug middleware LAST so it runs first on response (logs after all headers are set)
+# 3. CORSDebugMiddleware - logs final result (runs LAST on response, sees final headers)
 app.add_middleware(CORSDebugMiddleware)
 logger.info("[CORS] CORSDebugMiddleware added - will log CORS request/response details")
 
