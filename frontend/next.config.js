@@ -20,14 +20,8 @@ console.log('\n');
 
 const nextConfig = {
   reactStrictMode: true,
-  // Environment variables that will be available at build time
-  // NOTE: NEXT_PUBLIC_* variables are embedded at build time
-  // Make sure to set NEXT_PUBLIC_API_URL in Railway before building
-  // DON'T set a fallback - fail explicitly if env var is not set
-  // This ensures Railway deployments fail fast if env var is missing
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-  },
+  // NOTE: Next.js automatically embeds NEXT_PUBLIC_* env vars into the client bundle
+  // No need to manually configure them in the env config
   // Only use rewrites in development
   async rewrites() {
     // In production, the frontend should call the backend directly via NEXT_PUBLIC_API_URL

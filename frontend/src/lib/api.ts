@@ -1,71 +1,51 @@
 "use client";
 
-// Get API URL - supports both build-time and runtime configuration
+// Get API URL - simplified version
 function getApiBaseUrl(): string {
-  // 1. Check environment variable (available at build time for Next.js)
-  // In browser, this will be the value that was set at build time
+  // #region agent log - HYP-A/B/C/D: Debug env var availability
+  const isClient = typeof window !== "undefined";
+  const rawEnv = process.env.NEXT_PUBLIC_API_URL;
+  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Env var check',data:{rawEnv:rawEnv,isClient,type:typeof rawEnv,isUndefined:rawEnv===undefined,isNull:rawEnv===null,envKeys:Object.keys(process.env).filter(k=>k.includes('NEXT_PUBLIC'))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
-  // Check if we're in browser (client-side) vs server-side (build/SSR)
-  const isClient = typeof window !== "undefined";
-  const isBuildTime = !isClient;
+  // #region agent log - HYP-D: Check what value we're working with
+  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'After assignment',data:{envUrl,hasValue:!!envUrl,length:envUrl?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
   
-  // Debug logging (will show in browser console and build logs)
-  if (isClient) {
-    console.log('[API Config] NEXT_PUBLIC_API_URL =', envUrl || '(undefined)');
-  }
-  
-  // Allow localhost only in development mode
-  const isLocalDev = isClient && 
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  // Allow localhost fallback only in local development
+  const isLocalDev = isClient && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   
   if (envUrl) {
-    // Don't allow localhost in production (Railway) - only check at runtime
-    if (isClient && envUrl.includes('localhost') && !isLocalDev) {
-      console.error(
-        "❌ NEXT_PUBLIC_API_URL is set to localhost in production!\n" +
-        "Current value:", envUrl, "\n" +
-        "Please set it to your Railway backend URL in Railway → Settings → Variables"
-      );
-      throw new Error(
-        "NEXT_PUBLIC_API_URL cannot be localhost in production. Set it to your Railway backend URL."
-      );
-    }
-    
-    // Ensure it ends with /api/v1
+    // Normalize URL to end with /api/v1
     if (!envUrl.endsWith('/api/v1')) {
-      return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
+      const normalized = envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Returning normalized URL',data:{normalized},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      return normalized;
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Returning envUrl as-is',data:{envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     return envUrl;
   }
   
-  // 2. If env var not set
+  // If not set, use localhost only for local dev
   if (isLocalDev) {
-    // Only allow localhost fallback in local development (browser only)
-    console.warn('[API Config] NEXT_PUBLIC_API_URL not set, using localhost fallback for local dev');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Using localhost fallback',data:{isLocalDev},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     return "http://localhost:8000/api/v1";
   }
   
-  // 3. During build time, use a placeholder to allow build to complete
-  // The error will be thrown at runtime when the API is actually called
-  if (isBuildTime) {
-    // Return a placeholder that will cause API calls to fail at runtime
-    // This allows the build to complete successfully
-    return "https://PLACEHOLDER-API-URL-NOT-CONFIGURED.up.railway.app/api/v1";
-  }
-  
-  // 4. Production runtime (browser): fail explicitly
-  console.error(
-    "❌ NEXT_PUBLIC_API_URL environment variable is not set!\n" +
-    "Please set it in Railway:\n" +
-    "1. Go to your Frontend service in Railway\n" +
-    "2. Settings → Variables → Add Variable\n" +
-    "3. Name: NEXT_PUBLIC_API_URL\n" +
-    "4. Value: https://cybernexus-backend.up.railway.app/api/v1\n" +
-    "5. Redeploy the frontend service"
-  );
+  // Production without env var - throw error
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Throwing error - env var not set',data:{isClient,isLocalDev,envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   throw new Error(
-    "API URL not configured. Please set NEXT_PUBLIC_API_URL environment variable in Railway and redeploy."
+    "NEXT_PUBLIC_API_URL not set. Set it in Railway → Settings → Variables → NEXT_PUBLIC_API_URL = https://cybernexus-backend.up.railway.app/api/v1"
   );
 }
 
