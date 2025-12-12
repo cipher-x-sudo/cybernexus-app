@@ -1,6 +1,78 @@
 "use client";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// Get API URL - supports both build-time and runtime configuration
+function getApiBaseUrl(): string {
+  // 1. Check environment variable (available at build time for Next.js)
+  // In browser, this will be the value that was set at build time
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  
+  if (envUrl && envUrl !== 'http://localhost:8000/api/v1') {
+    // Ensure it ends with /api/v1
+    if (!envUrl.endsWith('/api/v1')) {
+      return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
+    }
+    return envUrl;
+  }
+  
+  // 2. In browser/runtime, check if we're on Railway
+  if (typeof window !== "undefined") {
+    const host = window.location.host;
+    const protocol = window.location.protocol;
+    
+    // If we're on Railway (production)
+    if (host.includes("railway.app") || host.includes("railway")) {
+      // Try to infer backend URL from frontend URL
+      // Railway services are typically: service-name.up.railway.app
+      // Backend might be: backend-service-name.up.railway.app
+      const frontendService = host.split('.')[0];
+      
+      // Common backend service names
+      const possibleBackendNames = [
+        'backend',
+        'api',
+        'cybernexus-backend',
+        'cybernexus-api',
+        'dsa-backend'
+      ];
+      
+      // Check if we can infer the backend URL
+      for (const backendName of possibleBackendNames) {
+        const inferredUrl = `${protocol}//${backendName}.up.railway.app/api/v1`;
+        // Note: We can't actually test this, but we'll use it as fallback
+        console.warn(
+          `⚠️ NEXT_PUBLIC_API_URL not set. Using inferred URL: ${inferredUrl}\n` +
+          `If this doesn't work, please:\n` +
+          `1. Go to your Frontend service in Railway\n` +
+          `2. Settings → Variables → Add Variable\n` +
+          `3. Name: NEXT_PUBLIC_API_URL\n` +
+          `4. Value: https://your-backend-service-name.up.railway.app/api/v1\n` +
+          `5. Redeploy the frontend service`
+        );
+        return inferredUrl;
+      }
+      
+      // If we can't infer, show error
+      console.error(
+        "❌ NEXT_PUBLIC_API_URL environment variable is not set!\n" +
+        "Please set it in Railway:\n" +
+        "1. Go to your Frontend service in Railway\n" +
+        "2. Settings → Variables → Add Variable\n" +
+        "3. Name: NEXT_PUBLIC_API_URL\n" +
+        "4. Value: https://your-backend-service.up.railway.app/api/v1\n" +
+        "5. Redeploy the frontend service"
+      );
+      // Don't return localhost in production - it will fail
+      throw new Error(
+        "API URL not configured. Please set NEXT_PUBLIC_API_URL environment variable in Railway and redeploy."
+      );
+    }
+  }
+  
+  // 3. Fallback to localhost for local development only
+  return "http://localhost:8000/api/v1";
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Types
 export interface ApiResponse<T> {

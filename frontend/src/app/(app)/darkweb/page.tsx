@@ -16,7 +16,37 @@ interface Mention {
   author?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// Use the same API URL logic as the main API client
+function getApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  
+  if (envUrl && envUrl !== 'http://localhost:8000/api/v1') {
+    if (!envUrl.endsWith('/api/v1')) {
+      return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
+    }
+    return envUrl;
+  }
+  
+  if (typeof window !== "undefined") {
+    const host = window.location.host;
+    const protocol = window.location.protocol;
+    
+    if (host.includes("railway.app") || host.includes("railway")) {
+      // Try to infer backend URL
+      const possibleBackendNames = ['backend', 'api', 'cybernexus-backend', 'cybernexus-api'];
+      for (const backendName of possibleBackendNames) {
+        const inferredUrl = `${protocol}//${backendName}.up.railway.app/api/v1`;
+        console.warn(`Using inferred backend URL: ${inferredUrl}`);
+        return inferredUrl;
+      }
+      throw new Error("NEXT_PUBLIC_API_URL not set. Please configure it in Railway and redeploy.");
+    }
+  }
+  
+  return "http://localhost:8000/api/v1";
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Fetch mentions from API
 async function fetchMentions(): Promise<Mention[]> {

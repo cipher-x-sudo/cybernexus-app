@@ -295,12 +295,20 @@ class Orchestrator:
         # DarkWatch instance storage (for API access to advanced features)
         self._darkwatch_instances = HashMap()  # job_id -> DarkWatch instance
         
+        # Tool executor registry (for worker registration)
+        self._tool_executors: Dict[str, Any] = {}
+        
         # Initialize real collectors
         self._web_recon = WebRecon()
         self._email_audit = EmailAudit()
         self._config_audit = ConfigAudit()
         
         logger.info("Orchestrator initialized with real collectors")
+    
+    def register_tool_executor(self, tool_name: str, executor: Any):
+        """Register a tool executor function for a specific tool"""
+        self._tool_executors[tool_name] = executor
+        logger.debug(f"Registered tool executor for {tool_name}")
     
     def get_capabilities(self) -> List[Dict[str, Any]]:
         """Get all available capabilities"""

@@ -23,3 +23,4 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Start Next.js
 CMD ["npm", "start"]
+

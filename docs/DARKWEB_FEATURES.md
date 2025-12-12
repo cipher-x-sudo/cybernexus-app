@@ -369,3 +369,4 @@ CRAWLER_COUNT_CATEGORIES = 5          # Max retry count
 - Automated threat actor profiling
 - Integration with threat intelligence feeds
 - Real-time alerting via WebSocket
+

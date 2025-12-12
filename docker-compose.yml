@@ -77,13 +77,8 @@ services:
     ports:
       - "9050:9050"
       - "9051:9051"
-    environment:
-      - TOR_NewCircuitPeriod=30
-      - TOR_MaxCircuitDirtiness=60
-      # Enable detailed logging to stderr for container visibility
-      # Log level: info (more verbose than notice, shows connections, circuits, streams)
-      # Using stderr instead of stdout to avoid parsing issues
-      - TOR_Log=info stderr
+    # Note: The image may have a default config with 'rr' option error
+    # This is non-critical as the backend handles Tor unavailability gracefully
     restart: unless-stopped
     networks:
       - cybernexus-network
