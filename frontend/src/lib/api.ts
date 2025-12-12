@@ -40,9 +40,18 @@ function getApiBaseUrl(): string {
     return "http://localhost:8000/api/v1";
   }
   
-  // Production without env var - throw error
+  // During build/SSR (server-side), return placeholder to allow build to complete
+  // The error will be thrown at runtime in the browser when API is actually called
+  if (!isClient) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Build/SSR: returning placeholder',data:{isClient},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    return "https://PLACEHOLDER-API-URL-NOT-CONFIGURED.up.railway.app/api/v1";
+  }
+  
+  // Production runtime (browser) without env var - throw error
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Throwing error - env var not set',data:{isClient,isLocalDev,envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7242/ingest/a0a77483-f5b2-4f6d-9466-fe83693bf92c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getApiBaseUrl',message:'Browser runtime: throwing error - env var not set',data:{isClient,isLocalDev,envUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
   throw new Error(
     "NEXT_PUBLIC_API_URL not set. Set it in Railway → Settings → Variables → NEXT_PUBLIC_API_URL = https://cybernexus-backend.up.railway.app/api/v1"
