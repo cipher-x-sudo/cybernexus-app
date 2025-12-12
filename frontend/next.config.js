@@ -20,8 +20,11 @@ console.log('\n');
 
 const nextConfig = {
   reactStrictMode: true,
-  // NOTE: NEXT_PUBLIC_* variables are automatically embedded by Next.js at build time
-  // No need for manual env config - Next.js handles it automatically
+  // Explicitly embed NEXT_PUBLIC_API_URL so it's available in client components
+  // This ensures the variable is embedded at build time, even if Railway sets it during build
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  },
   // Only use rewrites in development
   async rewrites() {
     // In production, the frontend should call the backend directly via NEXT_PUBLIC_API_URL
