@@ -6,10 +6,26 @@ function getApiBaseUrl(): string {
   // In browser, this will be the value that was set at build time
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
-  // Log the env var value for debugging (will show in browser console and server logs)
-  console.log(`[API Config] NEXT_PUBLIC_API_URL = ${envUrl || '(not set)'}`);
+  // Debug logging (will show in browser console)
+  console.log('[API Config] NEXT_PUBLIC_API_URL =', envUrl || '(undefined)');
   
-  if (envUrl && envUrl !== 'http://localhost:8000/api/v1') {
+  // Allow localhost only in development mode
+  const isLocalDev = typeof window !== "undefined" && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  
+  if (envUrl) {
+    // Don't allow localhost in production (Railway)
+    if (envUrl.includes('localhost') && !isLocalDev) {
+      console.error(
+        "❌ NEXT_PUBLIC_API_URL is set to localhost in production!\n" +
+        "Current value:", envUrl, "\n" +
+        "Please set it to your Railway backend URL in Railway → Settings → Variables"
+      );
+      throw new Error(
+        "NEXT_PUBLIC_API_URL cannot be localhost in production. Set it to your Railway backend URL."
+      );
+    }
+    
     // Ensure it ends with /api/v1
     if (!envUrl.endsWith('/api/v1')) {
       return envUrl.endsWith('/') ? `${envUrl}api/v1` : `${envUrl}/api/v1`;
@@ -18,24 +34,25 @@ function getApiBaseUrl(): string {
   }
   
   // 2. If env var not set, require explicit configuration
-  // No hardcoded inference - explicit is better than implicit
-  if (typeof window !== "undefined") {
-    console.error(
-      "❌ NEXT_PUBLIC_API_URL environment variable is not set!\n" +
-      "Please set it in Railway:\n" +
-      "1. Go to your Frontend service in Railway\n" +
-      "2. Settings → Variables → Add Variable\n" +
-      "3. Name: NEXT_PUBLIC_API_URL\n" +
-      "4. Value: https://cybernexus-backend.up.railway.app/api/v1\n" +
-      "5. Redeploy the frontend service"
-    );
-    throw new Error(
-      "API URL not configured. Please set NEXT_PUBLIC_API_URL environment variable in Railway and redeploy."
-    );
+  if (isLocalDev) {
+    // Only allow localhost fallback in local development
+    console.warn('[API Config] NEXT_PUBLIC_API_URL not set, using localhost fallback for local dev');
+    return "http://localhost:8000/api/v1";
   }
   
-  // 3. Fallback to localhost for local development only
-  return "http://localhost:8000/api/v1";
+  // Production: fail explicitly
+  console.error(
+    "❌ NEXT_PUBLIC_API_URL environment variable is not set!\n" +
+    "Please set it in Railway:\n" +
+    "1. Go to your Frontend service in Railway\n" +
+    "2. Settings → Variables → Add Variable\n" +
+    "3. Name: NEXT_PUBLIC_API_URL\n" +
+    "4. Value: https://cybernexus-backend.up.railway.app/api/v1\n" +
+    "5. Redeploy the frontend service"
+  );
+  throw new Error(
+    "API URL not configured. Please set NEXT_PUBLIC_API_URL environment variable in Railway and redeploy."
+  );
 }
 
 const API_BASE_URL = getApiBaseUrl();

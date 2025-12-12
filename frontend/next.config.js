@@ -23,21 +23,10 @@ const nextConfig = {
   // Environment variables that will be available at build time
   // NOTE: NEXT_PUBLIC_* variables are embedded at build time
   // Make sure to set NEXT_PUBLIC_API_URL in Railway before building
+  // DON'T set a fallback - fail explicitly if env var is not set
+  // This ensures Railway deployments fail fast if env var is missing
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
-  },
-  // Inject API URL into window for runtime access (fallback)
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.plugins.push(
-        new (require('webpack')).DefinePlugin({
-          'process.env.NEXT_PUBLIC_API_URL': JSON.stringify(
-            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
-          ),
-        })
-      );
-    }
-    return config;
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
   // Only use rewrites in development
   async rewrites() {
