@@ -7,6 +7,13 @@ declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 // Next.js replaces process.env.NEXT_PUBLIC_* variables at build time with actual values
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
+// DEBUG: Log the actual values (remove after diagnosis)
+if (typeof window !== 'undefined') {
+  console.log('🔍 [DEBUG] API_BASE_URL:', API_BASE_URL);
+  console.log('🔍 [DEBUG] process.env.NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('🔍 [DEBUG] Window location:', window.location.href);
+}
+
 // Types
 export interface ApiResponse<T> {
   data: T;

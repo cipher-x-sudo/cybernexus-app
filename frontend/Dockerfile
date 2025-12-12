@@ -2,6 +2,10 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Accept build-time arguments (Railway will pass env vars here)
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Install dependencies
 COPY package.json package-lock.json* ./
 RUN npm ci
@@ -9,7 +13,7 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build Next.js application
+# Build Next.js application (env vars must be available during build)
 RUN npm run build
 
 # Expose port
