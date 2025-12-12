@@ -11,6 +11,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import Message
 from loguru import logger
 import sys
+import json
+from datetime import datetime
 
 from app.config import settings, init_directories
 from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb
@@ -94,26 +96,34 @@ def get_cors_origins():
     """Get CORS origins from settings, handling wildcard and Railway domains."""
     origins_str = settings.CORS_ORIGINS
     
+    # #region agent log - Hypothesis A: Check if CORS_ORIGINS env var is loaded
+    logger.info(f"[CORS DEBUG HYP-A] Raw CORS_ORIGINS from settings: '{origins_str}' (type: {type(origins_str)})")
+    # #endregion
+    
     # If "*" is specified, return ["*"] but set allow_credentials=False
     if origins_str == "*":
+        logger.info("[CORS DEBUG HYP-A] Using wildcard '*' - all origins allowed, credentials disabled")
         return ["*"], False
     
     # Parse comma-separated origins
     origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
+    logger.info(f"[CORS DEBUG HYP-A] Parsed {len(origins)} origins from string: {origins}")
     
     # Validate origin format (must be valid URL)
     validated_origins = []
     for origin in origins:
         if origin.startswith(("http://", "https://")):
             validated_origins.append(origin)
-        elif settings.CORS_DEBUG:
-            logger.warning(f"Invalid CORS origin format (must start with http:// or https://): {origin}")
+        else:
+            logger.warning(f"[CORS DEBUG HYP-A] Invalid CORS origin format (must start with http:// or https://): {origin}")
     
     # If no valid origins, default to allowing all (but without credentials)
     if not validated_origins:
+        logger.warning("[CORS DEBUG HYP-A] No valid origins found, defaulting to '*' (all origins, no credentials)")
         return ["*"], False
     
     # If we have explicit origins, we can use credentials
+    logger.info(f"[CORS DEBUG HYP-A] Using {len(validated_origins)} explicit origins with credentials enabled: {validated_origins}")
     return validated_origins, True
 
 
@@ -144,6 +154,31 @@ cors_origins, allow_creds = get_cors_origins()
 # Log CORS configuration for debugging
 logger.info(f"CORS configuration: origins={cors_origins}, allow_credentials={allow_creds}, environment={settings.ENVIRONMENT}, debug={settings.CORS_DEBUG}")
 
+# #region agent log
+# Instrumentation: Log CORS configuration at startup
+try:
+    with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
+        log_entry = {
+            "id": "log_cors_config",
+            "timestamp": int(datetime.now().timestamp() * 1000),
+            "location": "main.py:145",
+            "message": "CORS configuration loaded",
+            "data": {
+                "CORS_ORIGINS_env": settings.CORS_ORIGINS,
+                "cors_origins_parsed": cors_origins,
+                "allow_credentials": allow_creds,
+                "environment": settings.ENVIRONMENT,
+                "CORS_DEBUG": settings.CORS_DEBUG
+            },
+            "sessionId": "debug-session",
+            "runId": "startup",
+            "hypothesisId": "A"
+        }
+        f.write(json.dumps(log_entry) + "\n")
+except Exception:
+    pass
+# #endregion
+
 
 # CORS Request Logging Middleware
 class CORSDebugMiddleware(BaseHTTPMiddleware):
@@ -154,6 +189,37 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
         
+        # #region agent log
+        # Instrumentation: Log all CORS-related requests (especially OPTIONS)
+        # Hypothesis B: Check if preflight OPTIONS requests are reaching the middleware
+        # Hypothesis C: Check if origin validation is working correctly
+        if method == "OPTIONS" or origin:
+            is_allowed_val = is_origin_allowed(origin, cors_origins) if origin else None
+            logger.info(f"[CORS DEBUG HYP-B/C] {method} {path} | Origin: '{origin}' | Allowed: {is_allowed_val} | Config: {cors_origins}")
+            logger.info(f"[CORS DEBUG HYP-B/C] Request headers: {dict(request.headers)}")
+            try:
+                with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
+                    log_entry = {
+                        "id": f"log_cors_req_{method}_{path.replace('/', '_')}",
+                        "timestamp": int(datetime.now().timestamp() * 1000),
+                        "location": "main.py:154",
+                        "message": "CORS request received",
+                        "data": {
+                            "method": method,
+                            "path": path,
+                            "origin": origin,
+                            "is_allowed": is_allowed_val,
+                            "request_headers": dict(request.headers),
+                            "hypothesisId": "B"
+                        },
+                        "sessionId": "debug-session",
+                        "runId": "runtime"
+                    }
+                    f.write(json.dumps(log_entry) + "\n")
+            except Exception:
+                pass
+        # #endregion
+        
         # Log OPTIONS requests and CORS-related requests
         if settings.CORS_DEBUG and (method == "OPTIONS" or origin):
             logger.debug(
@@ -163,6 +229,41 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
             )
         
         response = await call_next(request)
+        
+        # #region agent log
+        # Instrumentation: Log CORS response headers AFTER middleware chain
+        # Hypothesis A/E: Check if CORSMiddleware set headers, or if explicit handler bypassed it
+        if method == "OPTIONS" or origin:
+            cors_response_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower().startswith("access-control-")
+            }
+            logger.info(f"[CORS DEBUG HYP-A/E] Response AFTER middleware: {method} {path} | Status: {response.status_code} | CORS Headers: {cors_response_headers}")
+            logger.info(f"[CORS DEBUG HYP-A/E] ALL response headers: {dict(response.headers)}")
+            try:
+                with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
+                    log_entry = {
+                        "id": f"log_cors_resp_after_middleware_{method}_{path.replace('/', '_')}",
+                        "timestamp": int(datetime.now().timestamp() * 1000),
+                        "location": "main.py:233",
+                        "message": "CORS response headers after middleware chain",
+                        "data": {
+                            "method": method,
+                            "path": path,
+                            "status_code": response.status_code,
+                            "cors_headers": cors_response_headers,
+                            "all_response_headers": dict(response.headers),
+                            "has_access_control_origin": "access-control-allow-origin" in [k.lower() for k in response.headers.keys()],
+                            "hypothesisId": "A",
+                            "note": "This shows what headers CORSMiddleware/explicit handler set"
+                        },
+                        "sessionId": "debug-session",
+                        "runId": "runtime"
+                    }
+                    f.write(json.dumps(log_entry) + "\n")
+            except Exception as e:
+                logger.error(f"Failed to log CORS response: {e}")
+        # #endregion
         
         # Log CORS response headers
         if settings.CORS_DEBUG and origin:
@@ -176,11 +277,33 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Add CORS debug middleware if enabled (must be before CORSMiddleware)
-if settings.CORS_DEBUG:
-    app.add_middleware(CORSDebugMiddleware)
+# Add CORS debug middleware ALWAYS (for Railway debugging)
+# This helps diagnose CORS issues in production
+app.add_middleware(CORSDebugMiddleware)
 
 # Add CORS middleware - must be added before routes
+# #region agent log - Hypothesis A/E: Log CORSMiddleware configuration
+try:
+    with open("/home/cipher/REPO/DSA-Project/.cursor/debug.log", "a") as f:
+        log_entry = {
+            "id": "log_cors_middleware_config",
+            "timestamp": int(datetime.now().timestamp() * 1000),
+            "location": "main.py:281",
+            "message": "CORSMiddleware configuration",
+            "data": {
+                "allow_origins": cors_origins,
+                "allow_credentials": allow_creds,
+                "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+                "hypothesisId": "A"
+            },
+            "sessionId": "debug-session",
+            "runId": "startup"
+        }
+        f.write(json.dumps(log_entry) + "\n")
+except Exception:
+    pass
+# #endregion
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -190,55 +313,6 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
-
-# Explicit OPTIONS handler as fallback for preflight requests
-@app.options("/{full_path:path}")
-async def options_handler(request: Request, full_path: str):
-    """
-    Explicit OPTIONS handler as fallback for CORS preflight requests.
-    This ensures preflight requests are always handled even if CORSMiddleware fails.
-    """
-    origin = request.headers.get("origin")
-    requested_method = request.headers.get("access-control-request-method", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
-    requested_headers = request.headers.get("access-control-request-headers", "*")
-    
-    # Check if origin is allowed
-    if origin and not is_origin_allowed(origin, cors_origins):
-        if settings.CORS_DEBUG:
-            logger.warning(f"CORS: Origin not allowed - {origin}")
-        return Response(
-            status_code=403,
-            content="Origin not allowed",
-            headers={"Access-Control-Allow-Origin": "null"}
-        )
-    
-    # Build CORS headers
-    cors_headers = {
-        "Access-Control-Allow-Methods": requested_method,
-        "Access-Control-Allow-Headers": requested_headers,
-        "Access-Control-Max-Age": "3600",
-    }
-    
-    # Set origin header
-    if "*" in cors_origins:
-        cors_headers["Access-Control-Allow-Origin"] = "*"
-        cors_headers["Access-Control-Allow-Credentials"] = "false"
-    elif origin and is_origin_allowed(origin, cors_origins):
-        cors_headers["Access-Control-Allow-Origin"] = origin
-        if allow_creds:
-            cors_headers["Access-Control-Allow-Credentials"] = "true"
-    else:
-        # Default to allowing the origin if it's a valid URL
-        if origin and origin.startswith(("http://", "https://")):
-            cors_headers["Access-Control-Allow-Origin"] = origin
-        else:
-            cors_headers["Access-Control-Allow-Origin"] = "*"
-    
-    if settings.CORS_DEBUG:
-        logger.info(f"CORS OPTIONS handler: {full_path} | Origin: {origin} | Headers: {cors_headers}")
-    
-    return Response(status_code=200, headers=cors_headers)
-
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
