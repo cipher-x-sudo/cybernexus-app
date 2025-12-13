@@ -820,11 +820,16 @@ class DarkWatch:
         logger.debug(f"[DarkWatch] Stored site {site_id} in sites HashMap")
         
         # Add to graph
-        self.site_graph.add_vertex(site_id, {
-            "url": onion_url,
-            "category": category.value,
-            "threat_level": threat_level.value
-        })
+        self.site_graph.add_node(
+            site_id,
+            label=site_id,
+            node_type="site",
+            data={
+                "url": onion_url,
+                "category": category.value,
+                "threat_level": threat_level.value
+            }
+        )
         logger.debug(f"[DarkWatch] Added vertex {site_id} to site graph")
         
         total_time = time.time() - crawl_start_time
@@ -841,8 +846,13 @@ class DarkWatch:
         # Create edges to linked sites
         for linked_url in linked_sites:
             linked_id = self._generate_site_id(linked_url)
-            if not self.site_graph.has_vertex(linked_id):
-                self.site_graph.add_vertex(linked_id, {"url": linked_url})
+            if linked_id not in self.site_graph:
+                self.site_graph.add_node(
+                    linked_id,
+                    label=linked_id,
+                    node_type="site",
+                    data={"url": linked_url}
+                )
             self.site_graph.add_edge(site_id, linked_id, weight=1.0)
             
             # Queue linked sites for crawling
@@ -959,7 +969,7 @@ class DarkWatch:
     
     def get_site_network(self, site_id: str, depth: int = 2) -> Dict[str, Any]:
         """Get network of connected sites for visualization"""
-        if not self.site_graph.has_vertex(site_id):
+        if site_id not in self.site_graph:
             return {"nodes": [], "edges": []}
         
         # BFS to get connected sites up to depth
