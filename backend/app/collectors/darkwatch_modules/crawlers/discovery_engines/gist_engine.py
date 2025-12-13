@@ -121,28 +121,40 @@ class GistEngine:
                         gist_snippets = soup.findAll('div', {'class': 'gist-snippet'})
                         self.logger.info(f"Page {inurl}: Found {len(gist_snippets)} divs with class 'gist-snippet'")
                         
-                        # Debug: Log a sample of the HTML structure for first page only
-                        if inurl == search_urls[0] and len(gist_snippets) == 0:
-                            # Try to find what classes are actually used
-                            all_divs_with_class = soup.findAll('div', class_=True)
-                            sample_classes = [div.get('class') for div in all_divs_with_class[:10]]
-                            self.logger.info(f"Page {inurl}: Sample div classes found: {sample_classes}")
+                        # Debug: Inspect first gist snippet in detail (first page only)
+                        if inurl == search_urls[0] and len(gist_snippets) > 0:
+                            first_snippet = gist_snippets[0]
+                            snippet_text = first_snippet.get_text().lower()
+                            has_onion = '.onion' in snippet_text
+                            self.logger.info(f"Page {inurl}: First snippet contains '.onion': {has_onion}")
                             
-                            # Check for common GitHub search result patterns
-                            search_result_divs = soup.findAll('div', class_=lambda x: x and any(
-                                term in ' '.join(x).lower() for term in ['result', 'item', 'snippet', 'gist']
-                            ))
-                            self.logger.info(f"Page {inurl}: Found {len(search_result_divs)} divs with 'result', 'item', 'snippet', or 'gist' in class")
+                            # Check what links exist in the snippet
+                            all_links_in_snippet = first_snippet.findAll('a', href=True)
+                            self.logger.info(f"Page {inurl}: First snippet has {len(all_links_in_snippet)} links total")
+                            
+                            # Check for link-overlay specifically
+                            link_overlays = first_snippet.findAll('a', {'class': 'link-overlay'})
+                            self.logger.info(f"Page {inurl}: First snippet has {len(link_overlays)} links with class 'link-overlay'")
+                            
+                            # Log sample link hrefs
+                            if all_links_in_snippet:
+                                sample_hrefs = [link.get('href', '')[:100] for link in all_links_in_snippet[:3]]
+                                self.logger.info(f"Page {inurl}: Sample link hrefs from first snippet: {sample_hrefs}")
                         
                         # Try multiple selector strategies
                         # Strategy 1: Original approach
+                        snippets_with_onion = 0
                         for code in gist_snippets:
                             if '.onion' in code.get_text().lower():
+                                snippets_with_onion += 1
                                 for raw in code.findAll('a', {'class': 'link-overlay'}):
                                     try:
                                         gist_urls.append(raw['href'])
                                     except:
                                         pass
+                        
+                        if len(gist_snippets) > 0:
+                            self.logger.info(f"Page {inurl}: {snippets_with_onion} out of {len(gist_snippets)} snippets contain '.onion' text")
                         
                         # Strategy 2: Try finding all links that might be gist URLs
                         if len(gist_urls) == gist_count_before:
