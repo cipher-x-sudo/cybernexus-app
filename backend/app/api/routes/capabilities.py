@@ -949,7 +949,7 @@ async def get_recent_events(limit: int = Query(default=50, le=200)):
 # WebSocket Endpoints
 # ============================================================================
 
-@router.websocket("/ws/capabilities/darkweb/{job_id}")
+@router.websocket("/ws/darkweb/{job_id}")
 async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
     """
     WebSocket endpoint for real-time streaming of darkweb intelligence job results.

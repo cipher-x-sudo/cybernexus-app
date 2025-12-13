@@ -6,6 +6,7 @@ import { GlassCard } from "@/components/ui";
 import { GlassButton } from "@/components/ui/glass-button";
 import Link from "next/link";
 import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
+import { connectDarkwebJobWebSocket } from "@/lib/websocket";
 
 interface Finding {
   id: string;
@@ -102,6 +103,10 @@ export function CapabilityPage({
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingRef = useRef(false);
+  const websocketRef = useRef<WebSocket | null>(null);
+  
+  // Check if this is a darkweb job (use WebSocket instead of polling)
+  const isDarkwebJob = id === "dark_web_intelligence";
 
   // Cleanup on unmount
   useEffect(() => {
@@ -113,6 +118,10 @@ export function CapabilityPage({
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
+      }
+      if (websocketRef.current) {
+        websocketRef.current.close();
+        websocketRef.current = null;
       }
     };
   }, []);
@@ -197,7 +206,7 @@ export function CapabilityPage({
   const handleScan = async () => {
     if (!target.trim()) return;
     
-    // Clean up any existing polling
+    // Clean up any existing polling or WebSocket
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -205,6 +214,10 @@ export function CapabilityPage({
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
+    }
+    if (websocketRef.current) {
+      websocketRef.current.close();
+      websocketRef.current = null;
     }
     
     setIsScanning(true);
@@ -224,57 +237,112 @@ export function CapabilityPage({
 
       setCurrentJob(job);
 
-      // Poll for job completion - slower interval to prevent request backlog
-      pollIntervalRef.current = setInterval(async () => {
-        // Skip if previous request is still in flight
-        if (isPollingRef.current) {
-          console.warn("[Polling] Skipping poll - previous request still pending");
-          return;
-        }
+      // Use WebSocket for darkweb jobs, polling for others
+      if (isDarkwebJob) {
+        // Connect via WebSocket for real-time streaming
+        const ws = connectDarkwebJobWebSocket(job.id, {
+          onFinding: (finding) => {
+            // Convert and add finding immediately
+            const convertedFinding = convertFinding(finding);
+            setFindings((prev: Finding[]) => [...prev, convertedFinding]);
+          },
+          onProgress: (progressValue, message) => {
+            setProgress(progressValue);
+            // Update job status if needed
+            if (currentJob) {
+              setCurrentJob({ ...currentJob, progress: progressValue });
+            }
+          },
+          onComplete: (data) => {
+            console.log("[WebSocket] Job complete:", data);
+            setIsScanning(false);
+            setProgress(100);
+            if (currentJob) {
+              setCurrentJob({ ...currentJob, status: "completed", progress: 100 });
+            }
+          },
+          onError: (errorMsg) => {
+            console.error("[WebSocket] Error:", errorMsg);
+            setError(errorMsg);
+            setIsScanning(false);
+          },
+          onConnect: () => {
+            console.log("[WebSocket] Connected to darkweb job");
+          },
+          onDisconnect: () => {
+            console.log("[WebSocket] Disconnected from darkweb job");
+          },
+        });
+        
+        websocketRef.current = ws;
+        
+        // Timeout after 10 minutes for darkweb jobs (they can take longer)
+        timeoutRef.current = setTimeout(() => {
+          if (websocketRef.current) {
+            websocketRef.current.close();
+            websocketRef.current = null;
+          }
+          setIsScanning((current: boolean) => {
+            if (current) {
+              setError("Scan timed out");
+              return false;
+            }
+            return current;
+          });
+        }, 600000); // 10 minutes
+      } else {
+        // Poll for job completion - slower interval to prevent request backlog
+        pollIntervalRef.current = setInterval(async () => {
+          // Skip if previous request is still in flight
+          if (isPollingRef.current) {
+            console.warn("[Polling] Skipping poll - previous request still pending");
+            return;
+          }
 
-        try {
-          isPollingRef.current = true;
-          const done = await pollJobStatus(job.id);
-          if (done && pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
+          try {
+            isPollingRef.current = true;
+            const done = await pollJobStatus(job.id);
+            if (done && pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+              if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+              }
+            }
+          } catch (err) {
+            console.error("[Polling] Error polling job status:", err);
+            // On network error, stop polling to prevent backlog
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             if (timeoutRef.current) {
               clearTimeout(timeoutRef.current);
               timeoutRef.current = null;
             }
+            setError("Failed to check job status. Please refresh the page.");
+            setIsScanning(false);
+          } finally {
+            isPollingRef.current = false;
           }
-        } catch (err) {
-          console.error("[Polling] Error polling job status:", err);
-          // On network error, stop polling to prevent backlog
+        }, 5000); // Poll every 5 seconds to reduce load and prevent CORS preflight backlog
+
+        // Timeout after 5 minutes
+        timeoutRef.current = setTimeout(() => {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
           }
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-          }
-          setError("Failed to check job status. Please refresh the page.");
-          setIsScanning(false);
-        } finally {
-          isPollingRef.current = false;
-        }
-      }, 5000); // Poll every 5 seconds to reduce load and prevent CORS preflight backlog
-
-      // Timeout after 5 minutes
-      timeoutRef.current = setTimeout(() => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setIsScanning((current: boolean) => {
-          if (current) {
-            setError("Scan timed out");
-            return false;
-          }
-          return current;
-        });
-      }, 300000);
+          setIsScanning((current: boolean) => {
+            if (current) {
+              setError("Scan timed out");
+              return false;
+            }
+            return current;
+          });
+        }, 300000);
+      }
 
     } catch (err) {
       console.error("Scan error:", err);
@@ -287,6 +355,10 @@ export function CapabilityPage({
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
+      }
+      if (websocketRef.current) {
+        websocketRef.current.close();
+        websocketRef.current = null;
       }
     }
   };
