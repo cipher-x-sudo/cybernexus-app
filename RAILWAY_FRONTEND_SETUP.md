@@ -39,3 +39,4 @@ After setting the root directory correctly:
 - `frontend/railway.json` has been removed (Railway will auto-detect Dockerfile)
 - Environment variable `NEXT_PUBLIC_API_URL` is set in Railway Variables
 - **YOU MUST VERIFY** Railway service Root Directory is set to `cybernexus/frontend`
+

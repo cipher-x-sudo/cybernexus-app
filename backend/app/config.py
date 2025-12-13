@@ -5,9 +5,10 @@ Handles all application configuration using Pydantic Settings.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
+import json
 
 
 class Settings(BaseSettings):
@@ -57,6 +58,39 @@ class Settings(BaseSettings):
     CRAWLER_COUNT_CATEGORIES: int = 5
     CRAWLER_DAYS_TIME: int = 10
     DARKWEB_BATCH_SIZE: int = Field(default=5, env="DARKWEB_BATCH_SIZE")  # Number of URLs to process per batch
+    
+    # OnionSearch Configuration
+    ONIONSEARCH_ENGINES: List[str] = Field(
+        default=["ahmia", "tor66", "onionland"],
+        env="ONIONSEARCH_ENGINES",
+        description="List of OnionSearch engines to use (comma-separated string or JSON list)"
+    )
+    
+    @field_validator('ONIONSEARCH_ENGINES', mode='before')
+    @classmethod
+    def parse_engines(cls, v):
+        """Parse engines from environment variable (comma-separated string or JSON list)"""
+        if isinstance(v, str):
+            # Try JSON first
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Fallback to comma-separated
+            return [e.strip() for e in v.split(',') if e.strip()]
+        return v
+    ONIONSEARCH_TIMEOUT: int = Field(
+        default=30,
+        env="ONIONSEARCH_TIMEOUT",
+        description="Request timeout in seconds for OnionSearch engines"
+    )
+    ONIONSEARCH_MAX_PAGES: int = Field(
+        default=5,
+        env="ONIONSEARCH_MAX_PAGES",
+        description="Maximum number of pages to fetch per engine"
+    )
     
     # Dark Web Parallel Processing
     DARKWEB_MAX_WORKERS: int = Field(default=5, env="DARKWEB_MAX_WORKERS")  # Thread pool size for parallel crawling

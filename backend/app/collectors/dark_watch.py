@@ -632,8 +632,9 @@ class DarkWatch:
                     
                     try:
                         # Individual engine timeout - shorter timeout to fail fast if service unavailable
-                        # DarkWebEngine now uses 15s timeout, so 20s here gives it time to complete
-                        discovered = future.result(timeout=20)  # Reduced from 60s to 20s
+                        # DarkWebEngine uses OnionSearch with configurable timeout (default 30s), 
+                        # so 60s here gives it time to complete multiple searches
+                        discovered = future.result(timeout=60)
                         engine_time = time.time() - engine_start
                         
                         if discovered:

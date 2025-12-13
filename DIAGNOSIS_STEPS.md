@@ -133,3 +133,4 @@ After following these steps, tell me:
 2. Did you find `localhost:8000` in the built JavaScript?
 3. What commit hash is Railway currently deployed on?
 4. Is the variable set in Railway → Variables (not Runtime)?
+

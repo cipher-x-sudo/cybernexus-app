@@ -78,3 +78,4 @@ After Railway rebuilds, check:
 2. `frontend/Dockerfile` - Added ARG and ENV for build-time variable
 3. `frontend/next.config.js` - Added explicit env section
 4. `frontend/src/lib/api.ts` - Added debug logging (temporary)
+
