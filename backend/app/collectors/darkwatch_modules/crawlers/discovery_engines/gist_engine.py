@@ -55,6 +55,9 @@ class GistEngine:
                     timeout=10
                 )
                 
+                # Log initial request status
+                self.logger.info(f"Initial Gist search request: status_code={request.status_code}, response_size={len(request.content)} bytes")
+                
                 if request.status_code != 200:
                     self.logger.warning(f"Gist search returned status {request.status_code}")
                     return []
@@ -86,8 +89,19 @@ class GistEngine:
                 
                 # Scrape each page (limit to first 5 pages)
                 search_urls = search_urls[:5]
+                
+                # Log pagination parsing results
+                max_page_value = 'N/A'
+                if pages and len(pages) >= 2:
+                    try:
+                        max_page_value = int(pages[-2])
+                    except (ValueError, IndexError):
+                        pass
+                self.logger.info(f"Pagination parsing: found {len(pages)} page indicators, max_page={max_page_value}, will process {len(search_urls)} search URLs")
+                
                 gist_urls = []
                 for inurl in search_urls:
+                    self.logger.info(f"Scraping page: {inurl}")
                     self.logger.debug(f"Connecting to {inurl}")
                     time.sleep(0.5)  # Reduced rate limiting
                     try:
@@ -101,6 +115,7 @@ class GistEngine:
                     
                     if request.status_code == 200:
                         soup = BeautifulSoup(request.content, features="lxml")
+                        gist_count_before = len(gist_urls)
                         for code in soup.findAll('div', {'class': 'gist-snippet'}):
                             if '.onion' in code.get_text().lower():
                                 for raw in code.findAll('a', {'class': 'link-overlay'}):
@@ -108,15 +123,23 @@ class GistEngine:
                                         gist_urls.append(raw['href'])
                                     except:
                                         pass
+                        gist_count_after = len(gist_urls)
+                        gists_found_this_page = gist_count_after - gist_count_before
+                        self.logger.info(f"Page {inurl}: found {gists_found_this_page} gist URLs (total so far: {gist_count_after})")
+                
+                self.logger.info(f"Page scraping complete: found {len(gist_urls)} total gist URLs across all pages")
                 
                 # Get raw content from gists (limit to max 20 gists)
                 max_gists_limit = 20
+                total_gists_found = len(gist_urls)
                 gist_urls = gist_urls[:max_gists_limit]
+                self.logger.info(f"Gist processing: will process {len(gist_urls)} gists (limited from {total_gists_found} total)")
                 for gist_url in gist_urls:
-                    self.logger.debug(f"Fetching gist: {gist_url}")
+                    self.logger.info(f"Fetching gist: {gist_url}")
                     time.sleep(0.5)  # Reduced rate limiting
                     try:
                         request = session.get(gist_url, headers=headers, timeout=10)
+                        self.logger.info(f"Gist fetch result: {gist_url} - status_code={request.status_code}")
                         
                         if request.status_code == 200:
                             soup = BeautifulSoup(request.content, features="lxml")
@@ -127,11 +150,13 @@ class GistEngine:
                                     
                                     # Fetch raw content
                                     if '.txt' in raw_url.lower() or '.csv' in raw_url.lower():
+                                        self.logger.info(f"Fetching raw content: {raw_url}")
                                         time.sleep(0.5)  # Reduced rate limiting
                                         try:
                                             raw_request = session.get(raw_url, headers=headers, timeout=10)
                                             if raw_request.status_code == 200:
                                                 content = raw_request.text
+                                                urls_before = len(urls)
                                                 
                                                 # Extract .onion URLs
                                                 regex = re.compile(
@@ -149,11 +174,17 @@ class GistEngine:
                                                     match = regex.match(cleaned)
                                                     if match:
                                                         urls.append(match.group())
+                                                
+                                                urls_after = len(urls)
+                                                urls_found_this_gist = urls_after - urls_before
+                                                self.logger.info(f"Raw content extraction: {raw_url} - extracted {urls_found_this_gist} URLs (total so far: {urls_after})")
+                                            else:
+                                                self.logger.warning(f"Raw content fetch failed: {raw_url} - status_code={raw_request.status_code}")
                                         except requests.exceptions.Timeout:
-                                            self.logger.debug(f"Timeout fetching raw content: {raw_url}")
+                                            self.logger.warning(f"Timeout fetching raw content: {raw_url}")
                                             continue
                                         except requests.exceptions.RequestException as e:
-                                            self.logger.debug(f"Request error for raw content {raw_url}: {e}")
+                                            self.logger.warning(f"Request error for raw content {raw_url}: {e}")
                                             continue
                                     
                                 except Exception as e:
@@ -162,7 +193,7 @@ class GistEngine:
                         self.logger.warning(f"Timeout fetching gist: {gist_url}")
                         continue
                     except requests.exceptions.RequestException as e:
-                        self.logger.debug(f"Request error for gist {gist_url}: {e}")
+                        self.logger.warning(f"Request error for gist {gist_url}: {e}")
                         continue
                     
                     except (requests.exceptions.ConnectionError,
@@ -171,11 +202,12 @@ class GistEngine:
                             requests.exceptions.Timeout,
                             requests.exceptions.InvalidURL,
                             requests.exceptions.RequestException) as e:
-                        self.logger.debug(f"Connection error: {e}")
+                        self.logger.warning(f"Connection error for gist {gist_url}: {e}")
                         continue
         
         except Exception as e:
-            self.logger.error(f"Gist engine error: {e}")
+            self.logger.error(f"Gist engine error: {e}", exc_info=True)
         
-        self.logger.info(f'Found {len(urls)} URLs from Gist')
-        return list(set(urls))  # Return unique URLs
+        unique_urls = list(set(urls))
+        self.logger.info(f'Gist engine summary: found {len(urls)} total URLs, {len(unique_urls)} unique URLs')
+        return unique_urls  # Return unique URLs
