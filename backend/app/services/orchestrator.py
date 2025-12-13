@@ -109,6 +109,7 @@ class Job:
     completed_at: Optional[datetime] = None
     findings: List[Finding] = field(default_factory=list)
     error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)  # Additional job metadata (e.g., discovered URLs)
     _findings_lock: Lock = field(default_factory=Lock, init=False, repr=False)
     
     def add_finding(self, finding: Finding):
@@ -1085,11 +1086,18 @@ class Orchestrator:
                 job.add_findings(findings)
                 return findings
             
-            # Limit initial crawl to avoid overwhelming
-            crawl_limit = min(10, len(urls))
+            # Store discovered URLs in job metadata for "crawl more" functionality
+            if not job.metadata:
+                job.metadata = {}
+            job.metadata['discovered_urls'] = urls
+            job.metadata['crawled_urls'] = []
+            job.metadata['uncrawled_urls'] = urls.copy()
+            
+            # Limit initial crawl to default limit (5)
+            crawl_limit = min(settings.DARKWEB_DEFAULT_CRAWL_LIMIT, len(urls))
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] URL planning - Total available: {len(urls)}, "
-                f"will crawl: {crawl_limit}, batch_size: {batch_size}"
+                f"will crawl: {crawl_limit} (default limit), batch_size: {batch_size}"
             )
             
             urls_to_crawl = urls[:crawl_limit]
@@ -1220,6 +1228,13 @@ class Orchestrator:
                 f"(avg {avg_time_per_url:.2f}s/URL) - Total findings: {len(findings)}, "
                 f"Elapsed time: {elapsed_total:.2f}s"
             )
+            
+            # Update job metadata with crawled URLs
+            if job.metadata:
+                job.metadata['crawled_urls'] = urls_to_crawl.copy()
+                uncrawled = [url for url in job.metadata.get('discovered_urls', []) if url not in urls_to_crawl]
+                job.metadata['uncrawled_urls'] = uncrawled
+            
             job.progress = 90
             
             # If no findings created but URLs were crawled, create info finding

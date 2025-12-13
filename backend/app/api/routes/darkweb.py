@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from loguru import logger
 from datetime import datetime
 
-from app.services.orchestrator import get_orchestrator, Capability
+from app.services.orchestrator import get_orchestrator, Capability, Finding
 from app.collectors.dark_watch import (
     OnionSite, BrandMention, ExtractedEntity,
     SiteCategory, ThreatLevel
@@ -559,4 +559,129 @@ async def get_all_mentions(
     except Exception as e:
         logger.error(f"Error getting all mentions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving mentions: {str(e)}")
+
+
+@router.post("/jobs/{job_id}/crawl-more")
+async def crawl_more_urls(
+    job_id: str,
+    limit: int = Query(default=10, ge=1, le=10, description="Number of additional URLs to crawl (max 10)")
+):
+    """
+    Crawl additional URLs from discovered list.
+    
+    This endpoint allows crawling more URLs beyond the initial default limit (5).
+    Maximum additional crawl limit is 10 URLs per request.
+    """
+    from app.services.orchestrator import get_orchestrator
+    from app.config import settings
+    import uuid
+    from datetime import datetime
+    
+    orchestrator = get_orchestrator()
+    job = orchestrator.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.capability != Capability.DARK_WEB_INTELLIGENCE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job {job_id} is not a dark web intelligence job"
+        )
+    
+    # Check if job has discovered URLs in metadata
+    if not job.metadata or 'uncrawled_urls' not in job.metadata:
+        raise HTTPException(
+            status_code=400,
+            detail="No uncrawled URLs available. Job may not have discovered URLs yet."
+        )
+    
+    uncrawled_urls = job.metadata.get('uncrawled_urls', [])
+    if not uncrawled_urls:
+        raise HTTPException(
+            status_code=400,
+            detail="All discovered URLs have been crawled"
+        )
+    
+    # Enforce maximum additional crawl limit
+    max_additional = settings.DARKWEB_MAX_ADDITIONAL_CRAWL
+    actual_limit = min(limit, max_additional, len(uncrawled_urls))
+    
+    if actual_limit < limit:
+        logger.warning(
+            f"[DarkWeb] Requested {limit} URLs but limiting to {actual_limit} "
+            f"(max additional: {max_additional}, available: {len(uncrawled_urls)})"
+        )
+    
+    urls_to_crawl = uncrawled_urls[:actual_limit]
+    
+    # Get DarkWatch instance
+    darkwatch = orchestrator.get_darkwatch_instance(job_id)
+    if not darkwatch:
+        raise HTTPException(
+            status_code=404,
+            detail=f"DarkWatch instance not available for job {job_id}"
+        )
+    
+    logger.info(
+        f"[DarkWeb] [job_id={job_id}] Crawling {len(urls_to_crawl)} additional URLs "
+        f"(requested: {limit}, limit: {actual_limit})"
+    )
+    
+    findings = []
+    crawled_sites = []
+    
+    try:
+        for url in urls_to_crawl:
+            try:
+                site = darkwatch.crawl_site(url, depth=1)
+                crawled_sites.append(site)
+                
+                # Create findings for keyword matches
+                if site.keywords_matched:
+                    finding = Finding(
+                        id=f"find-{uuid.uuid4().hex[:8]}",
+                        capability=Capability.DARK_WEB_INTELLIGENCE,
+                        severity=_map_threat_to_severity(site.threat_level.value),
+                        title=f"Brand mention found: {site.title}",
+                        description=f"Keyword found on {site.onion_url}",
+                        evidence={"site": site.to_dict()},
+                        affected_assets=site.keywords_matched,
+                        recommendations=["Review dark web mention", "Monitor for data leaks"],
+                        discovered_at=datetime.now(),
+                        risk_score=site.risk_score * 100  # Convert to 0-100 scale
+                    )
+                    findings.append(finding)
+                    job.add_finding(finding)
+                
+            except Exception as e:
+                logger.error(f"[DarkWeb] Error crawling {url}: {e}", exc_info=True)
+                continue
+        
+        # Update job metadata
+        if job.metadata:
+            crawled_urls = job.metadata.get('crawled_urls', [])
+            crawled_urls.extend(urls_to_crawl)
+            job.metadata['crawled_urls'] = crawled_urls
+            
+            # Update uncrawled URLs
+            remaining = [url for url in job.metadata.get('uncrawled_urls', []) if url not in urls_to_crawl]
+            job.metadata['uncrawled_urls'] = remaining
+        
+        logger.info(
+            f"[DarkWeb] [job_id={job_id}] Crawled {len(crawled_sites)} additional URLs, "
+            f"created {len(findings)} findings. Remaining uncrawled: {len(job.metadata.get('uncrawled_urls', []))}"
+        )
+        
+        return {
+            "crawled_count": len(crawled_sites),
+            "findings_count": len(findings),
+            "remaining_uncrawled": len(job.metadata.get('uncrawled_urls', [])) if job.metadata else 0,
+            "sites": [site.to_dict() for site in crawled_sites]
+        }
+        
+    except Exception as e:
+        logger.error(f"[DarkWeb] Error in crawl-more: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error crawling additional URLs: {str(e)}")
+
 

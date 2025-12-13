@@ -57,7 +57,11 @@ class ToolExecutors:
         Execute dark web monitoring.
         Powered by: freshonions-torscraper
         """
+        from app.config import settings
+        
         findings = []
+        discovered_urls = []
+        crawled_urls = []
         
         try:
             # Add keywords to monitor
@@ -67,40 +71,49 @@ class ToolExecutors:
                 if keyword:
                     self.dark_watch.add_monitored_keyword(keyword)
             
-            # Simulate crawl (in production, would crawl actual .onion sites)
-            # The DarkWatch collector already has full implementation
-            sample_sites = [
-                f"http://{'a' * 16}.onion",
-                f"http://{'b' * 56}.onion",
-            ]
+            # Discover URLs using discovery engines
+            logger.info(f"[DarkWatch] Starting URL discovery for keywords: {keywords}")
+            discovered_urls = self.dark_watch._discover_urls_with_engines()
+            logger.info(f"[DarkWatch] Discovered {len(discovered_urls)} URLs")
             
-            for url in sample_sites[:config.get("crawl_depth", 2)]:
-                site = self.dark_watch.crawl_site(url, depth=1)
-                
-                # Convert to findings
-                for mention in self.dark_watch.get_brand_mentions():
-                    findings.append({
-                        "severity": mention.threat_level.value,
-                        "title": f"Brand mention: {mention.keyword}",
-                        "description": mention.context[:200],
-                        "evidence": {
-                            "source_url": mention.source_url,
-                            "keyword": mention.keyword,
-                            "is_data_leak": mention.is_data_leak
-                        },
-                        "affected_assets": [mention.keyword],
-                        "recommendations": [
-                            "Monitor for further mentions",
-                            "Review exposed information",
-                            "Consider takedown if impersonation"
-                        ],
-                        "risk_score": 75.0 if mention.is_data_leak else 50.0
-                    })
+            # Apply crawl limit (default 5)
+            crawl_limit = config.get("crawl_limit", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
+            urls_to_crawl = discovered_urls[:crawl_limit]
+            logger.info(f"[DarkWatch] Crawling first {len(urls_to_crawl)} URLs (limit: {crawl_limit})")
             
-            logger.info(f"Dark watch completed: {len(findings)} findings")
+            # Crawl limited number of sites
+            for url in urls_to_crawl:
+                try:
+                    site = self.dark_watch.crawl_site(url, depth=1)
+                    crawled_urls.append(url)
+                    
+                    # Convert to findings
+                    for mention in self.dark_watch.get_brand_mentions():
+                        findings.append({
+                            "severity": mention.threat_level.value,
+                            "title": f"Brand mention: {mention.keyword}",
+                            "description": mention.context[:200],
+                            "evidence": {
+                                "source_url": mention.source_url,
+                                "keyword": mention.keyword,
+                                "is_data_leak": mention.is_data_leak
+                            },
+                            "affected_assets": [mention.keyword],
+                            "recommendations": [
+                                "Monitor for further mentions",
+                                "Review exposed information",
+                                "Consider takedown if impersonation"
+                            ],
+                            "risk_score": 75.0 if mention.is_data_leak else 50.0
+                        })
+                except Exception as e:
+                    logger.error(f"[DarkWatch] Error crawling {url}: {e}")
+                    continue
+            
+            logger.info(f"[DarkWatch] Completed: {len(findings)} findings, {len(crawled_urls)} sites crawled, {len(discovered_urls) - len(crawled_urls)} remaining")
             
         except Exception as e:
-            logger.error(f"Dark watch error: {e}")
+            logger.error(f"Dark watch error: {e}", exc_info=True)
             
         return findings
     

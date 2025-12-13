@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     DARKWEB_MAX_WORKERS: int = Field(default=5, env="DARKWEB_MAX_WORKERS")  # Thread pool size for parallel crawling
     DARKWEB_DISCOVERY_TIMEOUT: int = Field(default=300, env="DARKWEB_DISCOVERY_TIMEOUT")  # 5 min timeout per discovery engine
     DARKWEB_CRAWL_TIMEOUT: int = Field(default=600, env="DARKWEB_CRAWL_TIMEOUT")  # 10 min timeout per crawl batch
+    DARKWEB_DEFAULT_CRAWL_LIMIT: int = Field(default=5, env="DARKWEB_DEFAULT_CRAWL_LIMIT")  # Default number of sites to crawl initially
+    DARKWEB_MAX_ADDITIONAL_CRAWL: int = Field(default=10, env="DARKWEB_MAX_ADDITIONAL_CRAWL")  # Maximum additional sites to crawl per "crawl more" request
     
     # Dark Web Intelligence - Site Analyzer (if using separate DB)
     ANALYZER_DB_HOST: Optional[str] = None
