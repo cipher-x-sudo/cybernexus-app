@@ -242,23 +242,49 @@ export function CapabilityPage({
         // Connect via WebSocket for real-time streaming
         const ws = connectDarkwebJobWebSocket(job.id, {
           onFinding: (finding) => {
+            console.log("[WebSocket] Received finding:", finding);
             // Convert and add finding immediately
-            const convertedFinding = convertFinding(finding);
-            setFindings((prev: Finding[]) => [...prev, convertedFinding]);
+            try {
+              const convertedFinding = convertFinding(finding);
+              setFindings((prev: Finding[]) => {
+                // Check if finding already exists to avoid duplicates
+                const exists = prev.some(f => f.id === convertedFinding.id);
+                if (exists) {
+                  console.log("[WebSocket] Finding already exists, skipping:", convertedFinding.id);
+                  return prev;
+                }
+                return [...prev, convertedFinding];
+              });
+            } catch (err) {
+              console.error("[WebSocket] Error converting finding:", err, finding);
+            }
           },
           onProgress: (progressValue, message) => {
+            console.log("[WebSocket] Progress update:", progressValue, message);
             setProgress(progressValue);
             // Update job status if needed
-            if (currentJob) {
-              setCurrentJob({ ...currentJob, progress: progressValue });
-            }
+            setCurrentJob((prev) => {
+              if (prev) {
+                return { ...prev, progress: progressValue };
+              }
+              return prev;
+            });
           },
           onComplete: (data) => {
             console.log("[WebSocket] Job complete:", data);
             setIsScanning(false);
             setProgress(100);
-            if (currentJob) {
-              setCurrentJob({ ...currentJob, status: "completed", progress: 100 });
+            // Update job status to completed
+            setCurrentJob((prev) => {
+              if (prev) {
+                return { ...prev, status: "completed", progress: 100 };
+              }
+              return prev;
+            });
+            // Close WebSocket connection
+            if (websocketRef.current) {
+              websocketRef.current.close();
+              websocketRef.current = null;
             }
           },
           onError: (errorMsg) => {
