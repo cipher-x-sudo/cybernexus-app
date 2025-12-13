@@ -51,7 +51,8 @@ class GistEngine:
                 # Get initial page
                 request = session.get(
                     'https://gist.github.com/search?l=Text&q=.onion',
-                    headers=headers
+                    headers=headers,
+                    timeout=10
                 )
                 
                 if request.status_code != 200:
@@ -74,18 +75,29 @@ class GistEngine:
                 if pages:
                     try:
                         max_page = int(pages[-2])
+                        # Limit to max 5 pages to prevent excessive scraping
+                        max_pages_limit = 5
+                        max_page = min(max_page, max_pages_limit)
                         for cont in range(2, max_page + 1):
                             full_url = f"https://gist.github.com/search?l=Text&p={cont}&q={urllib.parse.quote('.onion')}"
                             search_urls.append(full_url)
                     except (ValueError, IndexError):
                         pass
                 
-                # Scrape each page
+                # Scrape each page (limit to first 5 pages)
+                search_urls = search_urls[:5]
                 gist_urls = []
                 for inurl in search_urls:
                     self.logger.debug(f"Connecting to {inurl}")
-                    time.sleep(2)  # Rate limiting
-                    request = session.get(inurl, headers=headers)
+                    time.sleep(0.5)  # Reduced rate limiting
+                    try:
+                        request = session.get(inurl, headers=headers, timeout=10)
+                    except requests.exceptions.Timeout:
+                        self.logger.warning(f"Timeout connecting to {inurl}")
+                        continue
+                    except requests.exceptions.RequestException as e:
+                        self.logger.debug(f"Request error for {inurl}: {e}")
+                        continue
                     
                     if request.status_code == 200:
                         soup = BeautifulSoup(request.content, features="lxml")
@@ -97,12 +109,14 @@ class GistEngine:
                                     except:
                                         pass
                 
-                # Get raw content from gists
+                # Get raw content from gists (limit to max 20 gists)
+                max_gists_limit = 20
+                gist_urls = gist_urls[:max_gists_limit]
                 for gist_url in gist_urls:
                     self.logger.debug(f"Fetching gist: {gist_url}")
-                    time.sleep(2)  # Rate limiting
+                    time.sleep(0.5)  # Reduced rate limiting
                     try:
-                        request = session.get(gist_url, headers=headers)
+                        request = session.get(gist_url, headers=headers, timeout=10)
                         
                         if request.status_code == 200:
                             soup = BeautifulSoup(request.content, features="lxml")
@@ -113,35 +127,50 @@ class GistEngine:
                                     
                                     # Fetch raw content
                                     if '.txt' in raw_url.lower() or '.csv' in raw_url.lower():
-                                        time.sleep(2)
-                                        raw_request = session.get(raw_url, headers=headers)
-                                        if raw_request.status_code == 200:
-                                            content = raw_request.text
-                                            
-                                            # Extract .onion URLs
-                                            regex = re.compile(
-                                                r"[A-Za-z0-9]{0,12}\.?[A-Za-z0-9]{12,50}\.onion"
-                                            )
-                                            
-                                            for line in content.split('\n'):
-                                                cleaned = line \
-                                                    .replace('\xad', '') \
-                                                    .replace('\n', '') \
-                                                    .replace("http://", '') \
-                                                    .replace("https://", '') \
-                                                    .replace("www.", "")
+                                        time.sleep(0.5)  # Reduced rate limiting
+                                        try:
+                                            raw_request = session.get(raw_url, headers=headers, timeout=10)
+                                            if raw_request.status_code == 200:
+                                                content = raw_request.text
                                                 
-                                                match = regex.match(cleaned)
-                                                if match:
-                                                    urls.append(match.group())
+                                                # Extract .onion URLs
+                                                regex = re.compile(
+                                                    r"[A-Za-z0-9]{0,12}\.?[A-Za-z0-9]{12,50}\.onion"
+                                                )
+                                                
+                                                for line in content.split('\n'):
+                                                    cleaned = line \
+                                                        .replace('\xad', '') \
+                                                        .replace('\n', '') \
+                                                        .replace("http://", '') \
+                                                        .replace("https://", '') \
+                                                        .replace("www.", "")
+                                                    
+                                                    match = regex.match(cleaned)
+                                                    if match:
+                                                        urls.append(match.group())
+                                        except requests.exceptions.Timeout:
+                                            self.logger.debug(f"Timeout fetching raw content: {raw_url}")
+                                            continue
+                                        except requests.exceptions.RequestException as e:
+                                            self.logger.debug(f"Request error for raw content {raw_url}: {e}")
+                                            continue
                                     
                                 except Exception as e:
                                     self.logger.debug(f"Error processing gist: {e}")
+                    except requests.exceptions.Timeout:
+                        self.logger.warning(f"Timeout fetching gist: {gist_url}")
+                        continue
+                    except requests.exceptions.RequestException as e:
+                        self.logger.debug(f"Request error for gist {gist_url}: {e}")
+                        continue
                     
                     except (requests.exceptions.ConnectionError,
                             requests.exceptions.ChunkedEncodingError,
                             requests.exceptions.ReadTimeout,
-                            requests.exceptions.InvalidURL) as e:
+                            requests.exceptions.Timeout,
+                            requests.exceptions.InvalidURL,
+                            requests.exceptions.RequestException) as e:
                         self.logger.debug(f"Connection error: {e}")
                         continue
         

@@ -103,7 +103,6 @@ class URLDatabase:
             type: Type of URL
             baseurl: Base URL (optional)
         """
-        time.sleep(0.10)
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -113,6 +112,63 @@ class URLDatabase:
         )
         conn.commit()
         conn.close()
+    
+    def batch_save(
+        self,
+        urls: List[str],
+        source: str,
+        type: str,
+        baseurl: Optional[str] = None
+    ) -> int:
+        """
+        Save multiple URLs to database in a single transaction (batch insert).
+        
+        Args:
+            urls: List of URLs to save
+            source: Source of the URLs
+            type: Type of URLs
+            baseurl: Base URL (optional, applied to all)
+            
+        Returns:
+            Number of URLs successfully saved
+        """
+        if not urls:
+            return 0
+        
+        conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
+        cursor = conn.cursor()
+        date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        # Check which URLs already exist
+        existing_urls = set()
+        if urls:
+            # Use IN clause for efficient checking
+            placeholders = ','.join(['?' for _ in urls])
+            cursor.execute(f"SELECT url FROM URL WHERE url IN ({placeholders});", urls)
+            existing_urls = {row[0] for row in cursor.fetchall()}
+        
+        # Filter out existing URLs
+        new_urls = [url for url in urls if url not in existing_urls]
+        
+        if not new_urls:
+            conn.close()
+            return 0
+        
+        # Prepare batch insert data
+        insert_data = [
+            (type, url, source, baseurl, date)
+            for url in new_urls
+        ]
+        
+        # Batch insert using executemany
+        cursor.executemany(
+            "INSERT INTO URL (type,url,source,baseurl,discovery_date) VALUES (?,?,?,?,?);",
+            insert_data
+        )
+        conn.commit()
+        conn.close()
+        
+        return len(new_urls)
     
     def select(
         self,

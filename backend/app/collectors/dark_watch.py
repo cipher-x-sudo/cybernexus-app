@@ -658,19 +658,25 @@ class DarkWatch:
                         )
                         continue
             
-            # Store in URLDatabase
-            db = URLDatabase(
-                dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
-                dbname=settings.CRAWLER_DB_NAME
-            )
-            
-            logger.info(f"[DarkWatch] Saving {len(urls)} discovered URLs to database")
-            saved_count = 0
-            for url in urls:
-                if not db.compare(url):
-                    db.save(url=url, source="DiscoveryEngine", type="Domain")
-                    saved_count += 1
-            logger.info(f"[DarkWatch] Saved {saved_count} new URLs to database")
+            # Store in URLDatabase using batch save (non-blocking, skip if slow/fails)
+            try:
+                db = URLDatabase(
+                    dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
+                    dbname=settings.CRAWLER_DB_NAME
+                )
+                
+                logger.info(f"[DarkWatch] Saving {len(urls)} discovered URLs to database using batch insert")
+                saved_count = db.batch_save(
+                    urls=urls,
+                    source="DiscoveryEngine",
+                    type="Domain"
+                )
+                logger.info(f"[DarkWatch] Saved {saved_count} new URLs to database (batch insert)")
+            except Exception as db_error:
+                logger.warning(
+                    f"[DarkWatch] Database save skipped (non-critical): {db_error}. "
+                    f"Continuing with {len(urls)} discovered URLs."
+                )
         
         except Exception as e:
             discovery_time = time.time() - discovery_start
