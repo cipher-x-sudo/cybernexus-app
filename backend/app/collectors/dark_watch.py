@@ -593,9 +593,12 @@ class DarkWatch:
         else:
             return SiteCategory.UNKNOWN
     
-    def _discover_urls_with_engines(self) -> List[str]:
+    def _discover_urls_with_engines(self, keywords: Optional[List[str]] = None) -> List[str]:
         """
         Discover URLs using discovery engines in parallel.
+        
+        Args:
+            keywords: List of search keywords to use for discovery (required for DarkWebEngine)
         
         Returns:
             List of discovered URLs
@@ -605,7 +608,7 @@ class DarkWatch:
         discovery_timeout = settings.DARKWEB_DISCOVERY_TIMEOUT
         
         try:
-            logger.info("[DarkWatch] Starting parallel URL discovery with all engines")
+            logger.info(f"[DarkWatch] Starting parallel URL discovery with all engines (keywords: {keywords})")
             # Initialize all engines
             engines = [
                 GistEngine(),
@@ -616,10 +619,13 @@ class DarkWatch:
             # Run all engines in parallel using ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=len(engines)) as executor:
                 # Submit all engine tasks
-                future_to_engine = {
-                    executor.submit(engine.discover_urls): engine 
-                    for engine in engines
-                }
+                future_to_engine = {}
+                for engine in engines:
+                    # DarkWebEngine requires keywords, GistEngine doesn't
+                    if engine.__class__.__name__ == 'DarkWebEngine':
+                        future_to_engine[executor.submit(engine.discover_urls, keywords=keywords)] = engine
+                    else:
+                        future_to_engine[executor.submit(engine.discover_urls)] = engine
                 
                 # Process completed tasks as they finish
                 for future in as_completed(future_to_engine, timeout=discovery_timeout):

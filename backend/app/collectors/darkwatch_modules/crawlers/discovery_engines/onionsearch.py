@@ -608,22 +608,27 @@ class DarkWebEngine:
         Discover .onion URLs using OnionSearch engines.
         
         Args:
-            keywords: List of search keywords (defaults to generic terms if not provided)
+            keywords: List of search keywords (REQUIRED - no default fallback)
         
         Returns:
             List of discovered .onion URLs
+        
+        Raises:
+            ValueError: If no keywords are provided
         """
         discovery_start = time.time()
         
-        # Use keywords if provided, otherwise use generic search terms
-        if keywords and len(keywords) > 0:
-            search_queries = [kw.strip() for kw in keywords if kw.strip()]
-        else:
-            search_queries = ['onion', 'darkweb', 'tor']
+        # Require keywords - no fallback terms
+        if not keywords or len(keywords) == 0:
+            loguru_logger.error("[DarkWebEngine] No keywords provided. Keywords are required for discovery.")
+            raise ValueError("Keywords are required for dark web discovery. No default fallback terms.")
+        
+        # Clean and validate keywords
+        search_queries = [kw.strip() for kw in keywords if kw.strip()]
         
         if not search_queries:
-            loguru_logger.warning("[DarkWebEngine] No valid search queries provided")
-            return []
+            loguru_logger.error("[DarkWebEngine] No valid search queries provided after cleaning")
+            raise ValueError("No valid keywords provided after cleaning. Please provide at least one keyword.")
         
         loguru_logger.info(f"[DarkWebEngine] Starting discovery with {len(search_queries)} search queries: {search_queries}")
         

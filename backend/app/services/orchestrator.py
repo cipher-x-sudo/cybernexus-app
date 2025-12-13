@@ -1001,14 +1001,50 @@ class Orchestrator:
             logger.info(f"[DarkWeb] [job_id={job.id}] Starting URL discovery using engines...")
             discovery_start = time.time()
             job.progress = 15
+            
+            # Extract keywords from job.target
+            keywords = None
+            if job.target:
+                # Split by comma if multiple keywords, otherwise use single keyword
+                keywords = [kw.strip() for kw in job.target.split(',') if kw.strip()]
+                logger.info(f"[DarkWeb] [job_id={job.id}] Extracted keywords: {keywords}")
+            else:
+                logger.warning(f"[DarkWeb] [job_id={job.id}] No target/keywords provided for discovery")
+            
             try:
-                urls = dark_watch._discover_urls_with_engines()
+                if not keywords:
+                    raise ValueError("No keywords provided. Keywords are required for dark web discovery.")
+                
+                urls = dark_watch._discover_urls_with_engines(keywords=keywords)
                 discovery_time = time.time() - discovery_start
                 logger.info(
                     f"[DarkWeb] [job_id={job.id}] URL discovery completed in {discovery_time:.2f}s - "
                     f"Found {len(urls)} URLs from engines"
                 )
                 job.progress = 25
+            except ValueError as e:
+                # ValueError means no keywords provided - create error finding
+                discovery_time = time.time() - discovery_start
+                logger.error(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery failed: {e}",
+                    exc_info=True
+                )
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title="Dark Web Discovery: No Keywords Provided",
+                    description=f"Dark web discovery requires keywords to search. No keywords were provided in the job target.",
+                    evidence={"error": str(e), "target": job.target if job.target else "none"},
+                    affected_assets=[],
+                    recommendations=["Provide keywords in the job target field", "Keywords are required for OnionSearch discovery"],
+                    discovered_at=datetime.now(),
+                    risk_score=0.0
+                )
+                findings.append(finding)
+                job.add_finding(finding)
+                urls = []
+                job.progress = 20
             except Exception as e:
                 discovery_time = time.time() - discovery_start
                 logger.error(
