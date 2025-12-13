@@ -177,7 +177,7 @@ const GlassSelect = React.forwardRef<HTMLDivElement, GlassSelectProps>(
               role="listbox"
               className={cn(
                 "absolute z-50 w-full mt-1",
-                "bg-white/[0.08] backdrop-blur-xl",
+                "bg-slate-900/95 backdrop-blur-xl",
                 "border border-white/[0.1] rounded-xl",
                 "shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
                 "max-h-60 overflow-auto",
