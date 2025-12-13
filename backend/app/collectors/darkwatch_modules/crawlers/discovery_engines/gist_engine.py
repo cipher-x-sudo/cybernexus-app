@@ -142,16 +142,29 @@ class GistEngine:
                                 self.logger.info(f"Page {inurl}: Sample link hrefs from first snippet: {sample_hrefs}")
                         
                         # Try multiple selector strategies
-                        # Strategy 1: Original approach
+                        # Strategy 1: Find gist links in snippets containing .onion
                         snippets_with_onion = 0
                         for code in gist_snippets:
                             if '.onion' in code.get_text().lower():
                                 snippets_with_onion += 1
-                                for raw in code.findAll('a', {'class': 'link-overlay'}):
-                                    try:
-                                        gist_urls.append(raw['href'])
-                                    except:
-                                        pass
+                                # Find all links in this snippet
+                                all_links = code.findAll('a', href=True)
+                                for link in all_links:
+                                    href = link.get('href', '')
+                                    # Look for gist URL pattern: /username/gistid (not /forks, #comments, etc.)
+                                    # Pattern: starts with /, has exactly one more /, and the part after second / is alphanumeric
+                                    if href.startswith('/') and href.count('/') == 2 and not any(
+                                        skip in href for skip in ['/forks', '/stargazers', '#comments', '/revisions']
+                                    ):
+                                        # Extract the gist ID part (after second /)
+                                        parts = href.split('/')
+                                        if len(parts) >= 3 and parts[2] and parts[2][0].isalnum():
+                                            # This looks like a gist URL: /username/gistid
+                                            # Convert to full URL
+                                            full_url = f"https://gist.github.com{href}"
+                                            if full_url not in gist_urls:
+                                                gist_urls.append(full_url)
+                                                break  # Found the main gist link, move to next snippet
                         
                         if len(gist_snippets) > 0:
                             self.logger.info(f"Page {inurl}: {snippets_with_onion} out of {len(gist_snippets)} snippets contain '.onion' text")
