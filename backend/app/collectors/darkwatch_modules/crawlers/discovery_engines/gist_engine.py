@@ -330,6 +330,8 @@ class GistEngine:
                             for raw in raw_links:
                                 try:
                                     href = raw.get('href', '')
+                                    self.logger.debug(f"Gist {gist_url}: Processing raw link with href: {href}")
+                                    
                                     # Handle both relative and absolute URLs
                                     if href.startswith('/'):
                                         raw_url = f"https://gist.githubusercontent.com{href}"
@@ -349,17 +351,25 @@ class GistEngine:
                                         else:
                                             continue
                                     
-                                    # Fetch raw content - try .txt/.csv files, or any file if URL ends with filename
+                                    # Fetch raw content - try all files that have a filename (not just .txt/.csv)
                                     # Skip if URL ends with just '/raw/' (no filename)
-                                    should_fetch = ('.txt' in raw_url.lower() or '.csv' in raw_url.lower() or 
-                                                   (not raw_url.endswith('/raw/') and '/raw/' in raw_url))
+                                    # But allow any file that has /raw/ in the path with a filename after it
+                                    has_filename = '/raw/' in raw_url and not raw_url.endswith('/raw/')
+                                    should_fetch = has_filename
+                                    
+                                    if not should_fetch:
+                                        self.logger.debug(f"Gist {gist_url}: Skipping raw URL (no filename): {raw_url}")
+                                    
                                     if should_fetch:
                                         self.logger.info(f"Fetching raw content: {raw_url}")
                                         time.sleep(0.5)  # Reduced rate limiting
                                         try:
                                             raw_request = session.get(raw_url, headers=headers, timeout=10)
+                                            self.logger.info(f"Raw content fetch: {raw_url} - status_code={raw_request.status_code}, size={len(raw_request.content) if raw_request.status_code == 200 else 0} bytes")
+                                            
                                             if raw_request.status_code == 200:
                                                 content = raw_request.text
+                                                self.logger.debug(f"Raw content preview (first 200 chars): {content[:200]}")
                                                 urls_before = len(urls)
                                                 
                                                 # Extract .onion URLs
