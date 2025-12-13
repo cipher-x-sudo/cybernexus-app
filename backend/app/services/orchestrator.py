@@ -1056,7 +1056,11 @@ class Orchestrator:
             
             # If no URLs discovered, try to get URLs from database
             if not urls:
-                logger.info(f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines, checking database...")
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines (0 URLs), "
+                    f"triggering database fallback..."
+                )
+                db_fallback_start = time.time()
                 try:
                     from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
                     logger.info(f"[DarkWeb] [job_id={job.id}] Connecting to URL database...")
@@ -1083,43 +1087,66 @@ class Orchestrator:
                         # Extract URLs from tuples (url is index 2, baseurl is index 4)
                         urls = []
                         extraction_start = time.time()
-                        for record in db_records[:10]:  # Limit to 10
+                        for idx, record in enumerate(db_records[:10]):  # Limit to 10
                             url = record[2] if len(record) > 2 and record[2] else None
                             baseurl = record[4] if len(record) > 4 and record[4] else None
                             if url:
                                 urls.append(url)
+                                if idx < 3:
+                                    logger.debug(f"[DarkWeb] [job_id={job.id}] Database record {idx}: extracted URL='{url[:100]}'")
                             elif baseurl:
                                 urls.append(baseurl)
+                                if idx < 3:
+                                    logger.debug(f"[DarkWeb] [job_id={job.id}] Database record {idx}: extracted baseURL='{baseurl[:100]}'")
                         extraction_time = time.time() - extraction_start
                         logger.info(
                             f"[DarkWeb] [job_id={job.id}] Extracted {len(urls)} URLs from database "
                             f"in {extraction_time:.3f}s"
                         )
+                        if urls:
+                            sample_db_urls = urls[:3]
+                            logger.debug(f"[DarkWeb] [job_id={job.id}] Sample database URLs: {sample_db_urls}")
                         job.progress = 25
+                    else:
+                        logger.warning(f"[DarkWeb] [job_id={job.id}] Database returned 0 records")
                 except Exception as e:
+                    db_fallback_time = time.time() - db_fallback_start
                     logger.warning(
-                        f"[DarkWeb] [job_id={job.id}] Could not get URLs from database: {e}",
+                        f"[DarkWeb] [job_id={job.id}] Database fallback failed after {db_fallback_time:.2f}s: {e}",
                         exc_info=True
                     )
             
             # If still no URLs, create a finding indicating no data available
             if not urls:
-                logger.warning("[DarkWeb] No URLs available for dark web intelligence collection")
+                no_urls_time = time.time() - discovery_start
+                logger.warning(
+                    f"[DarkWeb] [job_id={job.id}] No URLs available for dark web intelligence collection "
+                    f"after {no_urls_time:.2f}s. Creating 'no URLs discovered' finding."
+                )
                 finding = Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
                     capability=Capability.DARK_WEB_INTELLIGENCE,
                     severity="info",
                     title="Dark Web Intelligence: No URLs Discovered",
-                    description=f"Dark web intelligence collection completed but no URLs were discovered for target '{job.target}'. This may indicate: 1) Discovery engines need configuration, 2) No dark web activity found, 3) Network/proxy connectivity issues.",
-                    evidence={"target": job.target, "status": "no_urls_discovered"},
+                    description=f"Dark web intelligence collection completed but no URLs were discovered for target '{job.target}'. This may indicate: 1) Discovery engines need configuration, 2) No dark web activity found, 3) Network/proxy connectivity issues, 4) URL extraction issue (check logs for details).",
+                    evidence={
+                        "target": job.target, 
+                        "status": "no_urls_discovered",
+                        "discovery_time_seconds": round(no_urls_time, 2),
+                        "keywords_used": keywords if keywords else []
+                    },
                     affected_assets=[job.target] if job.target else [],
-                    recommendations=["Check Tor proxy configuration", "Verify discovery engine settings", "Review network connectivity"],
+                    recommendations=["Check Tor proxy configuration", "Verify discovery engine settings", "Review network connectivity", "Check debug logs for URL extraction details"],
                     discovered_at=datetime.now(),
                     risk_score=10.0
                 )
                 findings.append(finding)
                 # Store in job immediately (thread-safe)
                 job.add_findings(findings)
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] Created 'no URLs discovered' finding and returning. "
+                    f"Total findings: {len(findings)}"
+                )
                 return findings
             
             # Store discovered URLs in job metadata for "crawl more" functionality

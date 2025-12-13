@@ -203,6 +203,11 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
 
     def add_link():
         found_links.append({"engine": engine_str, "name": name, "link": link})
+        if debug:
+            loguru_logger.debug(
+                f"[OnionSearch] [link_finder] [{engine_str}] Added link - "
+                f"name='{name[:50]}', link='{link[:100]}'"
+            )
 
     if engine_str == "ahmia":
         # Try multiple selectors as Ahmia structure may have changed
@@ -213,48 +218,109 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
             'li.result a',
         ]
         found = False
+        total_elements = 0
+        parsed_count = 0
+        rejected_count = 0
+        
         for selector in selectors:
             results_elems = data_obj.select(selector)
             if results_elems:
+                total_elements = len(results_elems)
                 if debug:
-                    logger.debug(f"Ahmia: Using selector '{selector}' found {len(results_elems)} elements")
-                for r in results_elems:
+                    loguru_logger.debug(f"[OnionSearch] [link_finder] [Ahmia] Using selector '{selector}' found {len(results_elems)} elements")
+                for idx, r in enumerate(results_elems):
                     try:
                         href = r.get('href', '')
+                        if debug and idx < 3:
+                            loguru_logger.debug(f"[OnionSearch] [link_finder] [Ahmia] Element {idx}: href='{href[:150]}'")
+                        
                         if 'redirect_url=' in href:
                             name = clear(r.get_text())
                             link = href.split('redirect_url=')[1].split('&')[0]  # Handle additional params
+                            
+                            if debug and idx < 3:
+                                loguru_logger.debug(
+                                    f"[OnionSearch] [link_finder] [Ahmia] Element {idx}: "
+                                    f"extracted link='{link[:100]}', name='{name[:50]}'"
+                                )
+                            
                             add_link()
+                            parsed_count += 1
                             found = True
+                        else:
+                            rejected_count += 1
+                            if debug and idx < 3:
+                                loguru_logger.debug(f"[OnionSearch] [link_finder] [Ahmia] Element {idx}: Rejected - no 'redirect_url=' in href")
                     except (KeyError, IndexError, AttributeError) as e:
+                        rejected_count += 1
                         if debug:
-                            logger.debug(f"Ahmia: Error parsing result: {e}")
+                            loguru_logger.debug(f"[OnionSearch] [link_finder] [Ahmia] Element {idx}: Error parsing - {e}")
                         continue
                 if found:
                     break
+        
+        loguru_logger.debug(
+            f"[OnionSearch] [link_finder] [Ahmia] Summary - "
+            f"Total elements: {total_elements}, Parsed: {parsed_count}, Rejected: {rejected_count}, "
+            f"Final links: {len(found_links)}"
+        )
+        
         if not found and debug:
-            logger.debug("Ahmia: No results found with any selector")
+            loguru_logger.debug("Ahmia: No results found with any selector")
 
     elif engine_str == "tor66":
         hr_tag = data_obj.find('hr')
+        parsed_count = 0
+        rejected_count = 0
+        
         if hr_tag:
-            for i in hr_tag.find_all_next('b'):
+            all_b_tags = hr_tag.find_all_next('b')
+            total_b_tags = len(all_b_tags)
+            
+            if debug:
+                loguru_logger.debug(f"[OnionSearch] [link_finder] [Tor66] Found <hr> tag, processing {total_b_tags} <b> tags")
+            
+            for idx, i in enumerate(all_b_tags):
                 try:
                     anchor = i.find('a')
                     # Fix: Check for href using get() instead of 'in' operator
                     if anchor and anchor.get('href'):
                         name = clear(anchor.get_text())
                         link = clear(anchor.get('href'))
+                        
+                        if debug and idx < 3:
+                            loguru_logger.debug(
+                                f"[OnionSearch] [link_finder] [Tor66] Element {idx}: "
+                                f"href='{link[:100]}', name='{name[:50]}'"
+                            )
+                        
                         # Filter out service info and other non-result links
                         if link and '.onion' in link and '/serviceinfo/' not in link:
                             add_link()
+                            parsed_count += 1
+                        else:
+                            rejected_count += 1
+                            if debug and idx < 3:
+                                reason = "no .onion" if '.onion' not in link else "serviceinfo" if '/serviceinfo/' in link else "empty link"
+                                loguru_logger.debug(f"[OnionSearch] [link_finder] [Tor66] Element {idx}: Rejected - {reason}")
+                    else:
+                        rejected_count += 1
+                        if debug and idx < 3:
+                            loguru_logger.debug(f"[OnionSearch] [link_finder] [Tor66] Element {idx}: Rejected - no anchor or href")
                 except (KeyError, AttributeError, TypeError) as e:
+                    rejected_count += 1
                     if debug:
-                        logger.debug(f"Tor66: Error parsing result: {e}")
+                        loguru_logger.debug(f"[OnionSearch] [link_finder] [Tor66] Element {idx}: Error parsing - {e}")
                     continue
+            
+            loguru_logger.debug(
+                f"[OnionSearch] [link_finder] [Tor66] Summary - "
+                f"Total <b> tags: {total_b_tags}, Parsed: {parsed_count}, Rejected: {rejected_count}, "
+                f"Final links: {len(found_links)}"
+            )
         else:
             if debug:
-                logger.debug("Tor66: No <hr> tag found in results")
+                loguru_logger.debug("Tor66: No <hr> tag found in results")
 
     return found_links
 
@@ -331,6 +397,21 @@ def ahmia(
         results = link_finder("ahmia", soup, debug=debug)
         
         engine_time = time.time() - engine_start
+        
+        # Debug logging: show sample results
+        if results:
+            sample_results = results[:5]
+            loguru_logger.debug(
+                f"[OnionSearch] [Ahmia] Sample results (first 5): {sample_results}"
+            )
+            # Log sample links
+            sample_links = [r.get('link', '')[:100] for r in sample_results]
+            loguru_logger.debug(
+                f"[OnionSearch] [Ahmia] Sample links: {sample_links}"
+            )
+        else:
+            loguru_logger.debug("[OnionSearch] [Ahmia] No results extracted from page")
+        
         loguru_logger.info(
             f"[OnionSearch] [Ahmia] Found {len(results)} results in {engine_time:.2f}s for query: {searchstr}"
         )
@@ -451,6 +532,21 @@ def tor66(
             logger.debug(traceback.format_exc())
     
     engine_time = time.time() - engine_start
+    
+    # Debug logging: show sample results
+    if results:
+        sample_results = results[:5]
+        loguru_logger.debug(
+            f"[OnionSearch] [Tor66] Sample results (first 5): {sample_results}"
+        )
+        # Log sample links
+        sample_links = [r.get('link', '')[:100] for r in sample_results]
+        loguru_logger.debug(
+            f"[OnionSearch] [Tor66] Sample links: {sample_links}"
+        )
+    else:
+        loguru_logger.debug("[OnionSearch] [Tor66] No results extracted")
+    
     loguru_logger.info(
         f"[OnionSearch] [Tor66] Found {len(results)} total results in {engine_time:.2f}s for query: {searchstr}"
     )
@@ -524,6 +620,17 @@ def search_all_engines(
                 results = engine_func(searchstr, proxies, timeout, max_retries, max_pages, debug)
             
             engine_time = time.time() - engine_start
+            
+            # Debug: log raw results before adding
+            loguru_logger.debug(
+                f"[OnionSearch] [search_all_engines] {engine_name}: Raw results count: {len(results)}"
+            )
+            if results:
+                sample_raw = results[:3]
+                loguru_logger.debug(
+                    f"[OnionSearch] [search_all_engines] {engine_name}: Sample raw results: {sample_raw}"
+                )
+            
             all_results.extend(results)
             loguru_logger.info(
                 f"[OnionSearch] [search_all_engines] {engine_name}: Found {len(results)} results "
@@ -542,19 +649,93 @@ def search_all_engines(
     
     # Extract unique URLs from results
     unique_urls = set()
-    for result in all_results:
+    processed_count = 0
+    rejected_count = 0
+    rejection_reasons = {}
+    
+    loguru_logger.info(f"[OnionSearch] [search_all_engines] Processing {len(all_results)} results for URL extraction")
+    
+    # Log sample results for debugging (always log, not just in debug mode)
+    if all_results and len(all_results) > 0:
+        sample_results = all_results[:3]
+        loguru_logger.info(
+            f"[OnionSearch] [search_all_engines] Sample results structure (first 3): {sample_results}"
+        )
+    
+    for idx, result in enumerate(all_results):
         link = result.get('link', '').strip()
-        if link and link.endswith('.onion'):
-            # Ensure it starts with http://
-            if not link.startswith('http'):
-                link = f"http://{link}"
-            unique_urls.add(link)
+        processed_count += 1
+        
+        if not link:
+            rejected_count += 1
+            rejection_reasons['empty_link'] = rejection_reasons.get('empty_link', 0) + 1
+            if idx < 5:  # Log first 5 rejections for debugging
+                loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - empty link, result={result}")
+            continue
+        
+        # Check if .onion is in the link (not just endswith)
+        if '.onion' not in link:
+            rejected_count += 1
+            rejection_reasons['no_onion'] = rejection_reasons.get('no_onion', 0) + 1
+            if idx < 5:
+                loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - no .onion in link: '{link}'")
+            continue
+        
+        # Extract and normalize the .onion URL
+        try:
+            # Handle different URL formats:
+            # - http://something.onion/path?query
+            # - https://something.onion
+            # - something.onion
+            # - something.onion/path
+            
+            # Extract the .onion domain part
+            onion_match = re.search(r'([a-z2-7]{16,56}\.onion)', link, re.IGNORECASE)
+            if not onion_match:
+                rejected_count += 1
+                rejection_reasons['invalid_onion_format'] = rejection_reasons.get('invalid_onion_format', 0) + 1
+                if idx < 5:
+                    loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - invalid .onion format: '{link}'")
+                continue
+            
+            onion_domain = onion_match.group(1).lower()
+            
+            # Normalize to http://domain.onion format
+            normalized_link = f"http://{onion_domain}"
+            unique_urls.add(normalized_link)
+            
+            if idx < 5:  # Log first 5 successful extractions
+                loguru_logger.debug(
+                    f"[OnionSearch] [search_all_engines] Result {idx}: Extracted - "
+                    f"original='{link}', normalized='{normalized_link}'"
+                )
+                
+        except Exception as e:
+            rejected_count += 1
+            rejection_reasons['extraction_error'] = rejection_reasons.get('extraction_error', 0) + 1
+            loguru_logger.debug(
+                f"[OnionSearch] [search_all_engines] Result {idx}: Error extracting URL from '{link}': {e}"
+            )
+            continue
     
     search_time = time.time() - search_start
     loguru_logger.info(
         f"[OnionSearch] [search_all_engines] Completed in {search_time:.2f}s. "
-        f"Found {len(unique_urls)} unique URLs from {len(all_results)} total results"
+        f"Processed: {processed_count}, Accepted: {len(unique_urls)}, Rejected: {rejected_count}. "
+        f"Rejection reasons: {rejection_reasons}"
     )
+    
+    if unique_urls:
+        sample_urls = list(unique_urls)[:5]
+        loguru_logger.info(
+            f"[OnionSearch] [search_all_engines] Sample extracted URLs (first 5): {sample_urls}"
+        )
+    else:
+        loguru_logger.warning(
+            f"[OnionSearch] [search_all_engines] WARNING: Extracted 0 URLs from {processed_count} results. "
+            f"Rejection breakdown: {rejection_reasons}"
+        )
+    
     logger.info(f"Total unique URLs found: {len(unique_urls)}")
     return list(unique_urls)
 
