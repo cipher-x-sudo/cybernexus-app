@@ -14,7 +14,7 @@ import re
 import time
 from random import choice
 from typing import List, Dict, Optional
-from urllib.parse import quote, unquote, parse_qs, urlparse
+from urllib.parse import quote, unquote, parse_qs, urlparse, urlencode
 
 import requests
 from bs4 import BeautifulSoup
@@ -155,13 +155,14 @@ def safe_request(
         raise last_exception
 
 
-def link_finder(engine_str: str, data_obj) -> List[Dict[str, str]]:
+def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str, str]]:
     """
     Extract links from search engine results
     
     Args:
         engine_str: Engine name (ahmia, tor66, onionland)
         data_obj: BeautifulSoup object or dict with results
+        debug: Enable debug logging
         
     Returns:
         List of dicts with 'link' and 'name' keys
@@ -174,10 +175,35 @@ def link_finder(engine_str: str, data_obj) -> List[Dict[str, str]]:
         found_links.append({"engine": engine_str, "name": name, "link": link})
 
     if engine_str == "ahmia":
-        for r in data_obj.select('li.result h4'):
-            name = clear(r.get_text())
-            link = r.find('a')['href'].split('redirect_url=')[1]
-            add_link()
+        # Try multiple selectors as Ahmia structure may have changed
+        selectors = [
+            'li.result h4 a',
+            '.result h4 a',
+            'div.result h4 a',
+            'li.result a',
+        ]
+        found = False
+        for selector in selectors:
+            results_elems = data_obj.select(selector)
+            if results_elems:
+                if debug:
+                    logger.debug(f"Ahmia: Using selector '{selector}' found {len(results_elems)} elements")
+                for r in results_elems:
+                    try:
+                        href = r.get('href', '')
+                        if 'redirect_url=' in href:
+                            name = clear(r.get_text())
+                            link = href.split('redirect_url=')[1].split('&')[0]  # Handle additional params
+                            add_link()
+                            found = True
+                    except (KeyError, IndexError, AttributeError) as e:
+                        if debug:
+                            logger.debug(f"Ahmia: Error parsing result: {e}")
+                        continue
+                if found:
+                    break
+        if not found and debug:
+            logger.debug("Ahmia: No results found with any selector")
 
     elif engine_str == "onionland":
         for r in data_obj.select('.result-block .title a'):
@@ -200,15 +226,20 @@ def link_finder(engine_str: str, data_obj) -> List[Dict[str, str]]:
             for i in hr_tag.find_all_next('b'):
                 try:
                     anchor = i.find('a')
-                    if anchor and 'href' in anchor:
+                    # Fix: Check for href using get() instead of 'in' operator
+                    if anchor and anchor.get('href'):
                         name = clear(anchor.get_text())
-                        link = clear(anchor['href'])
-                        add_link()
-                except (KeyError, AttributeError) as e:
-                    logger.debug(f"Tor66: Error parsing result: {e}")
+                        link = clear(anchor.get('href'))
+                        # Filter out service info and other non-result links
+                        if link and '.onion' in link and '/serviceinfo/' not in link:
+                            add_link()
+                except (KeyError, AttributeError, TypeError) as e:
+                    if debug:
+                        logger.debug(f"Tor66: Error parsing result: {e}")
                     continue
         else:
-            logger.debug("Tor66: No <hr> tag found in results")
+            if debug:
+                logger.debug("Tor66: No <hr> tag found in results")
 
     return found_links
 
@@ -234,22 +265,51 @@ def ahmia(
         List of result dicts with 'link', 'name', 'engine' keys
     """
     results = []
-    ahmia_url = ENGINES['ahmia'] + "/search/?q={}"
-    url = ahmia_url.format(quote(searchstr))
-
+    # Ahmia requires a CSRF token from the search form
+    ahmia_base = ENGINES['ahmia']
+    
     try:
+        # First, get the search page to extract the CSRF token
         if debug:
-            logger.debug(f"Ahmia: Requesting {url}")
-        response = safe_request(
-            'GET', url,
+            logger.debug(f"Ahmia: Getting search page to extract CSRF token")
+        search_page_resp = safe_request(
+            'GET', ahmia_base + "/",
             proxies=proxies,
             headers=random_headers(),
             timeout=timeout,
             max_retries=max_retries,
             debug=debug
         )
-        soup = BeautifulSoup(response.text, 'lxml')
-        results = link_finder("ahmia", soup)
+        search_page_soup = BeautifulSoup(search_page_resp.text, 'html5lib')
+        
+        # Extract hidden form fields (CSRF token)
+        csrf_params = {}
+        forms = search_page_soup.find_all('form')
+        for form in forms:
+            hidden_inputs = form.find_all('input', type='hidden')
+            for inp in hidden_inputs:
+                csrf_params[inp.get('name')] = inp.get('value', '')
+        
+        # Build search URL with CSRF token
+        search_params = {'q': searchstr}
+        search_params.update(csrf_params)
+        
+        # Construct URL with parameters
+        ahmia_search_url = ahmia_base + "/search/?" + urlencode(search_params)
+        
+        if debug:
+            logger.debug(f"Ahmia: Requesting search with CSRF token: {ahmia_search_url[:150]}...")
+        
+        response = safe_request(
+            'GET', ahmia_search_url,
+            proxies=proxies,
+            headers=random_headers(),
+            timeout=timeout,
+            max_retries=max_retries,
+            debug=debug
+        )
+        soup = BeautifulSoup(response.text, 'html5lib')
+        results = link_finder("ahmia", soup, debug=debug)
         if debug:
             logger.debug(f"Ahmia: Found {len(results)} results")
     except Exception as e:
@@ -314,7 +374,7 @@ def tor66(
                 if page_number > max_pages:
                     page_number = max_pages
 
-            results = link_finder("tor66", soup)
+            results = link_finder("tor66", soup, debug=debug)
 
             for n in range(2, page_number + 1):
                 try:
@@ -328,11 +388,14 @@ def tor66(
                         debug=debug
                     )
                     soup = BeautifulSoup(resp.text, 'html5lib')
-                    ret = link_finder("tor66", soup)
+                    ret = link_finder("tor66", soup, debug=debug)
                     results.extend(ret)
-                except Exception as e:
-                    logger.error(f"Tor66: Error fetching page {n}: {e}")
-                    break
+                except (requests.exceptions.RequestException, ConnectionError) as e:
+                    logger.warning(f"Tor66: Error fetching page {n}: {e}")
+                    if debug:
+                        import traceback
+                        logger.debug(traceback.format_exc())
+                    break  # Stop if we hit an error on subsequent pages
 
     except Exception as e:
         logger.error(f"Tor66: Failed to fetch results: {e}")
@@ -404,7 +467,7 @@ def onionland(
                 logger.debug(f"OnionLand: Could not determine page count: {e}")
                 page_number = 1
 
-            results = link_finder("onionland", soup)
+            results = link_finder("onionland", soup, debug=debug)
 
             for n in range(2, page_number + 1):
                 try:
@@ -418,7 +481,7 @@ def onionland(
                         debug=debug
                     )
                     soup = BeautifulSoup(resp.text, 'html5lib')
-                    ret = link_finder("onionland", soup)
+                    ret = link_finder("onionland", soup, debug=debug)
                     if len(ret) == 0:
                         break
                     results.extend(ret)
