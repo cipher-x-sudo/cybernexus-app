@@ -169,32 +169,40 @@ class GistEngine:
                         if len(gist_snippets) > 0:
                             self.logger.info(f"Page {inurl}: {snippets_with_onion} out of {len(gist_snippets)} snippets contain '.onion' text")
                         
-                        # Strategy 2: Try finding all links that might be gist URLs
+                        # Strategy 2: Try finding all links that might be gist URLs (fallback if Strategy 1 fails)
                         if len(gist_urls) == gist_count_before:
+                            self.logger.debug(f"Page {inurl}: Strategy 1 found no URLs, trying Strategy 2")
                             # Try alternative: look for links to gist.github.com
                             all_links = soup.findAll('a', href=True)
-                            gist_links = [link for link in all_links if 'gist.github.com' in link.get('href', '')]
-                            self.logger.debug(f"Page {inurl}: Found {len(gist_links)} total links to gist.github.com")
-                            
-                            # Try finding gist items in search results
-                            # GitHub search results might use different classes
-                            search_results = soup.findAll('div', class_=lambda x: x and ('gist' in x.lower() or 'search-result' in x.lower()))
-                            self.logger.debug(f"Page {inurl}: Found {len(search_results)} divs with 'gist' or 'search-result' in class")
+                            gist_links = [link for link in all_links if 'gist.github.com' in link.get('href', '') or 
+                                         (link.get('href', '').startswith('/') and link.get('href', '').count('/') == 2)]
+                            self.logger.debug(f"Page {inurl}: Found {len(gist_links)} potential gist links")
                             
                             # Try finding by data attributes or other patterns
                             for link in gist_links:
                                 href = link.get('href', '')
-                                if href.startswith('/') or 'gist.github.com' in href:
-                                    # Check if parent contains .onion
+                                # Use same pattern matching as Strategy 1
+                                if href.startswith('/') and href.count('/') == 2 and not any(
+                                    skip in href for skip in ['/forks', '/stargazers', '#comments', '/revisions']
+                                ):
+                                    parts = href.split('/')
+                                    if len(parts) >= 3 and parts[2] and parts[2][0].isalnum():
+                                        # Check if parent contains .onion
+                                        parent = link.find_parent()
+                                        if parent and '.onion' in parent.get_text().lower():
+                                            full_url = f"https://gist.github.com{href}"
+                                            if full_url not in gist_urls:
+                                                gist_urls.append(full_url)
+                                elif 'gist.github.com' in href:
+                                    # Already a full URL, check if parent contains .onion
                                     parent = link.find_parent()
                                     if parent and '.onion' in parent.get_text().lower():
-                                        if href.startswith('/'):
-                                            href = f"https://gist.github.com{href}"
                                         if href not in gist_urls:
                                             gist_urls.append(href)
                         
-                        # Strategy 3: Look for any div containing .onion and find nearby links
+                        # Strategy 3: Look for any div containing .onion and find nearby links (last resort fallback)
                         if len(gist_urls) == gist_count_before:
+                            self.logger.debug(f"Page {inurl}: Strategy 2 found no URLs, trying Strategy 3")
                             onion_divs = soup.findAll(string=lambda text: text and '.onion' in text.lower())
                             self.logger.debug(f"Page {inurl}: Found {len(onion_divs)} text nodes containing '.onion'")
                             for text_node in onion_divs:
@@ -204,11 +212,20 @@ class GistEngine:
                                     links = parent.findAll('a', href=True)
                                     for link in links:
                                         href = link.get('href', '')
-                                        if 'gist.github.com' in href or href.startswith('/'):
-                                            if href.startswith('/'):
-                                                href = f"https://gist.github.com{href}"
+                                        # Use same pattern matching as Strategy 1
+                                        if href.startswith('/') and href.count('/') == 2 and not any(
+                                            skip in href for skip in ['/forks', '/stargazers', '#comments', '/revisions']
+                                        ):
+                                            parts = href.split('/')
+                                            if len(parts) >= 3 and parts[2] and parts[2][0].isalnum():
+                                                full_url = f"https://gist.github.com{href}"
+                                                if full_url not in gist_urls:
+                                                    gist_urls.append(full_url)
+                                                    break  # Found one, move to next text node
+                                        elif 'gist.github.com' in href:
                                             if href not in gist_urls:
                                                 gist_urls.append(href)
+                                                break  # Found one, move to next text node
                         
                         gist_count_after = len(gist_urls)
                         gists_found_this_page = gist_count_after - gist_count_before
