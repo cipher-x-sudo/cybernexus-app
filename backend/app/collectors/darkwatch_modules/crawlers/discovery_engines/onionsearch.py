@@ -651,6 +651,7 @@ def search_all_engines(
     unique_urls = set()
     processed_count = 0
     rejected_count = 0
+    duplicate_count = 0
     rejection_reasons = {}
     
     loguru_logger.info(f"[OnionSearch] [search_all_engines] Processing {len(all_results)} results for URL extraction")
@@ -702,13 +703,22 @@ def search_all_engines(
             
             # Normalize to http://domain.onion format
             normalized_link = f"http://{onion_domain}"
-            unique_urls.add(normalized_link)
             
-            if idx < 5:  # Log first 5 successful extractions
-                loguru_logger.debug(
-                    f"[OnionSearch] [search_all_engines] Result {idx}: Extracted - "
-                    f"original='{link}', normalized='{normalized_link}'"
-                )
+            # Check if this is a duplicate before adding
+            if normalized_link in unique_urls:
+                duplicate_count += 1
+                if idx < 5:  # Log first 5 duplicates for debugging
+                    loguru_logger.debug(
+                        f"[OnionSearch] [search_all_engines] Result {idx}: Duplicate URL (already in set) - "
+                        f"original='{link}', normalized='{normalized_link}'"
+                    )
+            else:
+                unique_urls.add(normalized_link)
+                if idx < 5:  # Log first 5 successful extractions
+                    loguru_logger.debug(
+                        f"[OnionSearch] [search_all_engines] Result {idx}: Extracted - "
+                        f"original='{link}', normalized='{normalized_link}'"
+                    )
                 
         except Exception as e:
             rejected_count += 1
@@ -719,9 +729,11 @@ def search_all_engines(
             continue
     
     search_time = time.time() - search_start
+    total_filtered = rejected_count + duplicate_count
     loguru_logger.info(
         f"[OnionSearch] [search_all_engines] Completed in {search_time:.2f}s. "
-        f"Processed: {processed_count}, Accepted: {len(unique_urls)}, Rejected: {rejected_count}. "
+        f"Processed: {processed_count}, Accepted (unique): {len(unique_urls)}, "
+        f"Rejected: {rejected_count}, Duplicates: {duplicate_count}, Total filtered: {total_filtered}. "
         f"Rejection reasons: {rejection_reasons}"
     )
     

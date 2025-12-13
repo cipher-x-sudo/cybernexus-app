@@ -1015,12 +1015,26 @@ class Orchestrator:
                 if not keywords:
                     raise ValueError("No keywords provided. Keywords are required for dark web discovery.")
                 
+                logger.info(f"[DarkWeb] [job_id={job.id}] Calling _discover_urls_with_engines with keywords: {keywords}")
                 urls = dark_watch._discover_urls_with_engines(keywords=keywords)
+                
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] _discover_urls_with_engines returned: "
+                    f"type={type(urls).__name__}, length={len(urls) if urls else 0}"
+                )
+                
                 discovery_time = time.time() - discovery_start
                 logger.info(
                     f"[DarkWeb] [job_id={job.id}] URL discovery completed in {discovery_time:.2f}s - "
                     f"Found {len(urls)} URLs from engines"
                 )
+                
+                if urls:
+                    sample_urls = urls[:3] if len(urls) >= 3 else urls
+                    logger.info(f"[DarkWeb] [job_id={job.id}] Sample URLs (first 3): {sample_urls}")
+                else:
+                    logger.warning(f"[DarkWeb] [job_id={job.id}] Discovery returned empty URL list")
+                
                 job.progress = 25
             except ValueError as e:
                 # ValueError means no keywords provided - create error finding
@@ -1150,20 +1164,26 @@ class Orchestrator:
                 return findings
             
             # Store discovered URLs in job metadata for "crawl more" functionality
+            logger.info(f"[DarkWeb] [job_id={job.id}] About to store {len(urls)} URLs in metadata")
             if not job.metadata:
                 job.metadata = {}
             job.metadata['discovered_urls'] = urls
             job.metadata['crawled_urls'] = []
             job.metadata['uncrawled_urls'] = urls.copy()
+            logger.info(f"[DarkWeb] [job_id={job.id}] Stored {len(urls)} URLs in job metadata")
             
             # Limit initial crawl to default limit (5)
             crawl_limit = min(settings.DARKWEB_DEFAULT_CRAWL_LIMIT, len(urls))
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Applying crawl limit: {crawl_limit} from {len(urls)} URLs"
+            )
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] URL planning - Total available: {len(urls)}, "
                 f"will crawl: {crawl_limit} (default limit), batch_size: {batch_size}"
             )
             
             urls_to_crawl = urls[:crawl_limit]
+            logger.info(f"[DarkWeb] [job_id={job.id}] Starting crawl of {len(urls_to_crawl)} URLs")
             max_workers = settings.DARKWEB_MAX_WORKERS
             crawl_timeout = settings.DARKWEB_CRAWL_TIMEOUT
             
@@ -1245,6 +1265,7 @@ class Orchestrator:
             completed_count = 0
             
             crawl_start_time = time.time()
+            logger.info(f"[DarkWeb] [job_id={job.id}] ThreadPoolExecutor starting with {max_workers} workers for {len(urls_to_crawl)} URLs")
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all URL crawl tasks
                 future_to_url = {
@@ -1350,11 +1371,13 @@ class Orchestrator:
             self._darkwatch_instances.put(job.id, dark_watch)
             logger.debug(f"[DarkWeb] [job_id={job.id}] DarkWatch instance stored for API access")
         
+        crawled_count = len(urls_to_crawl) if 'urls_to_crawl' in locals() else 0
         logger.info(
             f"[DarkWeb] [job_id={job.id}] Dark web intelligence collection completed in {total_time:.2f}s - "
-            f"Total findings: {len(findings)}, URLs crawled: {len(urls_to_crawl) if 'urls_to_crawl' in locals() else 0}, "
+            f"Total findings: {len(findings)}, URLs crawled: {crawled_count}, "
             f"Average time per finding: {total_time / len(findings) if findings else 0:.2f}s"
         )
+        logger.info(f"[DarkWeb] [job_id={job.id}] Returning {len(findings)} findings from _execute_darkweb_intelligence")
         return findings
     
     def _map_threat_to_severity(self, threat_level: str) -> str:
