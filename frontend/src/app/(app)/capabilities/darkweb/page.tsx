@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { cn, formatRelativeTime, formatDate, formatTime } from "@/lib/utils";
-import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
+import { GlassCard, GlassButton, GlassInput, Badge, GlassSelect } from "@/components/ui";
 import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 import { connectDarkwebJobWebSocket } from "@/lib/websocket";
 
@@ -221,6 +221,11 @@ export default function DarkWebPage() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
   const [mentionKeywordFilter, setMentionKeywordFilter] = useState<string>("all");
   
+  // Crawler configuration state
+  const [crawlDepth, setCrawlDepth] = useState<number>(1);
+  const [maxUrls, setMaxUrls] = useState<number>(5);
+  const [workerThreads, setWorkerThreads] = useState<number>(5);
+  
   // Refs for cleanup
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -361,6 +366,11 @@ export default function DarkWebPage() {
         capability: "dark_web_intelligence",
         target: target.trim(),
         priority: "normal",
+        config: {
+          depth: crawlDepth,
+          max_urls: maxUrls,
+          worker_threads: workerThreads,
+        },
       });
       
       setCurrentJob(job);
@@ -485,7 +495,7 @@ export default function DarkWebPage() {
               <input
                 type="text"
                 value={target}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTarget(e.target.value)}
+                  onChange={(e) => setTarget((e.target as HTMLInputElement).value)}
                 placeholder="company-name, @domain.com, brand-name"
                 disabled={isScanning}
                 className={cn(
@@ -499,6 +509,20 @@ export default function DarkWebPage() {
                 )}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {isScanning && currentJob && (
+                  <GlassButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      // TODO: Implement job cancellation
+                      console.log("Stop job:", currentJob.id);
+                    }}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    Stop
+                  </GlassButton>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowConfig(!showConfig)}
@@ -512,7 +536,7 @@ export default function DarkWebPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </button>
-                <GlassButton type="submit" variant="primary" size="sm" loading={isScanning}>
+                <GlassButton type="submit" variant="primary" size="sm" loading={isScanning} disabled={isScanning}>
                   {isScanning ? "Scanning..." : "Start Scan"}
                 </GlassButton>
               </div>
@@ -544,47 +568,84 @@ export default function DarkWebPage() {
           
           {showConfig && (
             <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-fade-in">
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      defaultChecked
-                      className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
-                    />
-                    <span className="text-xs text-white/60 group-hover:text-white/80">Credential leaks</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      defaultChecked
-                      className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
-                    />
-                    <span className="text-xs text-white/60 group-hover:text-white/80">Brand mentions</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      defaultChecked
-                      className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
-                    />
-                    <span className="text-xs text-white/60 group-hover:text-white/80">Impersonation sites</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
-                    />
-                    <span className="text-xs text-white/60 group-hover:text-white/80">Ransomware mentions</span>
-                  </label>
-                </div>
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-white/50 mb-1">Crawl depth</label>
-                  <select className="w-full h-9 px-3 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white/80">
-                    <option value="1">Shallow (faster)</option>
-                    <option value="2">Normal</option>
-                    <option value="3">Deep (slower)</option>
-                  </select>
+                  <h3 className="text-sm font-mono font-semibold text-white/80 mb-3">Crawler Settings</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-white/50 mb-1">Crawl depth</label>
+                      <GlassSelect
+                        value={crawlDepth.toString()}
+                        onChange={(val: string) => setCrawlDepth(parseInt(val))}
+                        options={[
+                          { value: "1", label: "Shallow (faster)" },
+                          { value: "2", label: "Normal" },
+                          { value: "3", label: "Deep (slower)" },
+                        ]}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-white/50 mb-1">Max URLs to crawl</label>
+                      <GlassInput
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={maxUrls.toString()}
+                        onChange={(e) => setMaxUrls(Math.max(1, Math.min(50, parseInt(e.target.value) || 5)))}
+                        className="w-full"
+                        hint="Maximum number of sites to crawl (1-50)"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-white/50 mb-1">Worker threads</label>
+                      <GlassInput
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={workerThreads.toString()}
+                        onChange={(e) => setWorkerThreads(Math.max(1, Math.min(20, parseInt(e.target.value) || 5)))}
+                        className="w-full"
+                        hint="Number of parallel workers (1-20)"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-white/[0.05]">
+                  <h3 className="text-sm font-mono font-semibold text-white/80 mb-3">Search Filters</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        defaultChecked
+                        className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
+                      />
+                      <span className="text-xs text-white/60 group-hover:text-white/80">Credential leaks</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        defaultChecked
+                        className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
+                      />
+                      <span className="text-xs text-white/60 group-hover:text-white/80">Brand mentions</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        defaultChecked
+                        className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
+                      />
+                      <span className="text-xs text-white/60 group-hover:text-white/80">Impersonation sites</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-purple-500"
+                      />
+                      <span className="text-xs text-white/60 group-hover:text-white/80">Ransomware mentions</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -630,7 +691,7 @@ export default function DarkWebPage() {
               <GlassInput
                 placeholder="Search across all results..."
                 value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                 icon={
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -657,30 +718,31 @@ export default function DarkWebPage() {
               
               {/* Site Filters */}
               <div className="flex flex-wrap gap-2 mb-4">
-                <select
+                <GlassSelect
                   value={siteCategoryFilter}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSiteCategoryFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/80 font-mono"
-                >
-                  <option value="all">All Categories</option>
-                  {uniqueCategories.map((cat: string) => (
-                    <option key={cat} value={cat}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-                <select
+                  onChange={setSiteCategoryFilter}
+                  options={[
+                    { value: "all", label: "All Categories" },
+                    ...uniqueCategories.map((cat: string) => ({
+                      value: cat,
+                      label: cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, " "),
+                    })),
+                  ]}
+                  className="min-w-[150px]"
+                />
+                <GlassSelect
                   value={siteThreatFilter}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSiteThreatFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/80 font-mono"
-                >
-                  <option value="all">All Threat Levels</option>
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                  <option value="info">Info</option>
-                </select>
+                  onChange={setSiteThreatFilter}
+                  options={[
+                    { value: "all", label: "All Threat Levels" },
+                    { value: "critical", label: "Critical" },
+                    { value: "high", label: "High" },
+                    { value: "medium", label: "Medium" },
+                    { value: "low", label: "Low" },
+                    { value: "info", label: "Info" },
+                  ]}
+                  className="min-w-[150px]"
+                />
               </div>
               
               {sites.length === 0 ? (
@@ -765,18 +827,18 @@ export default function DarkWebPage() {
               {/* Mention Filters */}
               {uniqueKeywords.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <select
+                  <GlassSelect
                     value={mentionKeywordFilter}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMentionKeywordFilter(e.target.value)}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/80 font-mono"
-                  >
-                    <option value="all">All Keywords</option>
-                    {uniqueKeywords.map((kw: string) => (
-                      <option key={kw} value={kw}>
-                        {kw}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setMentionKeywordFilter}
+                    options={[
+                      { value: "all", label: "All Keywords" },
+                      ...uniqueKeywords.map((kw: string) => ({
+                        value: kw,
+                        label: kw,
+                      })),
+                    ]}
+                    className="min-w-[150px]"
+                  />
                 </div>
               )}
               
@@ -839,18 +901,18 @@ export default function DarkWebPage() {
               {/* Entity Filters */}
               {uniqueEntityTypes.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <select
+                  <GlassSelect
                     value={entityTypeFilter}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEntityTypeFilter(e.target.value)}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/80 font-mono"
-                  >
-                    <option value="all">All Entity Types</option>
-                    {uniqueEntityTypes.map((type: string) => (
-                      <option key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setEntityTypeFilter}
+                    options={[
+                      { value: "all", label: "All Entity Types" },
+                      ...uniqueEntityTypes.map((type: string) => ({
+                        value: type,
+                        label: type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " "),
+                      })),
+                    ]}
+                    className="min-w-[150px]"
+                  />
                 </div>
               )}
               

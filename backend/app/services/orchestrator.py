@@ -1226,19 +1226,27 @@ class Orchestrator:
             job.metadata['uncrawled_urls'] = urls.copy()
             logger.info(f"[DarkWeb] [job_id={job.id}] Stored {len(urls)} URLs in job metadata")
             
-            # Limit initial crawl to default limit (5)
-            crawl_limit = min(settings.DARKWEB_DEFAULT_CRAWL_LIMIT, len(urls))
+            # Get config from job.config or use defaults
+            job_config = job.config if job.config else {}
+            max_urls_config = job_config.get("max_urls", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
+            worker_threads_config = job_config.get("worker_threads", settings.DARKWEB_MAX_WORKERS)
+            depth_config = job_config.get("depth", 1)
+            
+            # Limit initial crawl to configured or default limit
+            crawl_limit = min(max_urls_config, len(urls))
             logger.info(
-                f"[DarkWeb] [job_id={job.id}] Applying crawl limit: {crawl_limit} from {len(urls)} URLs"
+                f"[DarkWeb] [job_id={job.id}] Applying crawl limit: {crawl_limit} from {len(urls)} URLs "
+                f"(config: max_urls={max_urls_config})"
             )
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] URL planning - Total available: {len(urls)}, "
-                f"will crawl: {crawl_limit} (default limit), batch_size: {batch_size}"
+                f"will crawl: {crawl_limit}, batch_size: {batch_size}, "
+                f"worker_threads: {worker_threads_config}, depth: {depth_config}"
             )
             
             urls_to_crawl = urls[:crawl_limit]
             logger.info(f"[DarkWeb] [job_id={job.id}] Starting crawl of {len(urls_to_crawl)} URLs")
-            max_workers = settings.DARKWEB_MAX_WORKERS
+            max_workers = worker_threads_config
             crawl_timeout = settings.DARKWEB_CRAWL_TIMEOUT
             
             logger.info(
@@ -1257,7 +1265,7 @@ class Orchestrator:
                     logger.info(
                         f"[DarkWeb] [job_id={job.id}] Starting parallel crawl of {url}"
                     )
-                    site = dark_watch.crawl_site(url, depth=1)
+                    site = dark_watch.crawl_site(url, depth=depth_config)
                     url_crawl_time = time.time() - url_start_time
                     logger.info(
                         f"[DarkWeb] [job_id={job.id}] Crawled {url} in {url_crawl_time:.2f}s - "
@@ -1668,11 +1676,20 @@ class Orchestrator:
             job.metadata['crawled_urls'] = []
             job.metadata['uncrawled_urls'] = urls.copy()
             
-            # Limit initial crawl
-            crawl_limit = min(settings.DARKWEB_DEFAULT_CRAWL_LIMIT, len(urls))
+            # Get config from job.config or use defaults
+            job_config = job.config if job.config else {}
+            max_urls_config = job_config.get("max_urls", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
+            worker_threads_config = job_config.get("worker_threads", settings.DARKWEB_MAX_WORKERS)
+            depth_config = job_config.get("depth", 1)
+            
+            # Limit initial crawl to configured or default limit
+            crawl_limit = min(max_urls_config, len(urls))
             urls_to_crawl = urls[:crawl_limit]
-            logger.info(f"[DarkWeb] [job_id={job.id}] Starting crawl of {len(urls_to_crawl)} URLs")
-            max_workers = settings.DARKWEB_MAX_WORKERS
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Starting crawl of {len(urls_to_crawl)} URLs "
+                f"(config: max_urls={max_urls_config}, worker_threads={worker_threads_config}, depth={depth_config})"
+            )
+            max_workers = worker_threads_config
             crawl_timeout = settings.DARKWEB_CRAWL_TIMEOUT
             
             job.progress = 30
@@ -1688,7 +1705,7 @@ class Orchestrator:
                     logger.info(
                         f"[DarkWeb] [job_id={job.id}] Starting parallel crawl of {url}"
                     )
-                    site = dark_watch.crawl_site(url, depth=1)
+                    site = dark_watch.crawl_site(url, depth=depth_config)
                     url_crawl_time = time.time() - url_start_time
                     logger.info(
                         f"[DarkWeb] [job_id={job.id}] Crawled {url} in {url_crawl_time:.2f}s"
