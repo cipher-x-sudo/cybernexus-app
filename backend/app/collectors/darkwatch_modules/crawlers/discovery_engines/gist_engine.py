@@ -327,18 +327,28 @@ class GistEngine:
                                 except Exception as e:
                                     self.logger.warning(f"Gist {gist_url}: Could not construct fallback URLs: {e}")
                             
+                            self.logger.info(f"Gist {gist_url}: Processing {len(raw_links)} raw links")
+                            
                             for raw in raw_links:
                                 try:
-                                    href = raw.get('href', '')
-                                    self.logger.debug(f"Gist {gist_url}: Processing raw link with href: {href}")
+                                    # Handle both BeautifulSoup Tag objects and DummyLink objects
+                                    if hasattr(raw, 'get'):
+                                        href = raw.get('href', '')
+                                    else:
+                                        href = getattr(raw, 'href', '')
+                                    
+                                    self.logger.info(f"Gist {gist_url}: Processing raw link with href: {href}")
                                     
                                     # Handle both relative and absolute URLs
                                     if href.startswith('/'):
                                         raw_url = f"https://gist.githubusercontent.com{href}"
                                     elif 'gist.githubusercontent.com' in href:
                                         raw_url = href
+                                    elif href:
+                                        # href exists but doesn't match patterns above - might be a relative path without leading /
+                                        raw_url = f"https://gist.githubusercontent.com/{href}" if not href.startswith('http') else href
                                     else:
-                                        # Try constructing from gist URL
+                                        # No href - try constructing from gist URL
                                         # Extract username and gistid from gist_url
                                         # Format: https://gist.github.com/username/gistid
                                         gist_parts = gist_url.replace('https://gist.github.com/', '').split('/')
@@ -347,9 +357,12 @@ class GistEngine:
                                             gistid = gist_parts[1]
                                             # Try default raw URL pattern
                                             raw_url = f"https://gist.githubusercontent.com/{username}/{gistid}/raw/"
-                                            self.logger.info(f"Gist {gist_url}: Constructed raw URL: {raw_url}")
+                                            self.logger.info(f"Gist {gist_url}: Constructed raw URL (no href): {raw_url}")
                                         else:
+                                            self.logger.warning(f"Gist {gist_url}: Could not extract username/gistid, skipping")
                                             continue
+                                    
+                                    self.logger.info(f"Gist {gist_url}: Final raw_url: {raw_url}")
                                     
                                     # Fetch raw content - try all files that have a filename (not just .txt/.csv)
                                     # Skip if URL ends with just '/raw/' (no filename)
@@ -358,7 +371,7 @@ class GistEngine:
                                     should_fetch = has_filename
                                     
                                     if not should_fetch:
-                                        self.logger.debug(f"Gist {gist_url}: Skipping raw URL (no filename): {raw_url}")
+                                        self.logger.info(f"Gist {gist_url}: Skipping raw URL (no filename): {raw_url}")
                                     
                                     if should_fetch:
                                         self.logger.info(f"Fetching raw content: {raw_url}")
