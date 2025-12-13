@@ -81,11 +81,19 @@ class Settings(BaseSettings):
             # Fallback to comma-separated
             return [e.strip() for e in v.split(',') if e.strip()]
         return v
-    ONIONSEARCH_TIMEOUT: int = Field(
-        default=30,
+    ONIONSEARCH_TIMEOUT: Optional[int] = Field(
+        default=300,
         env="ONIONSEARCH_TIMEOUT",
-        description="Request timeout in seconds for OnionSearch engines"
+        description="Request timeout in seconds for OnionSearch engines (minimum 300s, None = no timeout)"
     )
+    
+    @field_validator('ONIONSEARCH_TIMEOUT')
+    @classmethod
+    def validate_timeout(cls, v):
+        """Ensure timeout is at least 300 seconds if specified"""
+        if v is not None and v < 300:
+            raise ValueError(f"ONIONSEARCH_TIMEOUT must be at least 300 seconds, got {v}")
+        return v
     ONIONSEARCH_MAX_PAGES: int = Field(
         default=5,
         env="ONIONSEARCH_MAX_PAGES",

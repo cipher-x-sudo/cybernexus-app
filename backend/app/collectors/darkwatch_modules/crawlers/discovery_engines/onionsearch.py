@@ -70,7 +70,7 @@ def safe_request(
     method: str,
     url: str,
     proxies: Dict[str, str],
-    timeout: int = 30,
+    timeout: Optional[int] = None,
     max_retries: int = 2,
     headers: Optional[Dict[str, str]] = None,
     debug: bool = False
@@ -82,7 +82,7 @@ def safe_request(
         method: HTTP method (GET or POST)
         url: URL to request
         proxies: Proxy configuration dict
-        timeout: Request timeout in seconds
+        timeout: Request timeout in seconds (None = no timeout)
         max_retries: Maximum number of retries
         headers: Request headers (defaults to random headers)
         debug: Enable debug logging
@@ -98,6 +98,9 @@ def safe_request(
     
     retries = 0
     last_exception = None
+    request_start = time.time()
+    
+    loguru_logger.debug(f"[OnionSearch] [safe_request] {method} {url[:100]}... (timeout={timeout}s, retries={max_retries})")
     
     while retries <= max_retries:
         try:
@@ -107,6 +110,12 @@ def safe_request(
                 response = requests.post(url, proxies=proxies, headers=headers, timeout=timeout)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
+            
+            request_time = time.time() - request_start
+            loguru_logger.debug(
+                f"[OnionSearch] [safe_request] {method} {url[:100]}... "
+                f"returned {response.status_code} in {request_time:.2f}s"
+            )
             
             if debug:
                 logger.debug(f"Request to {url} returned status {response.status_code}")
@@ -121,11 +130,20 @@ def safe_request(
             if "Connection refused" in error_msg or "Failed to establish a new connection" in error_msg:
                 if retries <= max_retries:
                     wait_time = min(2 ** retries, 10)  # Exponential backoff, max 10 seconds
+                    loguru_logger.warning(
+                        f"[OnionSearch] [safe_request] Connection refused to {url[:100]}... "
+                        f"Retrying {retries}/{max_retries} after {wait_time}s"
+                    )
                     time.sleep(wait_time)
                 else:
+                    loguru_logger.error(
+                        f"[OnionSearch] [safe_request] Failed to connect to {url[:100]}... "
+                        f"after {max_retries + 1} attempts: {e}"
+                    )
                     logger.error(f"✗ Failed to connect to {url} after {max_retries + 1} attempts: {e}")
                     raise
             else:
+                loguru_logger.error(f"[OnionSearch] [safe_request] Connection error to {url[:100]}...: {e}")
                 logger.error(f"✗ Connection error to {url}: {e}")
                 raise
         
@@ -134,18 +152,31 @@ def safe_request(
             retries += 1
             if retries <= max_retries:
                 wait_time = min(2 ** retries, 10)
+                loguru_logger.warning(
+                    f"[OnionSearch] [safe_request] Timeout for {url[:100]}... "
+                    f"Retrying {retries}/{max_retries} after {wait_time}s"
+                )
                 time.sleep(wait_time)
             else:
+                loguru_logger.error(
+                    f"[OnionSearch] [safe_request] Request timeout for {url[:100]}... "
+                    f"after {max_retries + 1} attempts"
+                )
                 logger.error(f"✗ Request timeout for {url} after {max_retries + 1} attempts")
                 raise
         
         except requests.exceptions.RequestException as e:
             last_exception = e
+            loguru_logger.error(f"[OnionSearch] [safe_request] Request error for {url[:100]}...: {e}")
             logger.error(f"✗ Request error for {url}: {e}")
             raise
         
         except Exception as e:
             last_exception = e
+            loguru_logger.error(
+                f"[OnionSearch] [safe_request] Unexpected error for {url[:100]}...: "
+                f"{type(e).__name__}: {e}"
+            )
             logger.error(f"✗ Unexpected error for {url}: {type(e).__name__}: {e}")
             raise
     
@@ -231,7 +262,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
 def ahmia(
     searchstr: str,
     proxies: Dict[str, str],
-    timeout: int = 30,
+    timeout: Optional[int] = None,
     max_retries: int = 2,
     debug: bool = False
 ) -> List[Dict[str, str]]:
@@ -241,19 +272,22 @@ def ahmia(
     Args:
         searchstr: Search query string
         proxies: Proxy configuration dict
-        timeout: Request timeout
+        timeout: Request timeout (None = no timeout)
         max_retries: Maximum retries
         debug: Enable debug logging
         
     Returns:
         List of result dicts with 'link', 'name', 'engine' keys
     """
+    engine_start = time.time()
+    loguru_logger.info(f"[OnionSearch] [Ahmia] Starting search for: {searchstr}")
     results = []
     # Ahmia requires a CSRF token from the search form
     ahmia_base = ENGINES['ahmia']
     
     try:
         # First, get the search page to extract the CSRF token
+        loguru_logger.debug(f"[OnionSearch] [Ahmia] Getting search page to extract CSRF token")
         if debug:
             logger.debug(f"Ahmia: Getting search page to extract CSRF token")
         search_page_resp = safe_request(
@@ -281,6 +315,7 @@ def ahmia(
         # Construct URL with parameters
         ahmia_search_url = ahmia_base + "/search/?" + urlencode(search_params)
         
+        loguru_logger.debug(f"[OnionSearch] [Ahmia] Requesting search with CSRF token")
         if debug:
             logger.debug(f"Ahmia: Requesting search with CSRF token: {ahmia_search_url[:150]}...")
         
@@ -294,9 +329,19 @@ def ahmia(
         )
         soup = BeautifulSoup(response.text, 'html5lib')
         results = link_finder("ahmia", soup, debug=debug)
+        
+        engine_time = time.time() - engine_start
+        loguru_logger.info(
+            f"[OnionSearch] [Ahmia] Found {len(results)} results in {engine_time:.2f}s for query: {searchstr}"
+        )
         if debug:
             logger.debug(f"Ahmia: Found {len(results)} results")
     except Exception as e:
+        engine_time = time.time() - engine_start
+        loguru_logger.error(
+            f"[OnionSearch] [Ahmia] Failed to fetch results after {engine_time:.2f}s: {e}",
+            exc_info=debug
+        )
         logger.error(f"Ahmia: Failed to fetch results: {e}")
         if debug:
             import traceback
@@ -308,7 +353,7 @@ def ahmia(
 def tor66(
     searchstr: str,
     proxies: Dict[str, str],
-    timeout: int = 30,
+    timeout: Optional[int] = None,
     max_retries: int = 2,
     max_pages: int = 30,
     debug: bool = False
@@ -319,7 +364,7 @@ def tor66(
     Args:
         searchstr: Search query string
         proxies: Proxy configuration dict
-        timeout: Request timeout
+        timeout: Request timeout (None = no timeout)
         max_retries: Maximum retries
         max_pages: Maximum pages to fetch
         debug: Enable debug logging
@@ -327,6 +372,8 @@ def tor66(
     Returns:
         List of result dicts with 'link', 'name', 'engine' keys
     """
+    engine_start = time.time()
+    loguru_logger.info(f"[OnionSearch] [Tor66] Starting search for: {searchstr} (max_pages={max_pages})")
     results = []
     tor66_url = ENGINES['tor66'] + "/search?q={}&sorttype=rel&page={}"
     
@@ -336,6 +383,7 @@ def tor66(
             s.headers = random_headers()
 
             url = tor66_url.format(quote(searchstr), 1)
+            loguru_logger.debug(f"[OnionSearch] [Tor66] Requesting page 1: {url[:100]}...")
             if debug:
                 logger.debug(f"Tor66: Requesting {url}")
             
@@ -357,12 +405,18 @@ def tor66(
                 page_number = math.ceil(float(nb_res / results_per_page))
                 if page_number > max_pages:
                     page_number = max_pages
+                loguru_logger.info(
+                    f"[OnionSearch] [Tor66] Found {nb_res} total results, "
+                    f"will fetch {page_number} pages"
+                )
 
             results = link_finder("tor66", soup, debug=debug)
+            loguru_logger.debug(f"[OnionSearch] [Tor66] Page 1: Found {len(results)} results")
 
             for n in range(2, page_number + 1):
                 try:
                     url = tor66_url.format(quote(searchstr), n)
+                    loguru_logger.debug(f"[OnionSearch] [Tor66] Requesting page {n}/{page_number}")
                     resp = safe_request(
                         'GET', url,
                         proxies=proxies,
@@ -373,8 +427,12 @@ def tor66(
                     )
                     soup = BeautifulSoup(resp.text, 'html5lib')
                     ret = link_finder("tor66", soup, debug=debug)
+                    loguru_logger.debug(f"[OnionSearch] [Tor66] Page {n}: Found {len(ret)} results")
                     results.extend(ret)
                 except (requests.exceptions.RequestException, ConnectionError) as e:
+                    loguru_logger.warning(
+                        f"[OnionSearch] [Tor66] Error fetching page {n}/{page_number}: {e}"
+                    )
                     logger.warning(f"Tor66: Error fetching page {n}: {e}")
                     if debug:
                         import traceback
@@ -382,10 +440,20 @@ def tor66(
                     break  # Stop if we hit an error on subsequent pages
 
     except Exception as e:
+        engine_time = time.time() - engine_start
+        loguru_logger.error(
+            f"[OnionSearch] [Tor66] Failed to fetch results after {engine_time:.2f}s: {e}",
+            exc_info=debug
+        )
         logger.error(f"Tor66: Failed to fetch results: {e}")
         if debug:
             import traceback
             logger.debug(traceback.format_exc())
+    
+    engine_time = time.time() - engine_start
+    loguru_logger.info(
+        f"[OnionSearch] [Tor66] Found {len(results)} total results in {engine_time:.2f}s for query: {searchstr}"
+    )
 
     return results
 
@@ -394,7 +462,7 @@ def search_all_engines(
     searchstr: str,
     proxies: Dict[str, str],
     engines: List[str] = None,
-    timeout: int = 30,
+    timeout: Optional[int] = None,
     max_retries: int = 2,
     max_pages: int = 5,
     debug: bool = False
@@ -406,7 +474,7 @@ def search_all_engines(
         searchstr: Search query string
         proxies: Proxy configuration dict
         engines: List of engine names to use (default: ['ahmia', 'tor66'])
-        timeout: Request timeout
+        timeout: Request timeout (None = no timeout, minimum 300s enforced)
         max_retries: Maximum retries
         max_pages: Maximum pages per engine
         debug: Enable debug logging
@@ -414,8 +482,22 @@ def search_all_engines(
     Returns:
         List of unique .onion URLs
     """
+    search_start = time.time()
     if engines is None:
         engines = ['ahmia', 'tor66']
+    
+    # Enforce minimum timeout of 300 seconds
+    if timeout is not None and timeout < 300:
+        loguru_logger.warning(
+            f"[OnionSearch] [search_all_engines] Timeout {timeout}s is less than minimum 300s, "
+            f"setting to 300s"
+        )
+        timeout = 300
+    
+    loguru_logger.info(
+        f"[OnionSearch] [search_all_engines] Starting search across {len(engines)} engines: {engines} "
+        f"for query: {searchstr} (timeout={timeout}s, max_pages={max_pages})"
+    )
     
     all_results = []
     engine_functions = {
@@ -425,10 +507,13 @@ def search_all_engines(
     
     for engine_name in engines:
         if engine_name not in engine_functions:
+            loguru_logger.warning(f"[OnionSearch] [search_all_engines] Unknown engine: {engine_name}, skipping")
             logger.warning(f"Unknown engine: {engine_name}, skipping")
             continue
         
         try:
+            engine_start = time.time()
+            loguru_logger.debug(f"[OnionSearch] [search_all_engines] Searching {engine_name} for: {searchstr}")
             logger.debug(f"Searching {engine_name} for: {searchstr}")
             engine_func = engine_functions[engine_name]
             
@@ -438,9 +523,20 @@ def search_all_engines(
             else:
                 results = engine_func(searchstr, proxies, timeout, max_retries, max_pages, debug)
             
+            engine_time = time.time() - engine_start
             all_results.extend(results)
+            loguru_logger.info(
+                f"[OnionSearch] [search_all_engines] {engine_name}: Found {len(results)} results "
+                f"in {engine_time:.2f}s"
+            )
             logger.info(f"{engine_name}: Found {len(results)} results")
         except Exception as e:
+            engine_time = time.time() - engine_start
+            loguru_logger.error(
+                f"[OnionSearch] [search_all_engines] {engine_name}: Error during search "
+                f"after {engine_time:.2f}s: {e}",
+                exc_info=debug
+            )
             logger.error(f"{engine_name}: Error during search: {e}", exc_info=debug)
             continue
     
@@ -454,6 +550,11 @@ def search_all_engines(
                 link = f"http://{link}"
             unique_urls.add(link)
     
+    search_time = time.time() - search_start
+    loguru_logger.info(
+        f"[OnionSearch] [search_all_engines] Completed in {search_time:.2f}s. "
+        f"Found {len(unique_urls)} unique URLs from {len(all_results)} total results"
+    )
     logger.info(f"Total unique URLs found: {len(unique_urls)}")
     return list(unique_urls)
 
@@ -485,12 +586,21 @@ class DarkWebEngine:
         
         # Get configured engines (default: ahmia, tor66)
         self.engines = settings.ONIONSEARCH_ENGINES
-        self.timeout = settings.ONIONSEARCH_TIMEOUT
+        # Enforce minimum timeout of 300 seconds
+        if settings.ONIONSEARCH_TIMEOUT is not None and settings.ONIONSEARCH_TIMEOUT < 300:
+            loguru_logger.warning(
+                f"[DarkWebEngine] Timeout {settings.ONIONSEARCH_TIMEOUT}s is less than minimum 300s, "
+                f"setting to 300s"
+            )
+            self.timeout = 300
+        else:
+            self.timeout = settings.ONIONSEARCH_TIMEOUT
         self.max_pages = settings.ONIONSEARCH_MAX_PAGES
         
+        timeout_str = f"{self.timeout}s" if self.timeout is not None else "no timeout"
         loguru_logger.info(
             f"[DarkWebEngine] Initialized with proxy={self.proxy_type}://{self.proxy_host}:{self.proxy_port}, "
-            f"engines={self.engines}, timeout={self.timeout}s, max_pages={self.max_pages}"
+            f"engines={self.engines}, timeout={timeout_str}, max_pages={self.max_pages}"
         )
     
     def discover_urls(self, keywords: Optional[List[str]] = None) -> List[str]:

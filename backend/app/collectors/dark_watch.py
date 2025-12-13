@@ -45,8 +45,8 @@ from core.dsa.heap import MinHeap
 from app.collectors.darkwatch_modules.crawlers.tor_connector import TorConnector
 from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
 from app.collectors.darkwatch_modules.crawlers.discovery_engines import (
-    GistEngine, SecurityNewsEngine,
-    DarkWebEngine, SearchEngine, PastebinEngine
+    GistEngine,
+    DarkWebEngine
 )
 from app.collectors.darkwatch_modules.extractors.site_crawler import crawl_onion_site, extract_entities as extract_entities_from_content
 from app.collectors.darkwatch_modules.extractors.utils import (
@@ -609,9 +609,7 @@ class DarkWatch:
             # Initialize all engines
             engines = [
                 GistEngine(),
-                SecurityNewsEngine(),
-                DarkWebEngine(),
-                SearchEngine()
+                DarkWebEngine()
             ]
             logger.info(f"[DarkWatch] Initialized {len(engines)} discovery engines for parallel execution")
             
