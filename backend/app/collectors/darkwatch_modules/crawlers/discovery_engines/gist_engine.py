@@ -116,13 +116,75 @@ class GistEngine:
                     if request.status_code == 200:
                         soup = BeautifulSoup(request.content, features="lxml")
                         gist_count_before = len(gist_urls)
-                        for code in soup.findAll('div', {'class': 'gist-snippet'}):
+                        
+                        # Debug: Check what we're actually finding
+                        gist_snippets = soup.findAll('div', {'class': 'gist-snippet'})
+                        self.logger.info(f"Page {inurl}: Found {len(gist_snippets)} divs with class 'gist-snippet'")
+                        
+                        # Debug: Log a sample of the HTML structure for first page only
+                        if inurl == search_urls[0] and len(gist_snippets) == 0:
+                            # Try to find what classes are actually used
+                            all_divs_with_class = soup.findAll('div', class_=True)
+                            sample_classes = [div.get('class') for div in all_divs_with_class[:10]]
+                            self.logger.info(f"Page {inurl}: Sample div classes found: {sample_classes}")
+                            
+                            # Check for common GitHub search result patterns
+                            search_result_divs = soup.findAll('div', class_=lambda x: x and any(
+                                term in ' '.join(x).lower() for term in ['result', 'item', 'snippet', 'gist']
+                            ))
+                            self.logger.info(f"Page {inurl}: Found {len(search_result_divs)} divs with 'result', 'item', 'snippet', or 'gist' in class")
+                        
+                        # Try multiple selector strategies
+                        # Strategy 1: Original approach
+                        for code in gist_snippets:
                             if '.onion' in code.get_text().lower():
                                 for raw in code.findAll('a', {'class': 'link-overlay'}):
                                     try:
                                         gist_urls.append(raw['href'])
                                     except:
                                         pass
+                        
+                        # Strategy 2: Try finding all links that might be gist URLs
+                        if len(gist_urls) == gist_count_before:
+                            # Try alternative: look for links to gist.github.com
+                            all_links = soup.findAll('a', href=True)
+                            gist_links = [link for link in all_links if 'gist.github.com' in link.get('href', '')]
+                            self.logger.debug(f"Page {inurl}: Found {len(gist_links)} total links to gist.github.com")
+                            
+                            # Try finding gist items in search results
+                            # GitHub search results might use different classes
+                            search_results = soup.findAll('div', class_=lambda x: x and ('gist' in x.lower() or 'search-result' in x.lower()))
+                            self.logger.debug(f"Page {inurl}: Found {len(search_results)} divs with 'gist' or 'search-result' in class")
+                            
+                            # Try finding by data attributes or other patterns
+                            for link in gist_links:
+                                href = link.get('href', '')
+                                if href.startswith('/') or 'gist.github.com' in href:
+                                    # Check if parent contains .onion
+                                    parent = link.find_parent()
+                                    if parent and '.onion' in parent.get_text().lower():
+                                        if href.startswith('/'):
+                                            href = f"https://gist.github.com{href}"
+                                        if href not in gist_urls:
+                                            gist_urls.append(href)
+                        
+                        # Strategy 3: Look for any div containing .onion and find nearby links
+                        if len(gist_urls) == gist_count_before:
+                            onion_divs = soup.findAll(string=lambda text: text and '.onion' in text.lower())
+                            self.logger.debug(f"Page {inurl}: Found {len(onion_divs)} text nodes containing '.onion'")
+                            for text_node in onion_divs:
+                                # Find parent and look for links nearby
+                                parent = text_node.find_parent()
+                                if parent:
+                                    links = parent.findAll('a', href=True)
+                                    for link in links:
+                                        href = link.get('href', '')
+                                        if 'gist.github.com' in href or href.startswith('/'):
+                                            if href.startswith('/'):
+                                                href = f"https://gist.github.com{href}"
+                                            if href not in gist_urls:
+                                                gist_urls.append(href)
+                        
                         gist_count_after = len(gist_urls)
                         gists_found_this_page = gist_count_after - gist_count_before
                         self.logger.info(f"Page {inurl}: found {gists_found_this_page} gist URLs (total so far: {gist_count_after})")
