@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from loguru import logger
 import json
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from app.services.orchestrator import (
     get_orchestrator, 
@@ -160,6 +161,26 @@ async def get_capability(capability_id: str):
 # Job Endpoints
 # ============================================================================
 
+def run_job_in_thread(job_id: str, orchestrator_instance):
+    """
+    Synchronous wrapper to run async job execution in a separate thread.
+    Creates a new event loop for the thread to avoid conflicts.
+    """
+    try:
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(orchestrator_instance.execute_job(job_id))
+        finally:
+            loop.close()
+    except Exception as e:
+        logger.error(
+            f"[API] [create_job] Error in background job thread for {job_id}: {e}",
+            exc_info=True
+        )
+
+
 @router.post("/jobs", response_model=JobResponse)
 async def create_job(request: JobCreateRequest):
     """
@@ -234,34 +255,43 @@ async def create_job(request: JobCreateRequest):
             )
             raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
-        # Execute job in background using asyncio task
-        # This ensures the response returns immediately while the job runs in parallel
+        # Execute job in background using thread pool executor
+        # This completely isolates job execution from the API event loop
         bg_task_start = time.time()
         try:
-            task = asyncio.create_task(orchestrator.execute_job(job.id))
-            # Add error callback to log task errors without blocking
-            def log_task_error(task):
+            # Use a shared executor (or create per-request, but shared is more efficient)
+            # Store executor as module-level or in a singleton pattern
+            if not hasattr(run_job_in_thread, '_executor'):
+                run_job_in_thread._executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="job-executor")
+            
+            executor = run_job_in_thread._executor
+            future = executor.submit(run_job_in_thread, job.id, orchestrator)
+            
+            # Optional: Add callback for completion (non-blocking)
+            def log_thread_completion(future):
                 try:
-                    task.result()  # This will raise if task failed
+                    future.result()  # This will raise if task failed
                 except Exception as e:
                     logger.error(
-                        f"[API] [create_job] Background task error for job {job.id}: {e}",
+                        f"[API] [create_job] Background job thread error for job {job.id}: {e}",
                         exc_info=True
                     )
-            task.add_done_callback(log_task_error)
+            
+            # Note: add_done_callback is for concurrent.futures.Future, not asyncio.Task
+            future.add_done_callback(log_thread_completion)
             
             bg_task_time = time.time() - bg_task_start
             logger.info(
-                f"[API] [create_job] Background task created in {bg_task_time:.3f}s - "
+                f"[API] [create_job] Background job scheduled in thread pool in {bg_task_time:.3f}s - "
                 f"job_id={job.id}, will execute {capability.value} against {request.target}"
             )
         except Exception as e:
             bg_task_time = time.time() - bg_task_start
             logger.error(
-                f"[API] [create_job] Failed to create background task after {bg_task_time:.3f}s: {e}",
+                f"[API] [create_job] Failed to schedule background job after {bg_task_time:.3f}s: {e}",
                 exc_info=True
             )
-            # Don't fail the request if background task creation fails, job is still created
+            # Don't fail the request if background task scheduling fails, job is still created
         
         total_request_time = time.time() - request_start_time
         logger.info(
