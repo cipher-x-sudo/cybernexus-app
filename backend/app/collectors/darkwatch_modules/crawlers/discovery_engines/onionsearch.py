@@ -5,7 +5,7 @@
 OnionSearch Library
 
 Refactored from OnionSearch project to work as a library.
-Supports ahmia, tor66, and onionland search engines.
+Supports ahmia and tor66 search engines.
 """
 
 import logging
@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 ENGINES = {
     "ahmia": "http://juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion",
     "tor66": "http://tor66sewebgixwhcqfnp5inzp5x5uohhdy3kvtnyfxc2e5mxiuh34iid.onion",
-    "onionland": "http://3bbad7fauom4d6sgppalyqddsqbf5u5p56b5k5uk2zxsy3d6ey2jobad.onion",
 }
 
 desktop_agents = [
@@ -160,7 +159,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
     Extract links from search engine results
     
     Args:
-        engine_str: Engine name (ahmia, tor66, onionland)
+        engine_str: Engine name (ahmia, tor66)
         data_obj: BeautifulSoup object or dict with results
         debug: Enable debug logging
         
@@ -204,21 +203,6 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
                     break
         if not found and debug:
             logger.debug("Ahmia: No results found with any selector")
-
-    elif engine_str == "onionland":
-        for r in data_obj.select('.result-block .title a'):
-            try:
-                if not r['href'].startswith('/ads/'):
-                    name = clear(r.get_text())
-                    link_param = get_parameter(r['href'], 'l')
-                    if link_param:
-                        link = unquote(unquote(link_param))
-                        add_link()
-                    else:
-                        logger.debug(f"OnionLand: Missing 'l' parameter in URL: {r['href']}")
-            except (KeyError, AttributeError, TypeError) as e:
-                logger.debug(f"OnionLand: Error parsing result link: {e}")
-                continue
 
     elif engine_str == "tor66":
         hr_tag = data_obj.find('hr')
@@ -406,98 +390,6 @@ def tor66(
     return results
 
 
-def onionland(
-    searchstr: str,
-    proxies: Dict[str, str],
-    timeout: int = 30,
-    max_retries: int = 2,
-    max_pages: int = 100,
-    debug: bool = False
-) -> List[Dict[str, str]]:
-    """
-    Search using OnionLand engine
-    
-    Args:
-        searchstr: Search query string
-        proxies: Proxy configuration dict
-        timeout: Request timeout
-        max_retries: Maximum retries
-        max_pages: Maximum pages to fetch
-        debug: Enable debug logging
-        
-    Returns:
-        List of result dicts with 'link', 'name', 'engine' keys
-    """
-    results = []
-    onionlandv3_url = ENGINES['onionland'] + "/search?q={}&page={}"
-
-    try:
-        with requests.Session() as s:
-            s.proxies = proxies
-            s.headers = random_headers()
-
-            url = onionlandv3_url.format(quote(searchstr), 1)
-            if debug:
-                logger.debug(f"OnionLand: Requesting {url}")
-            
-            resp = safe_request(
-                'GET', url,
-                proxies=proxies,
-                headers=random_headers(),
-                timeout=timeout,
-                max_retries=max_retries,
-                debug=debug
-            )
-            soup = BeautifulSoup(resp.text, 'html5lib')
-
-            page_number = 1
-            try:
-                for i in soup.find_all('div', attrs={"class": "search-status"}):
-                    status_div = i.find('div', attrs={'class': "col-sm-12"})
-                    if status_div:
-                        approx_re = re.match(r"About ([,0-9]+) result(.*)", clear(status_div.get_text()))
-                        if approx_re is not None:
-                            nb_res = int((approx_re.group(1)).replace(",", ""))
-                            results_per_page = 19
-                            page_number = math.ceil(nb_res / results_per_page)
-                            if page_number > max_pages:
-                                page_number = max_pages
-                            break
-            except Exception as e:
-                logger.debug(f"OnionLand: Could not determine page count: {e}")
-                page_number = 1
-
-            results = link_finder("onionland", soup, debug=debug)
-
-            for n in range(2, page_number + 1):
-                try:
-                    url = onionlandv3_url.format(quote(searchstr), n)
-                    resp = safe_request(
-                        'GET', url,
-                        proxies=proxies,
-                        headers=random_headers(),
-                        timeout=timeout,
-                        max_retries=max_retries,
-                        debug=debug
-                    )
-                    soup = BeautifulSoup(resp.text, 'html5lib')
-                    ret = link_finder("onionland", soup, debug=debug)
-                    if len(ret) == 0:
-                        break
-                    results.extend(ret)
-                except Exception as e:
-                    logger.error(f"OnionLand: Error fetching page {n}: {e}")
-                    break
-
-    except Exception as e:
-        logger.error(f"OnionLand: Failed to fetch results: {e}")
-        if debug:
-            import traceback
-            logger.debug(traceback.format_exc())
-
-    return results
-
-
 def search_all_engines(
     searchstr: str,
     proxies: Dict[str, str],
@@ -513,7 +405,7 @@ def search_all_engines(
     Args:
         searchstr: Search query string
         proxies: Proxy configuration dict
-        engines: List of engine names to use (default: ['ahmia', 'tor66', 'onionland'])
+        engines: List of engine names to use (default: ['ahmia', 'tor66'])
         timeout: Request timeout
         max_retries: Maximum retries
         max_pages: Maximum pages per engine
@@ -523,13 +415,12 @@ def search_all_engines(
         List of unique .onion URLs
     """
     if engines is None:
-        engines = ['ahmia', 'tor66', 'onionland']
+        engines = ['ahmia', 'tor66']
     
     all_results = []
     engine_functions = {
         'ahmia': ahmia,
         'tor66': tor66,
-        'onionland': onionland,
     }
     
     for engine_name in engines:
@@ -592,7 +483,7 @@ class DarkWebEngine:
             "http": f"{self.proxy_type}://{self.proxy_host}:{self.proxy_port}",
         }
         
-        # Get configured engines (default: ahmia, tor66, onionland)
+        # Get configured engines (default: ahmia, tor66)
         self.engines = settings.ONIONSEARCH_ENGINES
         self.timeout = settings.ONIONSEARCH_TIMEOUT
         self.max_pages = settings.ONIONSEARCH_MAX_PAGES

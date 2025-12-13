@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     
     # OnionSearch Configuration
     ONIONSEARCH_ENGINES: List[str] = Field(
-        default=["ahmia", "tor66", "onionland"],
+        default=["ahmia", "tor66"],
         env="ONIONSEARCH_ENGINES",
         description="List of OnionSearch engines to use (comma-separated string or JSON list)"
     )
