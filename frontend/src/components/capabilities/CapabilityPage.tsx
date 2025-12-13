@@ -259,7 +259,7 @@ export function CapabilityPage({
         } finally {
           isPollingRef.current = false;
         }
-      }, 3000); // Increased from 1s to 3s to reduce load and prevent CORS preflight backlog
+      }, 5000); // Poll every 5 seconds to reduce load and prevent CORS preflight backlog
 
       // Timeout after 5 minutes
       timeoutRef.current = setTimeout(() => {
