@@ -161,12 +161,16 @@ async def get_capability(capability_id: str):
 # ============================================================================
 
 @router.post("/jobs", response_model=JobResponse)
-async def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks):
+async def create_job(request: JobCreateRequest):
     """
     Create and start a capability job.
     
-    The job will execute the appropriate capability against the target.
-    Results are available via the job status endpoint.
+    The job will execute the appropriate capability against the target in the background.
+    This endpoint returns immediately with the job ID. To get results:
+    
+    1. Poll job status via GET /api/v1/capabilities/jobs/{job_id} every 3 seconds
+    2. Check the 'status' field: "pending" → "running" → "completed" or "failed"
+    3. When status is "completed", fetch findings via GET /api/v1/capabilities/jobs/{job_id}/findings
     """
     import time
     request_start_time = time.time()
@@ -230,22 +234,34 @@ async def create_job(request: JobCreateRequest, background_tasks: BackgroundTask
             )
             raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
-        # Execute in background
+        # Execute job in background using asyncio task
+        # This ensures the response returns immediately while the job runs in parallel
         bg_task_start = time.time()
         try:
-            background_tasks.add_task(orchestrator.execute_job, job.id)
+            task = asyncio.create_task(orchestrator.execute_job(job.id))
+            # Add error callback to log task errors without blocking
+            def log_task_error(task):
+                try:
+                    task.result()  # This will raise if task failed
+                except Exception as e:
+                    logger.error(
+                        f"[API] [create_job] Background task error for job {job.id}: {e}",
+                        exc_info=True
+                    )
+            task.add_done_callback(log_task_error)
+            
             bg_task_time = time.time() - bg_task_start
             logger.info(
-                f"[API] [create_job] Background task added in {bg_task_time:.3f}s - "
+                f"[API] [create_job] Background task created in {bg_task_time:.3f}s - "
                 f"job_id={job.id}, will execute {capability.value} against {request.target}"
             )
         except Exception as e:
             bg_task_time = time.time() - bg_task_start
             logger.error(
-                f"[API] [create_job] Failed to add background task after {bg_task_time:.3f}s: {e}",
+                f"[API] [create_job] Failed to create background task after {bg_task_time:.3f}s: {e}",
                 exc_info=True
             )
-            # Don't fail the request if background task fails, job is still created
+            # Don't fail the request if background task creation fails, job is still created
         
         total_request_time = time.time() - request_start_time
         logger.info(
