@@ -259,16 +259,17 @@ class GistEngine:
                         if request.status_code == 200:
                             soup = BeautifulSoup(request.content, features="lxml")
                             
-                            # Debug: Check if raw content links are found
-                            raw_links = soup.findAll('a', {'class': 'btn btn-sm'})
-                            self.logger.info(f"Gist {gist_url}: Found {len(raw_links)} links with class 'btn btn-sm'")
+                            # Try to find raw content links - filter out archive/zip links
+                            # First, try finding links with 'raw' in href
+                            all_links = soup.findAll('a', href=True)
+                            raw_links = [link for link in all_links if '/raw/' in link.get('href', '').lower()]
+                            self.logger.info(f"Gist {gist_url}: Found {len(raw_links)} links with '/raw/' in href")
                             
-                            # If no links found, try alternative selectors
+                            # If no raw links found, try alternative selectors
                             if len(raw_links) == 0:
-                                # Try finding raw links by href pattern
-                                all_links = soup.findAll('a', href=True)
-                                raw_links = [link for link in all_links if 'raw' in link.get('href', '').lower() or 'gist.githubusercontent.com' in link.get('href', '')]
-                                self.logger.info(f"Gist {gist_url}: Found {len(raw_links)} links containing 'raw' or 'gist.githubusercontent.com'")
+                                # Try finding raw links by href pattern (gist.githubusercontent.com)
+                                raw_links = [link for link in all_links if 'gist.githubusercontent.com' in link.get('href', '') and '/raw/' in link.get('href', '')]
+                                self.logger.info(f"Gist {gist_url}: Found {len(raw_links)} links containing 'gist.githubusercontent.com' with '/raw/'")
                                 
                                 # If still no links, try to find file links in the gist
                                 if len(raw_links) == 0:
@@ -277,7 +278,7 @@ class GistEngine:
                                     self.logger.info(f"Gist {gist_url}: Found {len(file_links)} file links")
                                     raw_links = file_links
                             
-                            # If still no raw links found, try to find file information from the gist page
+                            # If still no raw links found, use GitHub API to get file names
                             if len(raw_links) == 0:
                                 # Look for file names in the gist HTML - they're often in data attributes or specific divs
                                 # Try finding file links by looking for elements with file-related classes or data attributes
@@ -286,44 +287,31 @@ class GistEngine:
                                                                                         for term in ['file', 'filename', 'gist-file']))
                                 self.logger.info(f"Gist {gist_url}: Found {len(file_elements)} file-related elements")
                                 
-                                # Extract username and gistid for fallback construction
+                                # Extract username and gistid and use GitHub API to get file names
                                 try:
                                     gist_parts = gist_url.replace('https://gist.github.com/', '').split('/')
                                     if len(gist_parts) >= 2:
                                         username = gist_parts[0]
                                         gistid = gist_parts[1]
                                         
-                                        # Try to find actual filenames in the page
-                                        # Look for data attributes or text that might indicate filenames
-                                        potential_files = []
-                                        for elem in file_elements:
-                                            # Check data attributes
-                                            for attr in elem.attrs:
-                                                if 'file' in attr.lower() and elem.attrs[attr]:
-                                                    potential_files.append(elem.attrs[attr])
-                                            # Check text content that looks like filenames
-                                            text = elem.get_text().strip()
-                                            if text and ('.txt' in text.lower() or '.csv' in text.lower() or len(text.split('.')) == 2):
-                                                potential_files.append(text)
-                                        
-                                        # If we found potential files, use them; otherwise try GitHub API
-                                        if potential_files:
-                                            for filename in set(potential_files[:3]):  # Limit to first 3 unique files
-                                                raw_links.append(DummyLink(f"/{username}/{gistid}/raw/{filename}"))
-                                            self.logger.info(f"Gist {gist_url}: Constructed {len(raw_links)} raw URLs from found filenames")
-                                        else:
-                                            # Last resort: try GitHub gist API endpoint (no auth needed for public gists)
-                                            try:
-                                                api_url = f"https://api.github.com/gists/{gistid}"
-                                                api_response = session.get(api_url, headers=headers, timeout=5)
-                                                if api_response.status_code == 200:
-                                                    gist_data = api_response.json()
-                                                    files = gist_data.get('files', {})
-                                                    for filename in list(files.keys())[:3]:  # Limit to first 3 files
-                                                        raw_links.append(DummyLink(f"/{username}/{gistid}/raw/{filename}"))
-                                                    self.logger.info(f"Gist {gist_url}: Found {len(raw_links)} files via GitHub API")
-                                            except Exception as api_e:
-                                                self.logger.debug(f"Gist {gist_url}: GitHub API fallback failed: {api_e}")
+                                        # Use GitHub gist API endpoint to get file names (no auth needed for public gists)
+                                        try:
+                                            api_url = f"https://api.github.com/gists/{gistid}"
+                                            self.logger.info(f"Gist {gist_url}: Fetching file list from GitHub API: {api_url}")
+                                            api_response = session.get(api_url, headers=headers, timeout=5)
+                                            if api_response.status_code == 200:
+                                                gist_data = api_response.json()
+                                                files = gist_data.get('files', {})
+                                                self.logger.info(f"Gist {gist_url}: GitHub API returned {len(files)} files")
+                                                for filename in list(files.keys())[:3]:  # Limit to first 3 files
+                                                    raw_links.append(DummyLink(f"/{username}/{gistid}/raw/{filename}"))
+                                                self.logger.info(f"Gist {gist_url}: Constructed {len(raw_links)} raw URLs via GitHub API")
+                                            else:
+                                                self.logger.warning(f"Gist {gist_url}: GitHub API returned status {api_response.status_code}")
+                                        except Exception as api_e:
+                                            self.logger.warning(f"Gist {gist_url}: GitHub API fallback failed: {api_e}")
+                                    else:
+                                        self.logger.warning(f"Gist {gist_url}: Could not extract username/gistid from URL")
                                 except Exception as e:
                                     self.logger.warning(f"Gist {gist_url}: Could not construct fallback URLs: {e}")
                             
