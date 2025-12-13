@@ -45,7 +45,6 @@ from core.dsa.heap import MinHeap
 from app.collectors.darkwatch_modules.crawlers.tor_connector import TorConnector
 from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
 from app.collectors.darkwatch_modules.crawlers.discovery_engines import (
-    GistEngine,
     DarkWebEngine
 )
 from app.collectors.darkwatch_modules.extractors.site_crawler import crawl_onion_site, extract_entities as extract_entities_from_content
@@ -613,7 +612,6 @@ class DarkWatch:
             logger.info(f"[DarkWatch] Starting parallel URL discovery with all engines (keywords: {keywords})")
             # Initialize all engines
             engines = [
-                GistEngine(),
                 DarkWebEngine()
             ]
             logger.info(f"[DarkWatch] Initialized {len(engines)} discovery engines for parallel execution")
@@ -623,11 +621,8 @@ class DarkWatch:
                 # Submit all engine tasks
                 future_to_engine = {}
                 for engine in engines:
-                    # DarkWebEngine requires keywords, GistEngine doesn't
-                    if engine.__class__.__name__ == 'DarkWebEngine':
-                        future_to_engine[executor.submit(engine.discover_urls, keywords=keywords)] = engine
-                    else:
-                        future_to_engine[executor.submit(engine.discover_urls)] = engine
+                    # All engines use keywords parameter
+                    future_to_engine[executor.submit(engine.discover_urls, keywords=keywords)] = engine
                 
                 # Process completed tasks as they finish
                 for future in as_completed(future_to_engine, timeout=discovery_timeout):
