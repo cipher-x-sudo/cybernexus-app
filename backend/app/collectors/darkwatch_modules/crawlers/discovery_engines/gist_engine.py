@@ -9,19 +9,19 @@ Discovers .onion URLs from GitHub Gist.
 
 import requests
 import re
-import logging
 import urllib.parse
 from random import choice
 import time
 from bs4 import BeautifulSoup
 from typing import List
+from loguru import logger
 
 
 class GistEngine:
     """Engine for discovering URLs from GitHub Gist."""
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         self.desktop_agents = [
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:60.0) Gecko/20100101 Firefox/60.0'
         ]
@@ -206,7 +206,7 @@ class GistEngine:
                         continue
         
         except Exception as e:
-            self.logger.error(f"Gist engine error: {e}", exc_info=True)
+            self.logger.exception(f"Gist engine error: {e}")
         
         unique_urls = list(set(urls))
         self.logger.info(f'Gist engine summary: found {len(urls)} total URLs, {len(unique_urls)} unique URLs')
