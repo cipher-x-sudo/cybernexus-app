@@ -14,7 +14,7 @@ Capabilities → Tools mapping:
 - Investigation → Domain correlation
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -24,6 +24,7 @@ import time
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
+from fastapi import WebSocket
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
 
@@ -296,6 +297,10 @@ class Orchestrator:
         # DarkWatch instance storage (for API access to advanced features)
         self._darkwatch_instances = HashMap()  # job_id -> DarkWatch instance
         
+        # WebSocket connection management (for real-time streaming)
+        self._websocket_connections: Dict[str, WebSocket] = {}  # job_id -> WebSocket
+        self._websocket_lock = asyncio.Lock()  # Thread-safe access to WebSocket connections
+        
         # Tool executor registry (for worker registration)
         self._tool_executors: Dict[str, Any] = {}
         
@@ -310,6 +315,42 @@ class Orchestrator:
         """Register a tool executor function for a specific tool"""
         self._tool_executors[tool_name] = executor
         logger.debug(f"Registered tool executor for {tool_name}")
+    
+    async def register_websocket(self, job_id: str, websocket: WebSocket):
+        """Register a WebSocket connection for a job (thread-safe)"""
+        async with self._websocket_lock:
+            self._websocket_connections[job_id] = websocket
+            logger.info(f"Registered WebSocket connection for job {job_id}")
+    
+    async def unregister_websocket(self, job_id: str):
+        """Unregister a WebSocket connection for a job (thread-safe)"""
+        async with self._websocket_lock:
+            if job_id in self._websocket_connections:
+                del self._websocket_connections[job_id]
+                logger.info(f"Unregistered WebSocket connection for job {job_id}")
+    
+    async def get_websocket(self, job_id: str) -> Optional[WebSocket]:
+        """Get WebSocket connection for a job (thread-safe)"""
+        async with self._websocket_lock:
+            return self._websocket_connections.get(job_id)
+    
+    async def send_websocket_message(self, job_id: str, message: Dict[str, Any]) -> bool:
+        """
+        Send a message via WebSocket to a job's connection.
+        Returns True if sent successfully, False if connection doesn't exist or send failed.
+        """
+        websocket = await self.get_websocket(job_id)
+        if not websocket:
+            return False
+        
+        try:
+            await websocket.send_json(message)
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to send WebSocket message to job {job_id}: {e}")
+            # Remove connection if send failed (likely disconnected)
+            await self.unregister_websocket(job_id)
+            return False
     
     def get_capabilities(self) -> List[Dict[str, Any]]:
         """Get all available capabilities"""
@@ -447,6 +488,13 @@ class Orchestrator:
         """Execute the appropriate capability using real collectors"""
         findings = []
         
+        # Check if WebSocket connection exists for streaming (darkweb only)
+        if job.capability == Capability.DARK_WEB_INTELLIGENCE:
+            websocket = await self.get_websocket(job.id)
+            if websocket:
+                logger.info(f"[Orchestrator] WebSocket connection found for job {job.id}, using streaming execution")
+                return await self._execute_darkweb_intelligence_stream(job)
+        
         logger.info(f"Executing capability {job.capability.value} for {job.target}")
         job.progress = 10
         
@@ -458,9 +506,15 @@ class Orchestrator:
             elif job.capability == Capability.INFRASTRUCTURE_TESTING:
                 findings = await self._execute_infra_testing(job)
             elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
-                logger.info(f"[Orchestrator] Calling _execute_darkweb_intelligence for job {job.id}")
-                findings = await self._execute_darkweb_intelligence(job)
-                logger.info(f"[Orchestrator] _execute_darkweb_intelligence completed for job {job.id}, returned {len(findings)} findings")
+                # Check if WebSocket connection exists for streaming
+                websocket = await self.get_websocket(job.id)
+                if websocket:
+                    logger.info(f"[Orchestrator] WebSocket connection found for job {job.id}, using streaming execution")
+                    findings = await self._execute_darkweb_intelligence_stream(job)
+                else:
+                    logger.info(f"[Orchestrator] No WebSocket connection for job {job.id}, using regular execution")
+                    findings = await self._execute_darkweb_intelligence(job)
+                logger.info(f"[Orchestrator] Dark web intelligence execution completed for job {job.id}, returned {len(findings)} findings")
             elif job.capability == Capability.AUTHENTICATION_TESTING:
                 findings = self._generate_auth_findings(job)
             elif job.capability == Capability.NETWORK_SECURITY:
@@ -1378,6 +1432,437 @@ class Orchestrator:
             f"Average time per finding: {total_time / len(findings) if findings else 0:.2f}s"
         )
         logger.info(f"[DarkWeb] [job_id={job.id}] Returning {len(findings)} findings from _execute_darkweb_intelligence")
+        return findings
+    
+    async def _execute_darkweb_intelligence_stream(self, job: Job) -> List[Finding]:
+        """
+        Execute dark web intelligence collection with WebSocket streaming.
+        Sends findings via WebSocket as they are generated, and returns all findings at the end.
+        """
+        findings = []
+        from app.config import settings
+        from app.utils import check_tor_connectivity
+        
+        batch_size = settings.DARKWEB_BATCH_SIZE
+        
+        # Helper to send finding via WebSocket
+        async def send_finding(finding: Finding):
+            """Send a finding via WebSocket if connection exists"""
+            await self.send_websocket_message(job.id, {
+                "type": "finding",
+                "data": finding.to_dict(),
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Helper to send progress update
+        async def send_progress(progress: int, message: str = ""):
+            """Send progress update via WebSocket"""
+            await self.send_websocket_message(job.id, {
+                "type": "progress",
+                "data": {"progress": progress, "message": message},
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        try:
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Starting streaming intelligence collection - "
+                f"target={job.target}, batch_size={batch_size}"
+            )
+            start_time = time.time()
+            job.progress = 5
+            await send_progress(5, "Initializing dark web intelligence collection")
+            
+            # Check Tor connectivity
+            logger.info(f"[DarkWeb] [job_id={job.id}] Checking Tor proxy connectivity...")
+            tor_check_start = time.time()
+            tor_status = check_tor_connectivity()
+            tor_check_time = time.time() - tor_check_start
+            if tor_status["status"] == "connected" and tor_status["is_tor"]:
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] Tor proxy verified in {tor_check_time:.2f}s"
+                )
+            else:
+                logger.warning(
+                    f"[DarkWeb] [job_id={job.id}] Tor proxy check failed after {tor_check_time:.2f}s"
+                )
+            
+            # Initialize DarkWatch
+            from app.collectors.dark_watch import DarkWatch
+            init_start = time.time()
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Initializing DarkWatch collector - "
+                f"keywords={job.target if job.target else 'none'}"
+            )
+            dark_watch = DarkWatch(monitored_keywords=[job.target] if job.target else [])
+            init_time = time.time() - init_start
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] DarkWatch collector initialized successfully in {init_time:.2f}s"
+            )
+            self._darkwatch_instances.put(job.id, dark_watch)
+            job.progress = 10
+            await send_progress(10, "DarkWatch collector initialized")
+            
+            # Extract keywords
+            keywords = None
+            if job.target:
+                keywords = [kw.strip() for kw in job.target.split(',') if kw.strip()]
+                logger.info(f"[DarkWeb] [job_id={job.id}] Extracted keywords: {keywords}")
+            else:
+                logger.warning(f"[DarkWeb] [job_id={job.id}] No target/keywords provided for discovery")
+            
+            # Discover URLs with callback for streaming
+            logger.info(f"[DarkWeb] [job_id={job.id}] Starting URL discovery using engines...")
+            discovery_start = time.time()
+            job.progress = 15
+            await send_progress(15, "Starting URL discovery from engines")
+            
+            urls = []
+            discovered_urls_by_engine = {}  # Track URLs per engine
+            pending_engine_findings = []  # Collect findings from callback to send after discovery
+            
+            def on_engine_complete(engine_name: str, engine_urls: List[str]):
+                """Callback called when an engine completes discovery (synchronous, called from thread)"""
+                discovered_urls_by_engine[engine_name] = engine_urls
+                urls.extend(engine_urls)
+                
+                # Create finding (synchronous operation)
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title=f"Dark Web Discovery: Found {len(engine_urls)} URLs from {engine_name}",
+                    description=f"Discovery engine '{engine_name}' discovered {len(engine_urls)} URLs for target '{job.target}'",
+                    evidence={
+                        "engine": engine_name,
+                        "url_count": len(engine_urls),
+                        "sample_urls": engine_urls[:5] if engine_urls else []
+                    },
+                    affected_assets=[job.target] if job.target else [],
+                    recommendations=["Review discovered URLs", "Monitor for brand mentions"],
+                    discovered_at=datetime.now(),
+                    risk_score=20.0
+                )
+                findings.append(finding)
+                job.add_finding(finding)
+                # Store for async sending after discovery completes
+                pending_engine_findings.append(finding)
+            
+            try:
+                if not keywords:
+                    raise ValueError("No keywords provided. Keywords are required for dark web discovery.")
+                
+                logger.info(f"[DarkWeb] [job_id={job.id}] Calling _discover_urls_with_engines with keywords: {keywords}")
+                # Use callback to get URLs as they are discovered
+                all_urls = dark_watch._discover_urls_with_engines(keywords=keywords, on_engine_complete=on_engine_complete)
+                
+                # Merge with callback-discovered URLs (in case callback missed some)
+                unique_urls = list(set(urls + (all_urls if all_urls else [])))
+                urls = unique_urls
+                
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery completed - "
+                    f"Found {len(urls)} URLs from engines"
+                )
+                
+                # Send all engine findings via WebSocket now that discovery is complete
+                for finding in pending_engine_findings:
+                    await send_finding(finding)
+                pending_engine_findings.clear()
+                
+                job.progress = 25
+                await send_progress(25, f"Discovery complete: {len(urls)} URLs found")
+                
+            except ValueError as e:
+                discovery_time = time.time() - discovery_start
+                logger.error(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery failed: {e}",
+                    exc_info=True
+                )
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title="Dark Web Discovery: No Keywords Provided",
+                    description=f"Dark web discovery requires keywords to search. No keywords were provided in the job target.",
+                    evidence={"error": str(e), "target": job.target if job.target else "none"},
+                    affected_assets=[],
+                    recommendations=["Provide keywords in the job target field", "Keywords are required for OnionSearch discovery"],
+                    discovered_at=datetime.now(),
+                    risk_score=0.0
+                )
+                findings.append(finding)
+                job.add_finding(finding)
+                await send_finding(finding)
+                urls = []
+                job.progress = 20
+            except Exception as e:
+                discovery_time = time.time() - discovery_start
+                logger.error(
+                    f"[DarkWeb] [job_id={job.id}] URL discovery failed after {discovery_time:.2f}s: {e}",
+                    exc_info=True
+                )
+                urls = []
+                job.progress = 20
+            
+            # Database fallback if no URLs (same as original)
+            if not urls:
+                logger.info(
+                    f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines, "
+                    f"triggering database fallback..."
+                )
+                db_fallback_start = time.time()
+                try:
+                    from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
+                    db = URLDatabase(
+                        dbpath=str(settings.DATA_DIR / settings.CRAWLER_DB_PATH),
+                        dbname=settings.CRAWLER_DB_NAME
+                    )
+                    db_records = db.select()
+                    
+                    if db_records:
+                        urls = []
+                        for idx, record in enumerate(db_records[:10]):
+                            url = record[2] if len(record) > 2 and record[2] else None
+                            baseurl = record[4] if len(record) > 4 and record[4] else None
+                            if url:
+                                urls.append(url)
+                            elif baseurl:
+                                urls.append(baseurl)
+                        job.progress = 25
+                except Exception as e:
+                    db_fallback_time = time.time() - db_fallback_start
+                    logger.warning(
+                        f"[DarkWeb] [job_id={job.id}] Database fallback failed after {db_fallback_time:.2f}s: {e}",
+                        exc_info=True
+                    )
+            
+            # If still no URLs, create finding
+            if not urls:
+                no_urls_time = time.time() - discovery_start
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title="Dark Web Intelligence: No URLs Discovered",
+                    description=f"Dark web intelligence collection completed but no URLs were discovered for target '{job.target}'.",
+                    evidence={
+                        "target": job.target, 
+                        "status": "no_urls_discovered",
+                        "discovery_time_seconds": round(no_urls_time, 2),
+                        "keywords_used": keywords if keywords else []
+                    },
+                    affected_assets=[job.target] if job.target else [],
+                    recommendations=["Check Tor proxy configuration", "Verify discovery engine settings"],
+                    discovered_at=datetime.now(),
+                    risk_score=10.0
+                )
+                findings.append(finding)
+                job.add_findings(findings)
+                await send_finding(finding)
+                return findings
+            
+            # Store URLs in metadata
+            if not job.metadata:
+                job.metadata = {}
+            job.metadata['discovered_urls'] = urls
+            job.metadata['crawled_urls'] = []
+            job.metadata['uncrawled_urls'] = urls.copy()
+            
+            # Limit initial crawl
+            crawl_limit = min(settings.DARKWEB_DEFAULT_CRAWL_LIMIT, len(urls))
+            urls_to_crawl = urls[:crawl_limit]
+            logger.info(f"[DarkWeb] [job_id={job.id}] Starting crawl of {len(urls_to_crawl)} URLs")
+            max_workers = settings.DARKWEB_MAX_WORKERS
+            crawl_timeout = settings.DARKWEB_CRAWL_TIMEOUT
+            
+            job.progress = 30
+            await send_progress(30, f"Starting crawl of {len(urls_to_crawl)} URLs")
+            
+            # Helper function to crawl and analyze a single URL
+            def crawl_and_analyze_url(url: str) -> List[Finding]:
+                """Crawl a single URL and return findings (for parallel execution)"""
+                url_findings = []
+                url_start_time = time.time()
+                
+                try:
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Starting parallel crawl of {url}"
+                    )
+                    site = dark_watch.crawl_site(url, depth=1)
+                    url_crawl_time = time.time() - url_start_time
+                    logger.info(
+                        f"[DarkWeb] [job_id={job.id}] Crawled {url} in {url_crawl_time:.2f}s"
+                    )
+                    
+                    # Convert to Finding objects if keywords matched
+                    if site.keywords_matched:
+                        finding = Finding(
+                            id=f"find-{uuid.uuid4().hex[:8]}",
+                            capability=Capability.DARK_WEB_INTELLIGENCE,
+                            severity=self._map_threat_to_severity(site.threat_level.value),
+                            title=f"Brand mention found: {site.title}",
+                            description=f"Keyword '{job.target}' found on {site.onion_url}",
+                            evidence={"site": site.to_dict()},
+                            affected_assets=[job.target] if job.target else [],
+                            recommendations=["Review dark web mention", "Monitor for data leaks"],
+                            discovered_at=datetime.now(),
+                            risk_score=site.risk_score
+                        )
+                        url_findings.append(finding)
+                    
+                    # Also create findings for high-risk entities
+                    for entity in site.extracted_entities:
+                        if entity.entity_type in ["email", "credit_card"]:
+                            finding = Finding(
+                                id=f"find-{uuid.uuid4().hex[:8]}",
+                                capability=Capability.DARK_WEB_INTELLIGENCE,
+                                severity="high" if entity.entity_type == "credit_card" else "medium",
+                                title=f"{entity.entity_type.title()} found on dark web",
+                                description=f"{entity.entity_type.title()} '{entity.value}' discovered on {site.onion_url}",
+                                evidence={"entity": entity.to_dict(), "site": site.onion_url},
+                                affected_assets=[entity.value],
+                                recommendations=["Investigate exposure", "Take remediation steps"],
+                                discovered_at=datetime.now(),
+                                risk_score=85.0 if entity.entity_type == "credit_card" else 65.0
+                            )
+                            url_findings.append(finding)
+                    
+                except Exception as e:
+                    url_error_time = time.time() - url_start_time
+                    logger.error(
+                        f"[DarkWeb] [job_id={job.id}] Error crawling {url} after {url_error_time:.2f}s: {e}",
+                        exc_info=True
+                    )
+                
+                return url_findings
+            
+            # Process URLs in parallel
+            batch_progress_base = 30
+            batch_progress_range = 60
+            total_urls = len(urls_to_crawl)
+            completed_count = 0
+            
+            crawl_start_time = time.time()
+            logger.info(f"[DarkWeb] [job_id={job.id}] ThreadPoolExecutor starting with {max_workers} workers")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_url = {
+                    executor.submit(crawl_and_analyze_url, url): url 
+                    for url in urls_to_crawl
+                }
+                
+                # Process completed tasks as they finish
+                for future in as_completed(future_to_url, timeout=crawl_timeout):
+                    url = future_to_url[future]
+                    try:
+                        url_findings = future.result(timeout=120)
+                        
+                        if url_findings:
+                            findings.extend(url_findings)
+                            job.add_findings(url_findings)
+                            
+                            # Send each finding via WebSocket immediately
+                            for finding in url_findings:
+                                await send_finding(finding)
+                            
+                            logger.info(
+                                f"[DarkWeb] [job_id={job.id}] Stored and sent {len(url_findings)} findings from {url}"
+                            )
+                        
+                        # Update progress
+                        completed_count += 1
+                        progress = batch_progress_base + int((completed_count / total_urls) * batch_progress_range)
+                        job.progress = progress
+                        await send_progress(progress, f"Crawled {completed_count}/{total_urls} URLs")
+                        
+                    except Exception as e:
+                        logger.error(
+                            f"[DarkWeb] [job_id={job.id}] Error processing result for {url}: {e}",
+                            exc_info=True
+                        )
+            
+            crawl_time = time.time() - crawl_start_time
+            logger.info(
+                f"[DarkWeb] [job_id={job.id}] Parallel crawl completed in {crawl_time:.2f}s - "
+                f"Total findings: {len(findings)}"
+            )
+            
+            # Update job metadata
+            if job.metadata:
+                job.metadata['crawled_urls'] = urls_to_crawl.copy()
+                uncrawled = [url for url in job.metadata.get('discovered_urls', []) if url not in urls_to_crawl]
+                job.metadata['uncrawled_urls'] = uncrawled
+            
+            job.progress = 90
+            await send_progress(90, "Crawl phase complete")
+            
+            # If no findings but URLs were crawled, create info finding
+            if not findings and urls:
+                finding = Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.DARK_WEB_INTELLIGENCE,
+                    severity="info",
+                    title=f"Dark Web Scan Complete: No Matches for '{job.target}'",
+                    description=f"Scanned {len(urls_to_crawl)} dark web sites but found no mentions of '{job.target}' or high-risk entities.",
+                    evidence={"target": job.target, "urls_scanned": len(urls_to_crawl)},
+                    affected_assets=[job.target] if job.target else [],
+                    recommendations=["Continue monitoring", "Review search terms if needed"],
+                    discovered_at=datetime.now(),
+                    risk_score=5.0
+                )
+                findings.append(finding)
+                job.add_finding(finding)
+                await send_finding(finding)
+        
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(
+                f"[DarkWeb] [job_id={job.id}] Error in dark web intelligence collection after {total_time:.2f}s: {e}",
+                exc_info=True
+            )
+            job.progress = 95
+            finding = Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.DARK_WEB_INTELLIGENCE,
+                severity="info",
+                title="Dark Web Intelligence Collection Error",
+                description=f"An error occurred during dark web intelligence collection: {str(e)}",
+                evidence={"error": str(e), "target": job.target if job.target else "unknown"},
+                affected_assets=[job.target] if job.target else [],
+                recommendations=["Check logs for details", "Verify configuration"],
+                discovered_at=datetime.now(),
+                risk_score=0.0
+            )
+            findings.append(finding)
+            job.add_finding(finding)
+            await send_finding(finding)
+            await self.send_websocket_message(job.id, {
+                "type": "error",
+                "data": {"error": str(e)},
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        total_time = time.time() - start_time
+        job.progress = 100
+        
+        # Ensure DarkWatch instance is stored
+        if 'dark_watch' in locals() and dark_watch:
+            self._darkwatch_instances.put(job.id, dark_watch)
+        
+        # Send completion message
+        await self.send_websocket_message(job.id, {
+            "type": "complete",
+            "data": {
+                "total_findings": len(findings),
+                "urls_crawled": len(urls_to_crawl) if 'urls_to_crawl' in locals() else 0,
+                "total_time_seconds": round(total_time, 2)
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        logger.info(
+            f"[DarkWeb] [job_id={job.id}] Streaming dark web intelligence collection completed in {total_time:.2f}s - "
+            f"Total findings: {len(findings)}"
+        )
         return findings
     
     def _map_threat_to_severity(self, threat_level: str) -> str:

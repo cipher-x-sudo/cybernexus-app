@@ -17,17 +17,6 @@ from typing import List
 from loguru import logger
 
 
-class DummyLink:
-    """Helper class to simulate a link object for constructed URLs"""
-    def __init__(self, href):
-        self.href = href
-    
-    def get(self, key, default=None):
-        if key == 'href':
-            return self.href
-        return default
-
-
 class GistEngine:
     """Engine for discovering URLs from GitHub Gist."""
     
@@ -278,52 +267,14 @@ class GistEngine:
                                     self.logger.info(f"Gist {gist_url}: Found {len(file_links)} file links")
                                     raw_links = file_links
                             
-                            # If still no raw links found, use GitHub API to get file names
-                            if len(raw_links) == 0:
-                                # Look for file names in the gist HTML - they're often in data attributes or specific divs
-                                # Try finding file links by looking for elements with file-related classes or data attributes
-                                file_elements = soup.findAll(['a', 'span', 'div'], 
-                                                             class_=lambda x: x and any(term in ' '.join(x).lower() 
-                                                                                        for term in ['file', 'filename', 'gist-file']))
-                                self.logger.info(f"Gist {gist_url}: Found {len(file_elements)} file-related elements")
-                                
-                                # Extract username and gistid and use GitHub API to get file names
-                                try:
-                                    gist_parts = gist_url.replace('https://gist.github.com/', '').split('/')
-                                    if len(gist_parts) >= 2:
-                                        username = gist_parts[0]
-                                        gistid = gist_parts[1]
-                                        
-                                        # Use GitHub gist API endpoint to get file names (no auth needed for public gists)
-                                        try:
-                                            api_url = f"https://api.github.com/gists/{gistid}"
-                                            self.logger.info(f"Gist {gist_url}: Fetching file list from GitHub API: {api_url}")
-                                            api_response = session.get(api_url, headers=headers, timeout=5)
-                                            if api_response.status_code == 200:
-                                                gist_data = api_response.json()
-                                                files = gist_data.get('files', {})
-                                                self.logger.info(f"Gist {gist_url}: GitHub API returned {len(files)} files")
-                                                for filename in list(files.keys())[:3]:  # Limit to first 3 files
-                                                    raw_links.append(DummyLink(f"/{username}/{gistid}/raw/{filename}"))
-                                                self.logger.info(f"Gist {gist_url}: Constructed {len(raw_links)} raw URLs via GitHub API")
-                                            else:
-                                                self.logger.warning(f"Gist {gist_url}: GitHub API returned status {api_response.status_code}")
-                                        except Exception as api_e:
-                                            self.logger.warning(f"Gist {gist_url}: GitHub API fallback failed: {api_e}")
-                                    else:
-                                        self.logger.warning(f"Gist {gist_url}: Could not extract username/gistid from URL")
-                                except Exception as e:
-                                    self.logger.warning(f"Gist {gist_url}: Could not construct fallback URLs: {e}")
-                            
                             self.logger.info(f"Gist {gist_url}: Processing {len(raw_links)} raw links")
                             
                             for raw in raw_links:
                                 try:
-                                    # Handle both BeautifulSoup Tag objects and DummyLink objects
-                                    if hasattr(raw, 'get'):
-                                        href = raw.get('href', '')
-                                    else:
-                                        href = getattr(raw, 'href', '')
+                                    href = raw.get('href', '')
+                                    
+                                    if not href:
+                                        continue
                                     
                                     self.logger.info(f"Gist {gist_url}: Processing raw link with href: {href}")
                                     
@@ -332,23 +283,9 @@ class GistEngine:
                                         raw_url = f"https://gist.githubusercontent.com{href}"
                                     elif 'gist.githubusercontent.com' in href:
                                         raw_url = href
-                                    elif href:
-                                        # href exists but doesn't match patterns above - might be a relative path without leading /
-                                        raw_url = f"https://gist.githubusercontent.com/{href}" if not href.startswith('http') else href
                                     else:
-                                        # No href - try constructing from gist URL
-                                        # Extract username and gistid from gist_url
-                                        # Format: https://gist.github.com/username/gistid
-                                        gist_parts = gist_url.replace('https://gist.github.com/', '').split('/')
-                                        if len(gist_parts) >= 2:
-                                            username = gist_parts[0]
-                                            gistid = gist_parts[1]
-                                            # Try default raw URL pattern
-                                            raw_url = f"https://gist.githubusercontent.com/{username}/{gistid}/raw/"
-                                            self.logger.info(f"Gist {gist_url}: Constructed raw URL (no href): {raw_url}")
-                                        else:
-                                            self.logger.warning(f"Gist {gist_url}: Could not extract username/gistid, skipping")
-                                            continue
+                                        # Skip links that don't match expected patterns
+                                        continue
                                     
                                     self.logger.info(f"Gist {gist_url}: Final raw_url: {raw_url}")
                                     

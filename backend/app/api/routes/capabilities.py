@@ -16,7 +16,7 @@ Capabilities:
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -943,6 +943,135 @@ async def get_recent_events(limit: int = Query(default=50, le=200)):
         "events": events,
         "count": len(events)
     }
+
+
+# ============================================================================
+# WebSocket Endpoints
+# ============================================================================
+
+@router.websocket("/ws/capabilities/darkweb/{job_id}")
+async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
+    """
+    WebSocket endpoint for real-time streaming of darkweb intelligence job results.
+    
+    Connect to this endpoint after creating a darkweb job to receive findings
+    as they are discovered in real-time.
+    
+    Message format:
+    - type: "finding" | "progress" | "complete" | "error"
+    - data: Finding object, progress info, completion summary, or error message
+    - timestamp: ISO format timestamp
+    """
+    await websocket.accept()
+    orchestrator = get_orchestrator()
+    
+    try:
+        # Verify job exists
+        job = orchestrator.get_job(job_id)
+        if not job:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": f"Job {job_id} not found"},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+            return
+        
+        # Verify job is for darkweb capability
+        if job.capability != Capability.DARK_WEB_INTELLIGENCE:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": f"Job {job_id} is not a darkweb intelligence job"},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+            return
+        
+        logger.info(f"[WebSocket] Client connected to darkweb job {job_id}")
+        
+        # Register WebSocket connection
+        await orchestrator.register_websocket(job_id, websocket)
+        
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "progress",
+            "data": {
+                "progress": job.progress,
+                "message": f"Connected to job {job_id}. Status: {job.status.value}"
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # If job is already running or completed, send existing findings
+        if job.status in [JobStatus.RUNNING, JobStatus.COMPLETED]:
+            existing_findings = job.findings or []
+            logger.info(f"[WebSocket] Job {job_id} is {job.status.value}, sending {len(existing_findings)} existing findings")
+            
+            for finding in existing_findings:
+                await websocket.send_json({
+                    "type": "finding",
+                    "data": finding.to_dict(),
+                    "timestamp": datetime.now().isoformat()
+                })
+            
+            # If job is completed, send completion message
+            if job.status == JobStatus.COMPLETED:
+                await websocket.send_json({
+                    "type": "complete",
+                    "data": {
+                        "total_findings": len(existing_findings),
+                        "status": "completed"
+                    },
+                    "timestamp": datetime.now().isoformat()
+                })
+                await websocket.close()
+                await orchestrator.unregister_websocket(job_id)
+                return
+        
+        # Keep connection alive and wait for job to complete
+        # The job execution will send messages via the registered WebSocket
+        # We just need to keep the connection open and handle disconnections
+        try:
+            while True:
+                # Wait for messages from client (ping/pong or close)
+                try:
+                    data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                    # Handle ping/pong if needed
+                    if data == "ping":
+                        await websocket.send_text("pong")
+                except asyncio.TimeoutError:
+                    # Send periodic keepalive
+                    await websocket.send_json({
+                        "type": "progress",
+                        "data": {
+                            "progress": job.progress,
+                            "message": "Connection alive"
+                        },
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except WebSocketDisconnect:
+                    logger.info(f"[WebSocket] Client disconnected from job {job_id}")
+                    break
+        except Exception as e:
+            logger.error(f"[WebSocket] Error in WebSocket connection for job {job_id}: {e}", exc_info=True)
+        finally:
+            # Unregister WebSocket connection
+            await orchestrator.unregister_websocket(job_id)
+            logger.info(f"[WebSocket] Unregistered WebSocket connection for job {job_id}")
+    
+    except Exception as e:
+        logger.error(f"[WebSocket] Error setting up WebSocket for job {job_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": str(e)},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+        except:
+            pass
+        finally:
+            await orchestrator.unregister_websocket(job_id)
 
 
 

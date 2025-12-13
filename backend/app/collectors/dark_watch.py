@@ -21,7 +21,7 @@ Features:
 - Risk scoring based on content
 """
 
-from typing import Dict, List, Optional, Set, Any, Tuple
+from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -593,12 +593,14 @@ class DarkWatch:
         else:
             return SiteCategory.UNKNOWN
     
-    def _discover_urls_with_engines(self, keywords: Optional[List[str]] = None) -> List[str]:
+    def _discover_urls_with_engines(self, keywords: Optional[List[str]] = None, on_engine_complete: Optional[Callable[[str, List[str]], None]] = None) -> List[str]:
         """
         Discover URLs using discovery engines in parallel.
         
         Args:
             keywords: List of search keywords to use for discovery (required for DarkWebEngine)
+            on_engine_complete: Optional callback function called as each engine completes.
+                               Receives (engine_name: str, urls: List[str]) as arguments.
         
         Returns:
             List of discovered URLs
@@ -646,16 +648,44 @@ class DarkWatch:
                                 f"in {engine_time:.2f}s"
                             )
                             urls.extend(discovered)
+                            
+                            # Call callback if provided, with engine name and discovered URLs
+                            if on_engine_complete:
+                                try:
+                                    on_engine_complete(engine_name, discovered)
+                                except Exception as callback_error:
+                                    logger.warning(
+                                        f"[DarkWatch] Callback error for {engine_name}: {callback_error}",
+                                        exc_info=True
+                                    )
                         else:
                             logger.info(
                                 f"[DarkWatch] Engine {engine_name} found no URLs in {engine_time:.2f}s"
                             )
+                            # Call callback even if no URLs found (for progress tracking)
+                            if on_engine_complete:
+                                try:
+                                    on_engine_complete(engine_name, [])
+                                except Exception as callback_error:
+                                    logger.warning(
+                                        f"[DarkWatch] Callback error for {engine_name}: {callback_error}",
+                                        exc_info=True
+                                    )
                     except Exception as e:
                         engine_time = time.time() - engine_start
                         logger.error(
                             f"[DarkWatch] Engine {engine_name} error after {engine_time:.2f}s: {e}",
                             exc_info=True
                         )
+                        # Call callback with empty list on error
+                        if on_engine_complete:
+                            try:
+                                on_engine_complete(engine_name, [])
+                            except Exception as callback_error:
+                                logger.warning(
+                                    f"[DarkWatch] Callback error for {engine_name} (error case): {callback_error}",
+                                    exc_info=True
+                                )
                         continue
             
             # Store in URLDatabase using batch save (non-blocking, skip if slow/fails)
