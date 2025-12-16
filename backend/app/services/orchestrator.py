@@ -700,90 +700,146 @@ class Orchestrator:
         return findings
     
     async def _execute_exposure_discovery(self, job: Job) -> List[Finding]:
-        """Execute real exposure discovery using WebRecon collector"""
+        """Execute comprehensive exposure discovery using enhanced WebRecon collector
+        
+        Generates categorized findings with real-time WebSocket streaming support.
+        """
         findings = []
         
-        job.progress = 20
-        logger.info(f"Running exposure discovery for {job.target}")
+        job.progress = 5
+        logger.info(f"Running comprehensive exposure discovery for {job.target}")
         
-        # Run real web reconnaissance
-        results = await self._web_recon.discover_assets(job.target)
+        # Progress callback for WebSocket streaming (sync wrapper)
+        def progress_callback(progress: int, message: str):
+            job.progress = progress
+            # Schedule async WebSocket message
+            asyncio.create_task(self.send_websocket_message(job.id, {
+                "type": "progress",
+                "data": {
+                    "progress": progress,
+                    "message": message,
+                    "findings_count": len(findings)
+                },
+                "timestamp": datetime.now().isoformat()
+            }))
         
-        job.progress = 80
+        # Run comprehensive web reconnaissance with progress updates
+        results = await self._web_recon.discover_assets(
+            job.target,
+            progress_callback=progress_callback
+        )
         
-        # Convert subdomain findings
-        subdomains = results.get("subdomains", [])
-        if subdomains:
-            # Report discovered subdomains
-            findings.append(Finding(
+        # Helper to create and stream finding
+        async def create_and_stream_finding(
+            category: str,
+            severity: str,
+            title: str,
+            description: str,
+            evidence: Dict[str, Any],
+            affected_assets: List[str],
+            recommendations: List[str],
+            risk_score: float,
+            source: str = "exposure_discovery"
+        ):
+            finding = Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.EXPOSURE_DISCOVERY,
-                severity="info",
-                title=f"Discovered {len(subdomains)} Subdomains",
-                description=f"Subdomain enumeration found {len(subdomains)} active subdomains for {job.target}",
+                severity=severity,
+                title=title,
+                description=description,
                 evidence={
-                    "subdomains": [s.get("subdomain") for s in subdomains[:20]],
-                    "total_found": len(subdomains)
+                    **evidence,
+                    "category": category,
+                    "source": source
                 },
-                affected_assets=[s.get("subdomain") for s in subdomains],
-                recommendations=["Review discovered subdomains for unauthorized services", "Ensure all subdomains are properly secured"],
+                affected_assets=affected_assets,
+                recommendations=recommendations,
                 discovered_at=datetime.now(),
-                risk_score=25.0
-            ))
+                risk_score=risk_score
+            )
+            findings.append(finding)
+            job.add_finding(finding)
             
-            # Check for non-HTTPS subdomains
-            non_https = [s for s in subdomains if not s.get("https")]
-            if non_https:
-                findings.append(Finding(
-                    id=f"find-{uuid.uuid4().hex[:8]}",
-                    capability=Capability.EXPOSURE_DISCOVERY,
-                    severity="medium",
-                    title=f"{len(non_https)} Subdomains Without HTTPS",
-                    description="Some subdomains are accessible only via HTTP, which is insecure",
-                    evidence={
-                        "non_https_subdomains": [s.get("subdomain") for s in non_https[:10]]
-                    },
-                    affected_assets=[s.get("subdomain") for s in non_https],
-                    recommendations=["Enable HTTPS on all subdomains", "Redirect HTTP to HTTPS"],
-                    discovered_at=datetime.now(),
-                    risk_score=50.0
-                ))
+            # Stream finding via WebSocket
+            await self.send_websocket_message(job.id, {
+                "type": "finding",
+                "data": finding.to_dict(),
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            return finding
         
-        # Convert endpoint findings
+        # Process subdomains
+        subdomains = results.get("subdomains", [])
+        if subdomains:
+            # Individual subdomain findings
+            for subdomain in subdomains[:50]:  # Limit to avoid too many findings
+                severity = "info"
+                risk_score = 20.0
+                if not subdomain.get("https"):
+                    severity = "medium"
+                    risk_score = 50.0
+                
+                await create_and_stream_finding(
+                    category="subdomain",
+                    severity=severity,
+                    title=f"Subdomain Discovered: {subdomain.get('subdomain')}",
+                    description=f"Active subdomain found at {subdomain.get('url', subdomain.get('subdomain'))}",
+                    evidence={
+                        "subdomain": subdomain.get("subdomain"),
+                        "url": subdomain.get("url"),
+                        "status": subdomain.get("status"),
+                        "https": subdomain.get("https", True),
+                        "server": subdomain.get("server", ""),
+                        "title": subdomain.get("title", "")
+                    },
+                    affected_assets=[subdomain.get("subdomain")],
+                    recommendations=["Verify subdomain ownership", "Ensure proper security configuration"],
+                    risk_score=risk_score,
+                    source="subdomain_enum"
+                )
+        
+        # Process endpoints
         endpoints = results.get("endpoints", [])
         for endpoint in endpoints:
             path = endpoint.get("path", "")
             status = endpoint.get("status", 0)
+            url = endpoint.get("url", f"https://{job.target}{path}")
             
-            # Determine severity based on endpoint type
+            # Determine severity and category
             severity = "info"
             risk_score = 20.0
+            category = "endpoint"
             title = f"Endpoint Discovered: {path}"
             recommendations = ["Review endpoint access controls"]
             
-            if path in ["/.git/config", "/.git/HEAD"]:
+            if "/.git" in path:
                 severity = "critical"
                 risk_score = 90.0
+                category = "source_code"
                 title = "Git Repository Exposed"
                 recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
-            elif path == "/.env":
+            elif path == "/.env" or ".env" in path:
                 severity = "critical"
                 risk_score = 95.0
+                category = "file"
                 title = "Environment File Exposed"
                 recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
-            elif path in ["/admin", "/wp-admin", "/administrator"]:
+            elif any(admin in path.lower() for admin in ["/admin", "/wp-admin", "/administrator", "/cpanel"]):
                 severity = "high"
                 risk_score = 70.0
+                category = "admin_panel"
                 title = f"Admin Panel Exposed: {path}"
                 recommendations = ["Restrict admin access by IP", "Implement strong authentication"]
-            elif path in ["/phpinfo.php", "/server-status"]:
+            elif any(debug in path.lower() for debug in ["/phpinfo", "/server-status", "/info"]):
                 severity = "high"
                 risk_score = 65.0
                 title = f"Server Information Exposed: {path}"
                 recommendations = ["Remove debug endpoints from production", "Disable server-status"]
-            elif path in ["/backup", "/config"]:
+            elif any(sensitive in path.lower() for sensitive in ["/backup", "/config", "/database"]):
                 severity = "high"
                 risk_score = 75.0
+                category = "config"
                 title = f"Sensitive Directory Exposed: {path}"
                 recommendations = ["Remove sensitive files from web root", "Implement access controls"]
             elif path in ["/robots.txt", "/sitemap.xml"]:
@@ -791,43 +847,152 @@ class Orchestrator:
                 risk_score = 10.0
             
             if status == 200 or (status >= 300 and status < 400):
-                findings.append(Finding(
-                    id=f"find-{uuid.uuid4().hex[:8]}",
-                    capability=Capability.EXPOSURE_DISCOVERY,
+                await create_and_stream_finding(
+                    category=category,
                     severity=severity,
                     title=title,
-                    description=f"Discovered accessible endpoint at {endpoint.get('url', path)}",
+                    description=f"Discovered accessible endpoint at {url}",
                     evidence={
-                        "url": endpoint.get("url"),
+                        "url": url,
                         "path": path,
                         "status_code": status,
-                        "content_length": endpoint.get("content_length", 0)
+                        "content_length": endpoint.get("content_length", 0),
+                        "content_type": endpoint.get("content_type", ""),
+                        "server": endpoint.get("server", "")
                     },
-                    affected_assets=[endpoint.get("url", f"{job.target}{path}")],
+                    affected_assets=[url],
                     recommendations=recommendations,
-                    discovered_at=datetime.now(),
-                    risk_score=risk_score
-                ))
+                    risk_score=risk_score,
+                    source="endpoint_scan"
+                )
+        
+        # Process sensitive files
+        files = results.get("files", [])
+        for file_info in files:
+            path = file_info.get("path", "")
+            url = file_info.get("url", "")
+            
+            # Determine severity based on file type
+            severity = "high"
+            risk_score = 80.0
+            if ".env" in path or "config" in path.lower():
+                severity = "critical"
+                risk_score = 95.0
+            elif any(ext in path for ext in [".key", ".pem", ".p12", ".pfx"]):
+                severity = "critical"
+                risk_score = 90.0
+            elif ".sql" in path or ".db" in path:
+                severity = "critical"
+                risk_score = 85.0
+            elif ".log" in path:
+                severity = "medium"
+                risk_score = 60.0
+            
+            await create_and_stream_finding(
+                category="file",
+                severity=severity,
+                title=f"Sensitive File Exposed: {path}",
+                description=f"Exposed sensitive file found at {url}",
+                evidence={
+                    "url": url,
+                    "path": path,
+                    "status": file_info.get("status"),
+                    "content_length": file_info.get("content_length", 0),
+                    "content_type": file_info.get("content_type", ""),
+                    "file_type": file_info.get("file_type", ""),
+                    "content_preview": file_info.get("content_preview", "")
+                },
+                affected_assets=[url],
+                recommendations=["Remove file from web root", "Review file contents for exposed secrets", "Rotate any exposed credentials"],
+                risk_score=risk_score,
+                source="file_detection"
+            )
+        
+        # Process source code exposures
+        source_code = results.get("source_code", [])
+        for exposure in source_code:
+            await create_and_stream_finding(
+                category="source_code",
+                severity="critical",
+                title=f"{exposure.get('type', 'VCS').upper()} Repository Exposed",
+                description=f"Version control system exposed at {exposure.get('url')}",
+                evidence={
+                    "type": exposure.get("type"),
+                    "url": exposure.get("url"),
+                    "path": exposure.get("path"),
+                    "status": exposure.get("status"),
+                    "content_length": exposure.get("content_length", 0)
+                },
+                affected_assets=[exposure.get("url")],
+                recommendations=["Block access to VCS directories", "Check git history for exposed secrets", "Rotate all credentials"],
+                risk_score=90.0,
+                source="source_code_detection"
+            )
+        
+        # Process admin panels
+        admin_panels = results.get("admin_panels", [])
+        for panel in admin_panels:
+            await create_and_stream_finding(
+                category="admin_panel",
+                severity=panel.get("severity", "high"),
+                title=f"Admin Panel Discovered: {panel.get('name')}",
+                description=f"Admin panel found at {panel.get('url')}",
+                evidence={
+                    "name": panel.get("name"),
+                    "url": panel.get("url"),
+                    "path": panel.get("path"),
+                    "status": panel.get("status"),
+                    "is_login_page": panel.get("is_login_page", False)
+                },
+                affected_assets=[panel.get("url")],
+                recommendations=["Restrict access by IP whitelist", "Implement strong authentication", "Enable 2FA"],
+                risk_score=70.0 if panel.get("severity") == "high" else 50.0,
+                source="admin_panel_discovery"
+            )
+        
+        # Process configuration files
+        configs = results.get("configs", [])
+        for config in configs:
+            await create_and_stream_finding(
+                category="config",
+                severity="critical",
+                title=f"Configuration File Exposed: {config.get('path')}",
+                description=f"Exposed configuration file found at {config.get('url')}",
+                evidence={
+                    "url": config.get("url"),
+                    "path": config.get("path"),
+                    "status": config.get("status"),
+                    "content_length": config.get("content_length", 0),
+                    "content_preview": config.get("content_preview", "")
+                },
+                affected_assets=[config.get("url")],
+                recommendations=["Remove config files from web root", "Review for exposed secrets", "Rotate all credentials"],
+                risk_score=95.0,
+                source="config_detection"
+            )
         
         # Report dork queries generated
         dorks_count = results.get("dorks_generated", 0)
         if dorks_count > 0:
-            findings.append(Finding(
-                id=f"find-{uuid.uuid4().hex[:8]}",
-                capability=Capability.EXPOSURE_DISCOVERY,
+            await create_and_stream_finding(
+                category="endpoint",  # Dorks are informational
                 severity="info",
                 title=f"Generated {dorks_count} Search Dorks",
                 description="Search engine dork queries have been generated for manual investigation",
                 evidence={
                     "dork_count": dorks_count,
-                    "sample_dorks": self._web_recon.generate_dorks(job.target)[:5]
+                    "sample_dorks": self._web_recon.generate_dorks(job.target)[:10]
                 },
                 affected_assets=[job.target],
                 recommendations=["Use these dorks in Google to find exposed information", "Review and remove any sensitive findings"],
-                discovered_at=datetime.now(),
-                risk_score=15.0
-            ))
+                risk_score=15.0,
+                source="dorking"
+            )
         
+        job.progress = 100
+        progress_callback(100, "Discovery complete")
+        
+        logger.info(f"Exposure discovery completed: {len(findings)} findings for {job.target}")
         return findings
     
     async def _execute_infra_testing(self, job: Job) -> List[Finding]:

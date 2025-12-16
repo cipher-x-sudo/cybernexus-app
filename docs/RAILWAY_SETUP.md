@@ -151,3 +151,5 @@ However, **this is not reliable** and you should always set `NEXT_PUBLIC_API_URL
 - ✅ `allow_origins=["https://your-frontend.up.railway.app"]` with `allow_credentials=True` → Best practice
 
 
+
+

@@ -1161,4 +1161,210 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
             await orchestrator.unregister_websocket(job_id)
 
 
+@router.websocket("/ws/exposure/{job_id}")
+async def websocket_exposure_job(websocket: WebSocket, job_id: str):
+    """
+    WebSocket endpoint for real-time streaming of exposure discovery job results.
+    
+    Connect to this endpoint after creating an exposure discovery job to receive findings
+    as they are discovered in real-time.
+    
+    Message format:
+    - type: "finding" | "progress" | "complete" | "error"
+    - data: Finding object, progress info, completion summary, or error message
+    - timestamp: ISO format timestamp
+    """
+    await websocket.accept()
+    orchestrator = get_orchestrator()
+    
+    try:
+        # Verify job exists
+        job = orchestrator.get_job(job_id)
+        if not job:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": f"Job {job_id} not found"},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+            return
+        
+        # Verify job is for exposure discovery capability
+        if job.capability != Capability.EXPOSURE_DISCOVERY:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": f"Job {job_id} is not an exposure discovery job"},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+            return
+        
+        logger.info(f"[WebSocket] Client connected to exposure discovery job {job_id}")
+        
+        # Register WebSocket connection
+        await orchestrator.register_websocket(job_id, websocket)
+        
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "progress",
+            "data": {
+                "progress": job.progress,
+                "message": f"Connected to job {job_id}. Status: {job.status.value}"
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # If job is already running or completed, send existing findings
+        if job.status in [JobStatus.RUNNING, JobStatus.COMPLETED]:
+            # Refresh job to get latest findings
+            job = orchestrator.get_job(job_id)
+            existing_findings = job.findings or []
+            logger.info(f"[WebSocket] Job {job_id} is {job.status.value}, found {len(existing_findings)} existing findings")
+            
+            # Send progress update first
+            await websocket.send_json({
+                "type": "progress",
+                "data": {
+                    "progress": job.progress,
+                    "message": f"Job {job.status.value}. Found {len(existing_findings)} findings."
+                },
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Send all existing findings one by one
+            for idx, finding in enumerate(existing_findings):
+                try:
+                    finding_dict = finding.to_dict() if hasattr(finding, 'to_dict') else finding
+                    await websocket.send_json({
+                        "type": "finding",
+                        "data": finding_dict,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    logger.debug(f"[WebSocket] Sent finding {idx+1}/{len(existing_findings)}: {finding.id}")
+                except Exception as e:
+                    logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else idx}: {e}", exc_info=True)
+            
+            logger.info(f"[WebSocket] Sent {len(existing_findings)} findings to client for job {job_id}")
+            
+            # If job is completed, send completion message and close
+            if job.status == JobStatus.COMPLETED:
+                logger.info(f"[WebSocket] Job {job_id} is completed, sending completion message with {len(existing_findings)} findings")
+                await websocket.send_json({
+                    "type": "complete",
+                    "data": {
+                        "total_findings": len(existing_findings),
+                        "status": "completed"
+                    },
+                    "timestamp": datetime.now().isoformat()
+                })
+                await asyncio.sleep(0.5)
+                await websocket.close()
+                await orchestrator.unregister_websocket(job_id)
+                return
+            
+            # Track how many findings we've already sent
+            last_findings_count = len(existing_findings)
+        else:
+            # Job is pending, start with 0 findings sent
+            last_findings_count = 0
+        
+        # Keep connection alive and wait for job to complete
+        try:
+            while True:
+                # Wait for messages from client (ping/pong or close)
+                try:
+                    data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                    # Handle ping/pong if needed
+                    if data == "ping":
+                        await websocket.send_text("pong")
+                except asyncio.TimeoutError:
+                    # Refresh job status to check for completion or new findings
+                    job = orchestrator.get_job(job_id)
+                    if not job:
+                        logger.warning(f"[WebSocket] Job {job_id} not found during keepalive")
+                        break
+                    
+                    current_findings = job.findings or []
+                    current_findings_count = len(current_findings)
+                    
+                    # Check if job completed
+                    if job.status == JobStatus.COMPLETED:
+                        # Send any new findings that weren't sent before
+                        if current_findings_count > last_findings_count:
+                            new_findings = current_findings[last_findings_count:]
+                            logger.info(f"[WebSocket] Job {job_id} completed, sending {len(new_findings)} new findings")
+                            for finding in new_findings:
+                                try:
+                                    finding_dict = finding.to_dict() if hasattr(finding, 'to_dict') else finding
+                                    await websocket.send_json({
+                                        "type": "finding",
+                                        "data": finding_dict,
+                                        "timestamp": datetime.now().isoformat()
+                                    })
+                                except Exception as e:
+                                    logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
+                        
+                        # Send completion message
+                        logger.info(f"[WebSocket] Job {job_id} completed, sending completion message with {current_findings_count} total findings")
+                        await websocket.send_json({
+                            "type": "complete",
+                            "data": {
+                                "total_findings": current_findings_count,
+                                "status": "completed"
+                            },
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        await asyncio.sleep(0.5)
+                        await websocket.close()
+                        break
+                    elif current_findings_count > last_findings_count:
+                        # Send new findings that appeared while job is running
+                        new_findings = current_findings[last_findings_count:]
+                        logger.info(f"[WebSocket] Found {len(new_findings)} new findings for running job {job_id}")
+                        for finding in new_findings:
+                            try:
+                                finding_dict = finding.to_dict() if hasattr(finding, 'to_dict') else finding
+                                await websocket.send_json({
+                                    "type": "finding",
+                                    "data": finding_dict,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                            except Exception as e:
+                                logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
+                        last_findings_count = current_findings_count
+                    else:
+                        # Send periodic keepalive
+                        await websocket.send_json({
+                            "type": "progress",
+                            "data": {
+                                "progress": job.progress,
+                                "message": "Connection alive"
+                            },
+                            "timestamp": datetime.now().isoformat()
+                        })
+                except WebSocketDisconnect:
+                    logger.info(f"[WebSocket] Client disconnected from job {job_id}")
+                    break
+        except Exception as e:
+            logger.error(f"[WebSocket] Error in WebSocket connection for job {job_id}: {e}", exc_info=True)
+        finally:
+            # Unregister WebSocket connection
+            await orchestrator.unregister_websocket(job_id)
+            logger.info(f"[WebSocket] Unregistered WebSocket connection for job {job_id}")
+    
+    except Exception as e:
+        logger.error(f"[WebSocket] Error setting up WebSocket for job {job_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"error": str(e)},
+                "timestamp": datetime.now().isoformat()
+            })
+            await websocket.close()
+        except:
+            pass
+        finally:
+            await orchestrator.unregister_websocket(job_id)
+
+
 
