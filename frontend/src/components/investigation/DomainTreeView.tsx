@@ -121,6 +121,7 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
       color: { color: "rgba(255, 255, 255, 0.3)", highlight: "rgba(255, 255, 255, 0.5)" },
       width: 1.5,
       smooth: {
+        enabled: true,
         type: "curvedCW",
         roundness: 0.2,
       },
