@@ -9,7 +9,6 @@ Capabilities → Tools mapping:
 - Dark Web Intelligence → DarkWatch (onion site monitoring)
 - Email Security → EmailAudit (SPF/DKIM/DMARC analysis)
 - Infrastructure Testing → ConfigAudit (security headers, vuln scanning)
-- Authentication Testing → CredentialAnalyzer
 - Network Security → TunnelDetector
 - Investigation → Domain correlation
 """
@@ -43,7 +42,6 @@ class Capability(str, Enum):
     DARK_WEB_INTELLIGENCE = "dark_web_intelligence"
     EMAIL_SECURITY = "email_security"
     INFRASTRUCTURE_TESTING = "infrastructure_testing"
-    AUTHENTICATION_TESTING = "authentication_testing"
     NETWORK_SECURITY = "network_security"
     INVESTIGATION = "investigation"
 
@@ -215,19 +213,6 @@ CAPABILITY_METADATA = {
             "check_headers": True,
             "check_paths": True,
             "check_cves": True
-        }
-    },
-    Capability.AUTHENTICATION_TESTING: {
-        "id": "authentication_testing",
-        "name": "Authentication Testing",
-        "description": "Test for weak credentials and authentication vulnerabilities",
-        "question": "Are our credentials weak?",
-        "icon": "key",
-        "supports_scheduling": False,
-        "requires_tor": False,
-        "default_config": {
-            "smart_throttling": True,
-            "respect_lockouts": True
         }
     },
     Capability.NETWORK_SECURITY: {
@@ -519,8 +504,6 @@ class Orchestrator:
                     logger.info(f"[Orchestrator] No WebSocket connection for job {job.id}, using regular execution")
                     findings = await self._execute_darkweb_intelligence(job)
                 logger.info(f"[Orchestrator] Dark web intelligence execution completed for job {job.id}, returned {len(findings)} findings")
-            elif job.capability == Capability.AUTHENTICATION_TESTING:
-                findings = self._generate_auth_findings(job)
             elif job.capability == Capability.NETWORK_SECURITY:
                 findings = self._generate_network_findings(job)
             elif job.capability == Capability.INVESTIGATION:
@@ -2365,23 +2348,6 @@ class Orchestrator:
                 recommendations=["Add X-Frame-Options header", "Implement Content-Security-Policy"],
                 discovered_at=datetime.now(),
                 risk_score=70.0
-            )
-        ]
-    
-    def _generate_auth_findings(self, job: Job) -> List[Finding]:
-        """Generate sample auth findings"""
-        return [
-            Finding(
-                id=f"find-{uuid.uuid4().hex[:8]}",
-                capability=Capability.AUTHENTICATION_TESTING,
-                severity="medium",
-                title="Weak Password Policy",
-                description="Password policy allows common patterns",
-                evidence={"policy": "min_length=6, no_complexity"},
-                affected_assets=[job.target],
-                recommendations=["Enforce minimum 12 characters", "Require complexity"],
-                discovered_at=datetime.now(),
-                risk_score=50.0
             )
         ]
     

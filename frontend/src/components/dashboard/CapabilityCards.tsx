@@ -61,16 +61,6 @@ const capabilities: Capability[] = [
     href: "/capabilities/infrastructure",
   },
   {
-    id: "authentication_testing",
-    name: "Auth Testing",
-    question: "Are our credentials weak?",
-    description: "Test password strength and identify spray vulnerabilities",
-    icon: "key",
-    color: "rose",
-    stats: { scans: 3, findings: 1, lastRun: "3d ago" },
-    href: "/capabilities/auth",
-  },
-  {
     id: "network_security",
     name: "Network Security",
     question: "Can attackers tunnel into our network?",
@@ -112,11 +102,6 @@ const IconComponent = ({ icon, className }: { icon: string; className?: string }
     server: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-      </svg>
-    ),
-    key: (
-      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
       </svg>
     ),
     network: (
@@ -162,13 +147,6 @@ const getColorClasses = (color: string) => {
       text: "text-emerald-400",
       glow: "hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]",
       iconBg: "bg-emerald-500/10",
-    },
-    rose: {
-      bg: "bg-rose-500/5 hover:bg-rose-500/10",
-      border: "border-rose-500/20 hover:border-rose-500/40",
-      text: "text-rose-400",
-      glow: "hover:shadow-[0_0_30px_rgba(244,63,94,0.15)]",
-      iconBg: "bg-rose-500/10",
     },
     blue: {
       bg: "bg-blue-500/5 hover:bg-blue-500/10",

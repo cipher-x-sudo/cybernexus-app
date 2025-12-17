@@ -60,16 +60,6 @@ const capabilityNavItems = [
     ),
   },
   {
-    label: "Auth Testing",
-    href: "/capabilities/auth",
-    color: "rose",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-      </svg>
-    ),
-  },
-  {
     label: "Network Security",
     href: "/capabilities/network",
     color: "blue",
@@ -151,7 +141,6 @@ const getColorClasses = (color?: string, isActive?: boolean) => {
     purple: "bg-purple-500/20 text-purple-400 border border-purple-500/30",
     amber: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
     emerald: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-    rose: "bg-rose-500/20 text-rose-400 border border-rose-500/30",
     blue: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
     orange: "bg-orange-500/20 text-orange-400 border border-orange-500/30",
   };

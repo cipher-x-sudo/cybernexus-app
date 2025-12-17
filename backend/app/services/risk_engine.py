@@ -114,7 +114,6 @@ class RiskEngine:
         "dark_web_intelligence": "dark_web",
         "email_security": "email_security",
         "infrastructure_testing": "infrastructure",
-        "authentication_testing": "authentication",
         "network_security": "network",
         "investigation": "exposure"  # Maps to exposure for scoring
     }

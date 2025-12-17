@@ -10,7 +10,6 @@ Tool Mapping:
 - EmailAudit       <- espoofer (Email security testing)
 - DarkWatch        <- freshonions (Tor crawling)
 - KeywordMonitor   <- VigilantOnion (Keyword monitoring)
-- CredentialAnalyzer <- RDPassSpray (Credential analysis)
 - TunnelDetector   <- Tunna (Tunnel detection)
 - TrainingKB       <- awesome-social-engineering (Training content)
 """
@@ -21,7 +20,6 @@ from .email_audit import EmailAudit
 from .domain_tree import DomainTree
 from .dark_watch import DarkWatch
 from .keyword_monitor import KeywordMonitor
-from .credential_analyzer import CredentialAnalyzer
 from .tunnel_detector import TunnelDetector
 from .training_kb import TrainingKB
 
@@ -32,7 +30,6 @@ __all__ = [
     "DomainTree",
     "DarkWatch",
     "KeywordMonitor",
-    "CredentialAnalyzer",
     "TunnelDetector",
     "TrainingKB"
 ]

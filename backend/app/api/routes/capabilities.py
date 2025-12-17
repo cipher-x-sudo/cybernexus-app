@@ -9,7 +9,6 @@ Capabilities:
 - Dark Web Intelligence: "Are we mentioned on the dark web?"
 - Email Security: "Can our email be spoofed?"
 - Infrastructure Testing: "Are our servers misconfigured?"
-- Authentication Testing: "Are our credentials weak?"
 - Network Security: "Can attackers tunnel into our network?"
 - Investigation: "Analyze this suspicious target"
 """

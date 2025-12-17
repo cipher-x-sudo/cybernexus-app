@@ -20,7 +20,6 @@ from app.collectors import (
     KeywordMonitor,
     EmailAudit,
     ConfigAudit,
-    CredentialAnalyzer,
     TunnelDetector,
     DomainTree
 )
@@ -42,7 +41,6 @@ class ToolExecutors:
         self.email_audit = EmailAudit()
         self.web_recon = WebRecon()
         self.config_audit = ConfigAudit()
-        self.credential_analyzer = CredentialAnalyzer()
         self.tunnel_detector = TunnelDetector()
         self.domain_tree = DomainTree()
         
@@ -341,47 +339,6 @@ class ToolExecutors:
             
         return findings
     
-    async def execute_credential_analyzer(
-        self, 
-        target: str, 
-        config: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """
-        Execute authentication testing.
-        Powered by: RDPassSpray
-        """
-        findings = []
-        
-        try:
-            # Run credential analysis with safety checks
-            if not config.get("respect_lockout", True):
-                logger.warning("Lockout protection disabled - use with caution")
-            
-            results = await self.credential_analyzer.analyze(target, config)
-            
-            for result in results.get("weak_accounts", []):
-                findings.append({
-                    "severity": "critical" if result.get("is_admin") else "high",
-                    "title": f"Weak credentials: {result.get('account', 'Unknown')}",
-                    "description": f"Account uses weak or common password",
-                    "evidence": {
-                        "account": result.get("account"),
-                        "pattern": result.get("pattern", "common password")
-                    },
-                    "affected_assets": [result.get("account", target)],
-                    "recommendations": [
-                        "Reset password immediately",
-                        "Enable MFA",
-                        "Enforce strong password policy"
-                    ],
-                    "risk_score": 90.0 if result.get("is_admin") else 75.0
-                })
-                
-        except Exception as e:
-            logger.error(f"Credential analyzer error: {e}")
-            
-        return findings
-    
     async def execute_tunnel_detector(
         self, 
         target: str, 
@@ -430,7 +387,6 @@ async def register_executors():
     orchestrator.register_tool_executor("web_recon", executors.execute_web_recon)
     orchestrator.register_tool_executor("domain_tree", executors.execute_domain_tree)
     orchestrator.register_tool_executor("config_audit", executors.execute_config_audit)
-    orchestrator.register_tool_executor("credential_analyzer", executors.execute_credential_analyzer)
     orchestrator.register_tool_executor("tunnel_detector", executors.execute_tunnel_detector)
     
     logger.info("All tool executors registered")
