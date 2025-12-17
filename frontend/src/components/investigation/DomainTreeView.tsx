@@ -206,7 +206,8 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
 
       // Fit network to container on initial load
       setTimeout(() => {
-        network.fit({
+        // @ts-ignore - fit exists at runtime but not in TypeScript definitions
+        (network as any).fit({
           animation: {
             duration: 500,
             easingFunction: "easeInOutQuad",
@@ -217,7 +218,8 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
       // Update existing network with new data
       networkRef.current.setData(data);
       setTimeout(() => {
-        networkRef.current?.fit({
+        // @ts-ignore - fit exists at runtime but not in TypeScript definitions
+        (networkRef.current as any)?.fit({
           animation: {
             duration: 500,
             easingFunction: "easeInOutQuad",
@@ -281,7 +283,8 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
             <button
               onClick={() => {
                 if (networkRef.current) {
-                  networkRef.current.zoomIn({
+                  // @ts-ignore - zoomIn exists at runtime but not in TypeScript definitions
+                  (networkRef.current as any).zoomIn({
                     animation: {
                       duration: 300,
                       easingFunction: "easeInOutQuad",
@@ -299,7 +302,8 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
             <button
               onClick={() => {
                 if (networkRef.current) {
-                  networkRef.current.zoomOut({
+                  // @ts-ignore - zoomOut exists at runtime but not in TypeScript definitions
+                  (networkRef.current as any).zoomOut({
                     animation: {
                       duration: 300,
                       easingFunction: "easeInOutQuad",
@@ -317,7 +321,8 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
             <button
               onClick={() => {
                 if (networkRef.current) {
-                  networkRef.current.fit({
+                  // @ts-ignore - fit exists at runtime but not in TypeScript definitions
+                  (networkRef.current as any).fit({
                     animation: {
                       duration: 500,
                       easingFunction: "easeInOutQuad",
