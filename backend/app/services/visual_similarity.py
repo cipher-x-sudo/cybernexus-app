@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 import base64
 from io import BytesIO
-import numpy as np
 
 try:
     from PIL import Image
@@ -23,13 +22,16 @@ except ImportError:
     imagehash = None
 
 # Try to import scikit-image separately to avoid breaking if it has compatibility issues
+# This can fail due to numpy version incompatibilities
 try:
+    import numpy as np
     from skimage.metrics import structural_similarity as ssim
     HAS_SSIM = True
 except (ImportError, ValueError):
     # ValueError can occur with numpy compatibility issues
     HAS_SSIM = False
     ssim = None
+    np = None
 
 from loguru import logger
 
@@ -95,6 +97,9 @@ class VisualSimilarityService:
             return None
         
         try:
+            if not np:
+                return None
+                
             # Load images
             img1 = Image.open(BytesIO(image1_data))
             img2 = Image.open(BytesIO(image2_data))
