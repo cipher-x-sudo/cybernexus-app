@@ -2439,6 +2439,18 @@ class Orchestrator:
                 )
                 job.progress = 60
                 
+                # Store domain tree graph in metadata for API access
+                domain_tree_graph = domain_tree.get_capture_graph(domain_result.capture_id)
+                if 'capture' in job.metadata:
+                    job.metadata['capture']['domain_tree'] = domain_tree_graph
+                    job.metadata['capture']['domain_tree_summary'] = {
+                        'total_domains': len(domain_result.unique_domains),
+                        'third_party_count': len(domain_result.third_party_domains),
+                        'tracker_count': len(domain_result.trackers),
+                        'risk_score': domain_result.risk_assessment.get('score', 0),
+                        'risk_level': domain_result.risk_assessment.get('level', 'low')
+                    }
+                
                 # Generate findings from domain tree analysis
                 findings.extend(self._findings_from_domain_tree(domain_result, target))
             

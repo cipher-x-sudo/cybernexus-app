@@ -1728,10 +1728,14 @@ async def get_investigation_screenshot(job_id: str):
         screenshot_b64 = capture_data.get('screenshot')
         
         if not screenshot_b64:
-            raise HTTPException(status_code=404, detail="Screenshot not available for this job")
+            raise HTTPException(status_code=404, detail="Screenshot not available for this job. The investigation may not have captured a screenshot.")
         
         # Decode and return as image
-        screenshot_bytes = base64.b64decode(screenshot_b64)
+        try:
+            screenshot_bytes = base64.b64decode(screenshot_b64)
+        except Exception as e:
+            logger.error(f"Error decoding screenshot: {e}")
+            raise HTTPException(status_code=500, detail="Failed to decode screenshot data")
         return Response(
             content=screenshot_bytes,
             media_type="image/png",
@@ -1768,7 +1772,7 @@ async def get_investigation_har(job_id: str):
         har_data = capture_data.get('har')
         
         if not har_data:
-            raise HTTPException(status_code=404, detail="HAR file not available for this job")
+            raise HTTPException(status_code=404, detail="HAR file not available for this job. The investigation may not have captured network traffic.")
         
         return Response(
             content=json.dumps(har_data, indent=2),
@@ -1801,42 +1805,50 @@ async def get_investigation_domain_tree(job_id: str):
         if job.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Job is not an investigation job")
         
-        # Get domain tree from findings or metadata
-        # For now, we'll extract from findings evidence
-        findings = orchestrator.get_job_findings(job_id)
+        # Get domain tree from job metadata
+        capture_data = getattr(job, 'metadata', {}).get('capture', {})
+        domain_tree_data = capture_data.get('domain_tree')
         
-        domain_tree_data = {
-            "nodes": [],
-            "edges": [],
-            "summary": {}
-        }
-        
-        # Extract domain information from findings
-        for finding in findings:
-            evidence = finding.evidence or {}
-            if 'domain_tree' in evidence:
-                domain_tree_data = evidence['domain_tree']
-                break
-            elif 'domains' in evidence:
-                # Build simple tree from domain list
-                domains = evidence.get('domains', [])
-                for i, domain in enumerate(domains):
-                    domain_tree_data['nodes'].append({
-                        "id": domain,
-                        "label": domain,
-                        "type": "domain"
-                    })
-                    if i > 0:
-                        domain_tree_data['edges'].append({
-                            "source": domains[0],
-                            "target": domain
+        if not domain_tree_data:
+            # Fallback: try to extract from findings
+            findings = orchestrator.get_job_findings(job_id)
+            domain_tree_data = {
+                "nodes": [],
+                "edges": [],
+                "summary": {}
+            }
+            
+            # Extract domain information from findings
+            for finding in findings:
+                evidence = finding.evidence or {}
+                if 'domain_tree' in evidence:
+                    domain_tree_data = evidence['domain_tree']
+                    break
+                elif 'domains' in evidence:
+                    # Build simple tree from domain list
+                    domains = evidence.get('domains', [])
+                    for i, domain in enumerate(domains):
+                        domain_tree_data['nodes'].append({
+                            "id": domain,
+                            "label": domain,
+                            "type": "domain"
                         })
+                        if i > 0:
+                            domain_tree_data['edges'].append({
+                                "source": domains[0],
+                                "target": domain
+                            })
+        
+        # Add summary if available
+        summary = capture_data.get('domain_tree_summary', {})
+        if summary:
+            domain_tree_data['summary'] = summary
         
         return domain_tree_data
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving domain tree: {e}")
+        logger.error(f"Error retrieving domain tree: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
