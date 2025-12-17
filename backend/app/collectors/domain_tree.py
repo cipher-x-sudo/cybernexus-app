@@ -655,11 +655,16 @@ class DomainTree:
                 domain_nodes[req_domain] = node
                 
                 # Add to graph
-                self.domain_graph.add_node(req_domain, {
-                    "type": "third_party" if is_third_party else "first_party",
-                    "is_tracker": is_tracker,
-                    "resource_type": resource_type.value
-                })
+                self.domain_graph.add_node(
+                    req_domain,
+                    label=req_domain,
+                    node_type="domain",
+                    data={
+                        "type": "third_party" if is_third_party else "first_party",
+                        "is_tracker": is_tracker,
+                        "resource_type": resource_type.value
+                    }
+                )
                 
                 if parent_domain:
                     self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
@@ -837,11 +842,16 @@ class DomainTree:
                 domain_nodes[req_domain] = node
                 
                 # Add to graph
-                self.domain_graph.add_node(req_domain, {
-                    "type": "third_party" if is_third_party else "first_party",
-                    "is_tracker": is_tracker,
-                    "resource_type": resource_type.value
-                })
+                self.domain_graph.add_node(
+                    req_domain,
+                    label=req_domain,
+                    node_type="domain",
+                    data={
+                        "type": "third_party" if is_third_party else "first_party",
+                        "is_tracker": is_tracker,
+                        "resource_type": resource_type.value
+                    }
+                )
                 
                 if parent_domain:
                     self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
