@@ -78,12 +78,12 @@ export function InvestigationFindings({
           </div>
         </div>
 
-        {/* Findings List */}
-        <div className="space-y-4 max-h-[600px] overflow-y-auto">
+        {/* Findings Grid */}
+        <div className="space-y-6 max-h-[600px] overflow-y-auto">
           {Object.entries(groupedFindings).map(([group, groupFindings]) => (
             <div key={group}>
-              <h4 className="text-sm font-mono font-semibold text-white/70 mb-2 uppercase">{group}</h4>
-              <div className="space-y-2">
+              <h4 className="text-sm font-mono font-semibold text-white/70 mb-3 uppercase">{group}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {groupFindings.map((finding) => {
                   const styles = getSeverityStyles(finding.severity);
                   return (
@@ -91,14 +91,15 @@ export function InvestigationFindings({
                       key={finding.id}
                       onClick={() => handleFindingClick(finding)}
                       className={cn(
-                        "w-full p-4 rounded-xl border text-left transition-all",
-                        "hover:translate-x-1",
+                        "p-4 rounded-xl border text-left transition-all",
+                        "hover:scale-[1.02] hover:shadow-lg",
+                        "flex flex-col h-full min-h-[140px]",
                         styles.bg,
                         styles.border,
-                        selectedFinding?.id === finding.id && "ring-2 ring-orange-500"
+                        selectedFinding?.id === finding.id && "ring-2 ring-orange-500 scale-[1.02]"
                       )}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start justify-between gap-2 mb-2">
                         <span
                           className={cn(
                             "px-2 py-0.5 text-xs font-mono uppercase rounded flex-shrink-0",
@@ -108,16 +109,16 @@ export function InvestigationFindings({
                         >
                           {finding.severity}
                         </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white">{finding.title}</p>
-                          <p className="text-xs text-white/40 mt-1 line-clamp-2">{finding.description}</p>
-                        </div>
                         <div className="text-right flex-shrink-0">
-                          <div className={cn("text-xs font-mono", styles.text)}>
+                          <div className={cn("text-sm font-mono font-semibold", styles.text)}>
                             {Math.round(finding.risk_score)}
                           </div>
                           <div className="text-xs text-white/30">risk</div>
                         </div>
+                      </div>
+                      <div className="flex-1 flex flex-col">
+                        <p className="text-sm font-medium text-white mb-1 line-clamp-2">{finding.title}</p>
+                        <p className="text-xs text-white/40 line-clamp-3 mt-auto">{finding.description}</p>
                       </div>
                     </button>
                   );

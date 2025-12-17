@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { Network } from "vis-network/standalone";
+import { Data, Options, Node, Edge } from "vis-network";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
 
@@ -28,6 +30,7 @@ interface DomainTreeViewProps {
 
 export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const networkRef = useRef<Network | null>(null);
   const [selectedNode, setSelectedNode] = useState<DomainNode | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,18 +48,196 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
       filteredNodes.some((n) => n.id === edge.target)
   );
 
+  // Get node color for vis-network
   const getNodeColor = (node: DomainNode) => {
-    if (node.type === "root") return "bg-orange-500/20 border-orange-500/40 text-orange-400";
-    if (node.type === "tracker") return "bg-red-500/20 border-red-500/40 text-red-400";
-    if (node.type === "third_party") return "bg-amber-500/20 border-amber-500/40 text-amber-400";
-    return "bg-blue-500/20 border-blue-500/40 text-blue-400";
+    if (node.type === "root") {
+      return {
+        background: "rgba(251, 146, 60, 0.2)",
+        border: "rgba(251, 146, 60, 0.6)",
+        highlight: { background: "rgba(251, 146, 60, 0.4)", border: "rgba(251, 146, 60, 0.8)" },
+        hover: { background: "rgba(251, 146, 60, 0.3)", border: "rgba(251, 146, 60, 0.7)" },
+      };
+    }
+    if (node.type === "tracker") {
+      return {
+        background: "rgba(239, 68, 68, 0.2)",
+        border: "rgba(239, 68, 68, 0.6)",
+        highlight: { background: "rgba(239, 68, 68, 0.4)", border: "rgba(239, 68, 68, 0.8)" },
+        hover: { background: "rgba(239, 68, 68, 0.3)", border: "rgba(239, 68, 68, 0.7)" },
+      };
+    }
+    if (node.type === "third_party") {
+      return {
+        background: "rgba(245, 158, 11, 0.2)",
+        border: "rgba(245, 158, 11, 0.6)",
+        highlight: { background: "rgba(245, 158, 11, 0.4)", border: "rgba(245, 158, 11, 0.8)" },
+        hover: { background: "rgba(245, 158, 11, 0.3)", border: "rgba(245, 158, 11, 0.7)" },
+      };
+    }
+    return {
+      background: "rgba(59, 130, 246, 0.2)",
+      border: "rgba(59, 130, 246, 0.6)",
+      highlight: { background: "rgba(59, 130, 246, 0.4)", border: "rgba(59, 130, 246, 0.8)" },
+      hover: { background: "rgba(59, 130, 246, 0.3)", border: "rgba(59, 130, 246, 0.7)" },
+    };
   };
 
   const getNodeSize = (node: DomainNode) => {
-    const baseSize = 60;
-    const requestMultiplier = (node.requests || 0) * 2;
-    return Math.min(baseSize + requestMultiplier, 120);
+    const baseSize = 30;
+    const requestMultiplier = Math.min((node.requests || 0) * 2, 40);
+    return baseSize + requestMultiplier;
   };
+
+  // Helper function to convert nodes/edges to vis-network format
+  const createNetworkData = (nodes: DomainNode[], edges: DomainEdge[]): Data => {
+    const visNodes: Node[] = nodes.map((node) => {
+      const size = getNodeSize(node);
+      const color = getNodeColor(node);
+      return {
+        id: node.id,
+        label: node.label.length > 30 ? node.label.substring(0, 30) + "..." : node.label,
+        color: color,
+        size: size,
+        shape: "box",
+        font: { color: "#ffffff", size: 12, face: "monospace" },
+        borderWidth: 2,
+        shadow: {
+          enabled: true,
+          color: "rgba(0, 0, 0, 0.3)",
+          size: 5,
+          x: 2,
+          y: 2,
+        },
+        data: {
+          originalNode: node,
+        },
+      };
+    });
+
+    const visEdges: Edge[] = edges.map((edge) => ({
+      from: edge.source,
+      to: edge.target,
+      arrows: "to",
+      color: { color: "rgba(255, 255, 255, 0.3)", highlight: "rgba(255, 255, 255, 0.5)" },
+      width: 1.5,
+      smooth: {
+        type: "curvedCW",
+        roundness: 0.2,
+      },
+    }));
+
+    return {
+      nodes: visNodes,
+      edges: visEdges,
+    };
+  };
+
+  // Initialize and update vis-network
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const data = createNetworkData(filteredNodes, filteredEdges);
+
+    const options: Options = {
+      layout: {
+        hierarchical: {
+          direction: "UD", // Up-Down tree layout
+          sortMethod: "directed",
+          nodeSpacing: 150,
+          levelSeparation: 200,
+          treeSpacing: 200,
+          blockShifting: true,
+          edgeMinimization: true,
+          parentCentralization: true,
+        },
+      },
+      physics: {
+        enabled: false, // Disable physics for hierarchical layout
+      },
+      interaction: {
+        zoomView: true,
+        dragView: true,
+        selectConnectedEdges: false,
+      },
+      nodes: {
+        chosen: {
+          node: (values: any, id: string, selected: boolean, hovering: boolean) => {
+            if (selected || hovering) {
+              values.borderWidth = 3;
+            }
+          },
+        },
+      },
+      edges: {
+        arrows: {
+          to: {
+            enabled: true,
+            scaleFactor: 0.8,
+          },
+        },
+      },
+    };
+
+    // Create or update network
+    if (!networkRef.current) {
+      // Create new network
+      const network = new Network(containerRef.current, data, options);
+      networkRef.current = network;
+
+      // Handle node selection (only register once)
+      network.on("selectNode", (params: any) => {
+        if (params.nodes.length > 0) {
+          const nodeId = params.nodes[0];
+          const node = filteredNodes.find((n) => n.id === nodeId);
+          if (node) {
+            setSelectedNode(node);
+          }
+        }
+      });
+
+      // Handle node deselection
+      network.on("deselectNode", () => {
+        setSelectedNode(null);
+      });
+
+      // Fit network to container on initial load
+      setTimeout(() => {
+        network.fit({
+          animation: {
+            duration: 500,
+            easingFunction: "easeInOutQuad",
+          },
+        });
+      }, 100);
+    } else {
+      // Update existing network with new data
+      networkRef.current.setData(data);
+      setTimeout(() => {
+        networkRef.current?.fit({
+          animation: {
+            duration: 500,
+            easingFunction: "easeInOutQuad",
+          },
+        });
+      }, 100);
+    }
+
+    // Cleanup only on unmount
+    return () => {
+      // Don't destroy on every update, only on unmount
+      // The network will be updated via setData above
+    };
+  }, [filteredNodes, filteredEdges]);
+
+  // Separate effect for cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (networkRef.current) {
+        networkRef.current.destroy();
+        networkRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
@@ -86,88 +267,67 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
         </div>
 
         {/* Graph Visualization */}
-        <div
-          ref={containerRef}
-          className="w-full h-[600px] border border-white/[0.08] rounded-lg bg-black/20 overflow-auto relative"
-        >
-          {/* Simple node-link visualization */}
-          <svg width="100%" height="100%" className="absolute inset-0">
-            {/* Edges */}
-            {filteredEdges.map((edge, idx) => {
-              const sourceNode = filteredNodes.find((n) => n.id === edge.source);
-              const targetNode = filteredNodes.find((n) => n.id === edge.target);
-              if (!sourceNode || !targetNode) return null;
-
-              // Simple positioning (in production, use D3.js or vis-network for proper layout)
-              const sourceX = 100 + (sourceNode.depth || 0) * 200;
-              const sourceY = 100 + (idx % 10) * 50;
-              const targetX = 100 + (targetNode.depth || 0) * 200;
-              const targetY = 100 + ((idx + 1) % 10) * 50;
-
-              return (
-                <line
-                  key={`${edge.source}-${edge.target}`}
-                  x1={sourceX}
-                  y1={sourceY}
-                  x2={targetX}
-                  y2={targetY}
-                  stroke="rgba(255,255,255,0.2)"
-                  strokeWidth="1"
-                />
-              );
-            })}
-
-            {/* Nodes */}
-            {filteredNodes.map((node, idx) => {
-              const x = 100 + (node.depth || 0) * 200;
-              const y = 100 + (idx % 10) * 50;
-              const size = getNodeSize(node);
-
-              return (
-                <g key={node.id}>
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={size / 2}
-                    className={cn(
-                      "cursor-pointer transition-all hover:scale-110",
-                      getNodeColor(node),
-                      selectedNode?.id === node.id && "ring-2 ring-orange-500"
-                    )}
-                    onClick={() => setSelectedNode(node)}
-                  />
-                  <text
-                    x={x}
-                    y={y + size / 2 + 15}
-                    textAnchor="middle"
-                    className="text-xs fill-white/70"
-                    style={{ fontSize: "10px" }}
-                  >
-                    {node.label.length > 20 ? node.label.substring(0, 20) + "..." : node.label}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* Fallback: List view for better mobile/accessibility */}
-          <div className="md:hidden p-4 space-y-2">
-            {filteredNodes.map((node) => (
-              <div
-                key={node.id}
-                className={cn(
-                  "p-3 rounded-lg border cursor-pointer",
-                  getNodeColor(node),
-                  selectedNode?.id === node.id && "ring-2 ring-orange-500"
-                )}
-                onClick={() => setSelectedNode(node)}
-              >
-                <div className="font-mono text-sm">{node.label}</div>
-                <div className="text-xs text-white/50 mt-1">
-                  Type: {node.type} • Requests: {node.requests || 0}
-                </div>
-              </div>
-            ))}
+        <div className="relative">
+          <div
+            ref={containerRef}
+            className="w-full h-[600px] border border-white/[0.08] rounded-lg bg-black/20"
+          />
+          {/* Zoom Controls */}
+          <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
+            <button
+              onClick={() => {
+                if (networkRef.current) {
+                  networkRef.current.zoomIn({
+                    animation: {
+                      duration: 300,
+                      easingFunction: "easeInOutQuad",
+                    },
+                  });
+                }
+              }}
+              className="p-2 bg-white/[0.1] border border-white/[0.2] rounded-lg text-white hover:bg-white/[0.15] transition-colors"
+              title="Zoom In"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                if (networkRef.current) {
+                  networkRef.current.zoomOut({
+                    animation: {
+                      duration: 300,
+                      easingFunction: "easeInOutQuad",
+                    },
+                  });
+                }
+              }}
+              className="p-2 bg-white/[0.1] border border-white/[0.2] rounded-lg text-white hover:bg-white/[0.15] transition-colors"
+              title="Zoom Out"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                if (networkRef.current) {
+                  networkRef.current.fit({
+                    animation: {
+                      duration: 500,
+                      easingFunction: "easeInOutQuad",
+                    },
+                  });
+                }
+              }}
+              className="p-2 bg-white/[0.1] border border-white/[0.2] rounded-lg text-white hover:bg-white/[0.15] transition-colors"
+              title="Fit to Screen"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
           </div>
         </div>
 
