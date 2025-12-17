@@ -96,7 +96,6 @@ export function ScreenshotViewer({ screenshotUrl, className, onExport }: Screens
             minScale={0.25}
             maxScale={3}
             wheel={{ step: 0.1 }}
-            pan={{ disabled: false }}
             doubleClick={{ disabled: false }}
           >
             <TransformComponent>
