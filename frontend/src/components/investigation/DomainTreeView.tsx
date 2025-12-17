@@ -169,6 +169,7 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
               values.borderWidth = 3;
             }
           },
+          label: false, // Don't change label styling on selection
         },
       },
       edges: {
