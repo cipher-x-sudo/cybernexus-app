@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+// @ts-ignore - vis-network doesn't have complete TypeScript definitions
 import { Network } from "vis-network/standalone";
+// @ts-ignore - vis-network doesn't have complete TypeScript definitions
 import { Data, Options, Node, Edge } from "vis-network";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
