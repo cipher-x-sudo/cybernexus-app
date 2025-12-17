@@ -3,7 +3,16 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { GlassCard, GlassButton, GlassInput, Badge } from "@/components/ui";
+import {
+  GlassCard,
+  GlassButton,
+  GlassInput,
+  Badge,
+  ExpandableSection,
+  CopyButton,
+  StatusBadge,
+  RedirectBanner,
+} from "@/components/ui";
 import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 import { connectExposureJobWebSocket } from "@/lib/websocket";
 
@@ -598,63 +607,188 @@ export default function ExposureDiscoveryPage() {
               
               {selectedFinding ? (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="flex items-center gap-2">
+                  {/* Header with icon and severity */}
+                  <div className="flex items-center gap-3">
                     <span className="text-2xl">{categoryIcons[selectedFinding.category] || '📋'}</span>
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 text-xs font-mono uppercase rounded",
-                        getSeverityStyles(selectedFinding.severity).bg,
-                        getSeverityStyles(selectedFinding.severity).text
-                      )}
-                    >
-                      {selectedFinding.severity}
-                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 text-xs font-mono uppercase rounded",
+                            getSeverityStyles(selectedFinding.severity).bg,
+                            getSeverityStyles(selectedFinding.severity).text
+                          )}
+                        >
+                          {selectedFinding.severity}
+                        </span>
+                        {selectedFinding.evidence?.status_code && (
+                          <StatusBadge status={selectedFinding.evidence.status_code} />
+                        )}
+                      </div>
+                      <h3 className="text-sm font-medium text-white">{selectedFinding.title}</h3>
+                    </div>
                   </div>
                   
+                  {/* Description */}
                   <div>
-                    <h3 className="text-sm font-medium text-white">{selectedFinding.title}</h3>
-                    <p className="text-sm text-white/60 mt-2">{selectedFinding.description}</p>
+                    <p className="text-sm text-white/60">{selectedFinding.description}</p>
                   </div>
                   
+                  {/* Redirect Banner */}
+                  {selectedFinding.evidence?.was_redirected && selectedFinding.evidence?.final_url && (
+                    <RedirectBanner
+                      originalUrl={selectedFinding.url || selectedFinding.evidence.url || ""}
+                      finalUrl={selectedFinding.evidence.final_url}
+                    />
+                  )}
+                  
+                  {/* URL Section */}
                   {selectedFinding.url && (
-                    <div>
-                      <h4 className="text-xs font-mono text-white/50 mb-2">URL</h4>
+                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-mono text-white/50">URL</h4>
+                        <CopyButton text={selectedFinding.url} />
+                      </div>
                       <a
                         href={selectedFinding.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-cyan-400 hover:text-cyan-300 break-all"
+                        className="text-xs text-cyan-400 hover:text-cyan-300 break-all flex items-center gap-1 group"
                       >
-                        {selectedFinding.url}
+                        <span className="truncate">{selectedFinding.url}</span>
+                        <svg
+                          className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
                       </a>
                     </div>
                   )}
                   
-                  <div>
-                    <h4 className="text-xs font-mono text-white/50 mb-2">Evidence</h4>
-                    <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
-                      {JSON.stringify(selectedFinding.evidence, null, 2)}
-                    </pre>
-                  </div>
+                  {/* Evidence Section - Structured Display */}
+                  <ExpandableSection title="Evidence" defaultExpanded={true}>
+                    <div className="space-y-3">
+                      {/* Key Evidence Fields */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedFinding.evidence?.status_code && (
+                          <div className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
+                            <div className="text-xs text-white/40 mb-1">Status</div>
+                            <StatusBadge status={selectedFinding.evidence.status_code} />
+                          </div>
+                        )}
+                        {selectedFinding.evidence?.content_type && (
+                          <div className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
+                            <div className="text-xs text-white/40 mb-1">Content Type</div>
+                            <div className="text-xs text-white/70 font-mono truncate">
+                              {selectedFinding.evidence.content_type}
+                            </div>
+                          </div>
+                        )}
+                        {selectedFinding.evidence?.server && (
+                          <div className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
+                            <div className="text-xs text-white/40 mb-1">Server</div>
+                            <div className="text-xs text-white/70 font-mono truncate">
+                              {selectedFinding.evidence.server}
+                            </div>
+                          </div>
+                        )}
+                        {selectedFinding.evidence?.content_length !== undefined && (
+                          <div className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
+                            <div className="text-xs text-white/40 mb-1">Size</div>
+                            <div className="text-xs text-white/70 font-mono">
+                              {selectedFinding.evidence.content_length.toLocaleString()} bytes
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Additional Evidence Fields */}
+                      {Object.entries(selectedFinding.evidence || {})
+                        .filter(([key]) => 
+                          !['status_code', 'content_type', 'server', 'content_length', 'url', 'final_url', 'was_redirected', 'category', 'source'].includes(key)
+                        )
+                        .map(([key, value]) => (
+                          <div key={key} className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
+                            <div className="text-xs text-white/40 mb-1 capitalize">
+                              {key.replace(/_/g, ' ')}
+                            </div>
+                            <div className="text-xs text-white/70 font-mono break-all">
+                              {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                            </div>
+                          </div>
+                        ))}
+                      
+                      {/* Raw JSON - Collapsed by default */}
+                      <ExpandableSection title="Raw JSON" defaultExpanded={false}>
+                        <div className="relative">
+                          <div className="absolute top-2 right-2">
+                            <CopyButton text={JSON.stringify(selectedFinding.evidence, null, 2)} />
+                          </div>
+                          <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
+                            {JSON.stringify(selectedFinding.evidence, null, 2)}
+                          </pre>
+                        </div>
+                      </ExpandableSection>
+                    </div>
+                  </ExpandableSection>
                   
+                  {/* Recommendations */}
                   {selectedFinding.recommendations.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-mono text-white/50 mb-2">Recommendations</h4>
-                      <ul className="space-y-1">
+                    <ExpandableSection title="Recommendations" defaultExpanded={true}>
+                      <ul className="space-y-2">
                         {selectedFinding.recommendations.map((rec, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm text-white/70">
-                            <span className={colors.accent}>•</span>
-                            {rec}
+                            <span className={cn("mt-1.5 flex-shrink-0", colors.accent)}>•</span>
+                            <span>{rec}</span>
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </ExpandableSection>
                   )}
                   
+                  {/* Affected Assets */}
+                  {selectedFinding.affected_assets && selectedFinding.affected_assets.length > 0 && (
+                    <ExpandableSection title="Affected Assets" defaultExpanded={false}>
+                      <ul className="space-y-1">
+                        {selectedFinding.affected_assets.map((asset, i) => (
+                          <li key={i} className="text-xs text-cyan-400/70 break-all">
+                            {asset}
+                          </li>
+                        ))}
+                      </ul>
+                    </ExpandableSection>
+                  )}
+                  
+                  {/* Risk Score with Visual Indicator */}
                   <div className="pt-3 border-t border-white/[0.05]">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-white/50">Risk Score</span>
-                      <span className={colors.accent}>{Math.round(selectedFinding.risk_score)}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-white/50">Risk Score</span>
+                      <span className={cn("text-sm font-mono font-bold", colors.accent)}>
+                        {Math.round(selectedFinding.risk_score)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300",
+                          selectedFinding.risk_score >= 80
+                            ? "bg-red-500/50"
+                            : selectedFinding.risk_score >= 60
+                            ? "bg-orange-500/50"
+                            : selectedFinding.risk_score >= 40
+                            ? "bg-yellow-500/50"
+                            : "bg-blue-500/50"
+                        )}
+                        style={{ width: `${selectedFinding.risk_score}%` }}
+                      />
                     </div>
                   </div>
                 </div>
