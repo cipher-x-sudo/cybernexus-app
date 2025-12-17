@@ -29,7 +29,6 @@ export default function EmailSecurityPage() {
   const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
   const [findings, setFindings] = useState<EmailFinding[]>([]);
   const [selectedFinding, setSelectedFinding] = useState<EmailFinding | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "spf" | "dkim" | "dmarc" | "advanced" | "bypass" | "compliance">("overview");
   const [emailData, setEmailData] = useState<EmailAuditResult | null>(null);
   
   // Config state
@@ -475,7 +474,10 @@ export default function EmailSecurityPage() {
               <h3 className="text-sm font-mono text-white/60 mb-4">Quick Actions</h3>
               <div className="space-y-2">
                 <GlassButton
-                  onClick={() => setActiveTab("compliance")}
+                  onClick={() => {
+                    const complianceSection = document.getElementById("compliance-section");
+                    complianceSection?.scrollIntoView({ behavior: "smooth" });
+                  }}
                   variant="secondary"
                   size="sm"
                   className="w-full"
@@ -494,201 +496,194 @@ export default function EmailSecurityPage() {
             </GlassCard>
           </div>
           
-          {/* Tabs */}
-          <div className="flex gap-2 border-b border-white/10">
-            {(["overview", "spf", "dkim", "dmarc", "advanced", "bypass", "compliance"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "px-4 py-2 text-sm font-mono transition-colors",
-                  activeTab === tab
-                    ? "text-amber-400 border-b-2 border-amber-400"
-                    : "text-white/60 hover:text-white/80"
-                )}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
-          
-          {/* Tab Content */}
+          {/* Grid Layout - All Sections */}
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            {/* Left Column - Main Content Grid */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Overview - All Findings */}
               <GlassCard className="p-6">
-                {activeTab === "overview" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">
-                      All Findings ({findings.length})
-                    </h2>
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                      {findings.map((finding) => {
-                        const styles = getSeverityStyles(finding.severity);
-                        return (
-                          <button
-                            key={finding.id}
-                            onClick={() => setSelectedFinding(finding)}
-                            className={cn(
-                              "w-full p-4 rounded-xl border text-left transition-all",
-                              "hover:translate-x-1",
-                              styles.bg,
-                              styles.border,
-                              selectedFinding?.id === finding.id && colors.glow
-                            )}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", styles.bg, styles.text)}>
-                                {finding.severity}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{finding.title}</p>
-                                <p className="text-xs text-white/40 mt-1 line-clamp-2">{finding.description}</p>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "spf" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">
-                      SPF Analysis ({categorizedFindings.spf.length} findings)
-                    </h2>
-                    <div className="space-y-3">
-                      {categorizedFindings.spf.map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                          <div className="flex items-start gap-3">
-                            <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
-                              {finding.severity}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{finding.title}</p>
-                              <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                            </div>
+                <h2 className="font-mono text-lg font-semibold text-white mb-4">
+                  All Findings ({findings.length})
+                </h2>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {findings.map((finding) => {
+                    const styles = getSeverityStyles(finding.severity);
+                    return (
+                      <button
+                        key={finding.id}
+                        onClick={() => setSelectedFinding(finding)}
+                        className={cn(
+                          "w-full p-4 rounded-xl border text-left transition-all",
+                          "hover:translate-x-1",
+                          styles.bg,
+                          styles.border,
+                          selectedFinding?.id === finding.id && colors.glow
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", styles.bg, styles.text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{finding.title}</p>
+                            <p className="text-xs text-white/40 mt-1 line-clamp-2">{finding.description}</p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "dkim" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">
-                      DKIM Analysis ({categorizedFindings.dkim.length} findings)
-                    </h2>
-                    <div className="space-y-3">
-                      {categorizedFindings.dkim.map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                          <div className="flex items-start gap-3">
-                            <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
-                              {finding.severity}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{finding.title}</p>
-                              <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "dmarc" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">
-                      DMARC Analysis ({categorizedFindings.dmarc.length} findings)
-                    </h2>
-                    <div className="space-y-3">
-                      {categorizedFindings.dmarc.map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                          <div className="flex items-start gap-3">
-                            <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
-                              {finding.severity}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{finding.title}</p>
-                              <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "advanced" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">Advanced Checks</h2>
-                    <div className="space-y-3">
-                      {[...categorizedFindings.bimi, ...categorizedFindings.mta_sts, ...categorizedFindings.other].map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                          <div className="flex items-start gap-3">
-                            <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
-                              {finding.severity}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{finding.title}</p>
-                              <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "bypass" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">
-                      Bypass Vulnerabilities ({categorizedFindings.bypass.length} findings)
-                    </h2>
-                    <div className="space-y-3">
-                      {categorizedFindings.bypass.map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-red-500/30 bg-red-500/10">
-                          <div className="flex items-start gap-3">
-                            <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
-                              {finding.severity}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{finding.title}</p>
-                              <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                              {finding.evidence && finding.evidence.attack_vector && (
-                                <div className="mt-2 p-2 rounded bg-black/30">
-                                  <p className="text-xs text-red-400 font-mono">Attack Vector:</p>
-                                  <p className="text-xs text-white/70 mt-1">{finding.evidence.attack_vector}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === "compliance" && (
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-lg font-semibold text-white mb-4">Compliance Report</h2>
-                    <div className="space-y-4">
-                      {categorizedFindings.compliance.map((finding) => (
-                        <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                          <p className="text-sm font-medium text-white">{finding.title}</p>
-                          <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                        </div>
-                      ))}
-                      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
-                        <p className="text-sm text-amber-400 font-mono">Compliance scores are calculated during scan</p>
-                        <p className="text-xs text-white/60 mt-1">Run a scan to see detailed compliance breakdown</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                      </button>
+                    );
+                  })}
+                </div>
               </GlassCard>
+
+              {/* SPF Analysis */}
+              {categorizedFindings.spf.length > 0 && (
+                <GlassCard className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">
+                    SPF Analysis ({categorizedFindings.spf.length} findings)
+                  </h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {categorizedFindings.spf.map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{finding.title}</p>
+                            <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* DKIM Analysis */}
+              {categorizedFindings.dkim.length > 0 && (
+                <GlassCard className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">
+                    DKIM Analysis ({categorizedFindings.dkim.length} findings)
+                  </h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {categorizedFindings.dkim.map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{finding.title}</p>
+                            <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* DMARC Analysis */}
+              {categorizedFindings.dmarc.length > 0 && (
+                <GlassCard className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">
+                    DMARC Analysis ({categorizedFindings.dmarc.length} findings)
+                  </h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {categorizedFindings.dmarc.map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{finding.title}</p>
+                            <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* Advanced Checks */}
+              {([...categorizedFindings.bimi, ...categorizedFindings.mta_sts, ...categorizedFindings.other].length > 0) && (
+                <GlassCard className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">Advanced Checks</h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {[...categorizedFindings.bimi, ...categorizedFindings.mta_sts, ...categorizedFindings.other].map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{finding.title}</p>
+                            <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* Bypass Vulnerabilities */}
+              {categorizedFindings.bypass.length > 0 && (
+                <GlassCard className="p-6 border-red-500/30">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">
+                    Bypass Vulnerabilities ({categorizedFindings.bypass.length} findings)
+                  </h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {categorizedFindings.bypass.map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-red-500/30 bg-red-500/10">
+                        <div className="flex items-start gap-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-mono uppercase rounded", getSeverityStyles(finding.severity).bg, getSeverityStyles(finding.severity).text)}>
+                            {finding.severity}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{finding.title}</p>
+                            <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                            {finding.evidence && finding.evidence.attack_vector && (
+                              <div className="mt-2 p-2 rounded bg-black/30">
+                                <p className="text-xs text-red-400 font-mono">Attack Vector:</p>
+                                <p className="text-xs text-white/70 mt-1">{finding.evidence.attack_vector}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* Compliance Report */}
+              {categorizedFindings.compliance.length > 0 && (
+                <GlassCard id="compliance-section" className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">Compliance Report</h2>
+                  <div className="space-y-4">
+                    {categorizedFindings.compliance.map((finding) => (
+                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
+                        <p className="text-sm font-medium text-white">{finding.title}</p>
+                        <p className="text-xs text-white/60 mt-1">{finding.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+              
+              {/* Compliance Info (if no compliance findings yet) */}
+              {categorizedFindings.compliance.length === 0 && (
+                <GlassCard id="compliance-section" className="p-6">
+                  <h2 className="font-mono text-lg font-semibold text-white mb-4">Compliance Report</h2>
+                  <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
+                    <p className="text-sm text-amber-400 font-mono">Compliance scores are calculated during scan</p>
+                    <p className="text-xs text-white/60 mt-1">Run a scan to see detailed compliance breakdown</p>
+                  </div>
+                </GlassCard>
+              )}
             </div>
             
             {/* Finding Details Sidebar */}
