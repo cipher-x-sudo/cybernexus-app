@@ -146,7 +146,10 @@ class WebRecon:
         Returns:
             Discovery results with categorized findings
         """
-        logger.info(f"Starting comprehensive asset discovery for {domain}")
+        import time
+        discovery_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting comprehensive asset discovery")
+        logger.info(f"[WebRecon] [domain={domain}] Initializing discovery with progress_callback={progress_callback is not None}")
         
         results = {
             "domain": domain,
@@ -161,72 +164,166 @@ class WebRecon:
             "third_parties": []
         }
         
-        if progress_callback:
-            progress_callback(5, "Initializing discovery...")
-        
-        # Generate dorks for this domain
-        dorks = self.generate_dorks(domain)
-        results["dorks_generated"] = len(dorks)
-        logger.info(f"Generated {len(dorks)} dork queries for {domain}")
-        
-        if progress_callback:
-            progress_callback(10, "Enumerating subdomains...")
-        
-        # Discover subdomains
-        subdomains = await self._enumerate_subdomains(domain)
-        results["subdomains"] = subdomains
-        logger.info(f"Discovered {len(subdomains)} subdomains")
-        
-        if progress_callback:
-            progress_callback(30, "Scanning endpoints...")
-        
-        # Check common endpoints
-        endpoints = await self._check_endpoints(domain)
-        results["endpoints"] = endpoints
-        logger.info(f"Discovered {len(endpoints)} endpoints")
-        
-        if progress_callback:
-            progress_callback(50, "Detecting sensitive files...")
-        
-        # Deep file detection
-        files = await self._detect_sensitive_files(domain)
-        results["files"] = files
-        logger.info(f"Detected {len(files)} sensitive files")
-        
-        if progress_callback:
-            progress_callback(65, "Checking for source code exposure...")
-        
-        # Source code exposure detection
-        source_code = await self._detect_source_code_exposure(domain)
-        results["source_code"] = source_code
-        logger.info(f"Found {len(source_code)} source code exposures")
-        
-        if progress_callback:
-            progress_callback(75, "Scanning admin panels...")
-        
-        # Admin panel discovery
-        admin_panels = await self._discover_admin_panels(domain)
-        results["admin_panels"] = admin_panels
-        logger.info(f"Discovered {len(admin_panels)} admin panels")
-        
-        if progress_callback:
-            progress_callback(85, "Checking configuration files...")
-        
-        # Configuration file detection
-        configs = await self._detect_config_files(domain)
-        results["configs"] = configs
-        logger.info(f"Found {len(configs)} configuration files")
-        
-        if progress_callback:
-            progress_callback(95, "Finalizing results...")
-        
-        # Cache results
-        self._asset_cache.put(domain, results)
-        
-        if progress_callback:
-            progress_callback(100, "Discovery complete")
-        
-        return results
+        try:
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(5, 'Initializing discovery...')")
+                progress_callback(5, "Initializing discovery...")
+            
+            # Generate dorks for this domain
+            dork_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Generating dork queries...")
+            dorks = self.generate_dorks(domain)
+            dork_time = time.time() - dork_start
+            results["dorks_generated"] = len(dorks)
+            logger.info(f"[WebRecon] [domain={domain}] Generated {len(dorks)} dork queries in {dork_time:.3f}s")
+            logger.info(f"[WebRecon] [domain={domain}] Sample dorks (first 3): {dorks[:3]}")
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(10, 'Enumerating subdomains...')")
+                progress_callback(10, "Enumerating subdomains...")
+            
+            # Discover subdomains
+            subdomain_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting subdomain enumeration...")
+            try:
+                subdomains = await self._enumerate_subdomains(domain)
+                subdomain_time = time.time() - subdomain_start
+                results["subdomains"] = subdomains
+                logger.info(f"[WebRecon] [domain={domain}] Discovered {len(subdomains)} subdomains in {subdomain_time:.3f}s")
+                if subdomains:
+                    logger.info(f"[WebRecon] [domain={domain}] Sample subdomains (first 5): {[s.get('subdomain') for s in subdomains[:5]]}")
+            except Exception as e:
+                subdomain_time = time.time() - subdomain_start
+                logger.error(f"[WebRecon] [domain={domain}] Subdomain enumeration failed after {subdomain_time:.3f}s: {e}", exc_info=True)
+                results["subdomains"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(30, 'Scanning endpoints...')")
+                progress_callback(30, "Scanning endpoints...")
+            
+            # Check common endpoints
+            endpoint_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting endpoint scanning...")
+            try:
+                endpoints = await self._check_endpoints(domain)
+                endpoint_time = time.time() - endpoint_start
+                results["endpoints"] = endpoints
+                logger.info(f"[WebRecon] [domain={domain}] Discovered {len(endpoints)} endpoints in {endpoint_time:.3f}s")
+                if endpoints:
+                    logger.info(f"[WebRecon] [domain={domain}] Sample endpoints (first 5): {[e.get('path') for e in endpoints[:5]]}")
+            except Exception as e:
+                endpoint_time = time.time() - endpoint_start
+                logger.error(f"[WebRecon] [domain={domain}] Endpoint scanning failed after {endpoint_time:.3f}s: {e}", exc_info=True)
+                results["endpoints"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(50, 'Detecting sensitive files...')")
+                progress_callback(50, "Detecting sensitive files...")
+            
+            # Deep file detection
+            file_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting sensitive file detection...")
+            try:
+                files = await self._detect_sensitive_files(domain)
+                file_time = time.time() - file_start
+                results["files"] = files
+                logger.info(f"[WebRecon] [domain={domain}] Detected {len(files)} sensitive files in {file_time:.3f}s")
+                if files:
+                    logger.info(f"[WebRecon] [domain={domain}] Sample files (first 5): {[f.get('path') for f in files[:5]]}")
+            except Exception as e:
+                file_time = time.time() - file_start
+                logger.error(f"[WebRecon] [domain={domain}] Sensitive file detection failed after {file_time:.3f}s: {e}", exc_info=True)
+                results["files"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(65, 'Checking for source code exposure...')")
+                progress_callback(65, "Checking for source code exposure...")
+            
+            # Source code exposure detection
+            source_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting source code exposure detection...")
+            try:
+                source_code = await self._detect_source_code_exposure(domain)
+                source_time = time.time() - source_start
+                results["source_code"] = source_code
+                logger.info(f"[WebRecon] [domain={domain}] Found {len(source_code)} source code exposures in {source_time:.3f}s")
+                if source_code:
+                    logger.info(f"[WebRecon] [domain={domain}] Source code exposures: {[s.get('type') + ':' + s.get('path') for s in source_code]}")
+            except Exception as e:
+                source_time = time.time() - source_start
+                logger.error(f"[WebRecon] [domain={domain}] Source code detection failed after {source_time:.3f}s: {e}", exc_info=True)
+                results["source_code"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(75, 'Scanning admin panels...')")
+                progress_callback(75, "Scanning admin panels...")
+            
+            # Admin panel discovery
+            admin_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting admin panel discovery...")
+            try:
+                admin_panels = await self._discover_admin_panels(domain)
+                admin_time = time.time() - admin_start
+                results["admin_panels"] = admin_panels
+                logger.info(f"[WebRecon] [domain={domain}] Discovered {len(admin_panels)} admin panels in {admin_time:.3f}s")
+                if admin_panels:
+                    logger.info(f"[WebRecon] [domain={domain}] Admin panels: {[p.get('name') + ':' + p.get('path') for p in admin_panels]}")
+            except Exception as e:
+                admin_time = time.time() - admin_start
+                logger.error(f"[WebRecon] [domain={domain}] Admin panel discovery failed after {admin_time:.3f}s: {e}", exc_info=True)
+                results["admin_panels"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(85, 'Checking configuration files...')")
+                progress_callback(85, "Checking configuration files...")
+            
+            # Configuration file detection
+            config_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Starting configuration file detection...")
+            try:
+                configs = await self._detect_config_files(domain)
+                config_time = time.time() - config_start
+                results["configs"] = configs
+                logger.info(f"[WebRecon] [domain={domain}] Found {len(configs)} configuration files in {config_time:.3f}s")
+                if configs:
+                    logger.info(f"[WebRecon] [domain={domain}] Config files: {[c.get('path') for c in configs[:5]]}")
+            except Exception as e:
+                config_time = time.time() - config_start
+                logger.error(f"[WebRecon] [domain={domain}] Config file detection failed after {config_time:.3f}s: {e}", exc_info=True)
+                results["configs"] = []
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(95, 'Finalizing results...')")
+                progress_callback(95, "Finalizing results...")
+            
+            # Cache results
+            cache_start = time.time()
+            logger.info(f"[WebRecon] [domain={domain}] Caching results...")
+            self._asset_cache.put(domain, results)
+            cache_time = time.time() - cache_start
+            logger.info(f"[WebRecon] [domain={domain}] Results cached in {cache_time:.3f}s")
+            
+            if progress_callback:
+                logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(100, 'Discovery complete')")
+                progress_callback(100, "Discovery complete")
+            
+            total_time = time.time() - discovery_start
+            logger.info(
+                f"[WebRecon] [domain={domain}] Discovery completed in {total_time:.3f}s - "
+                f"subdomains: {len(results['subdomains'])}, endpoints: {len(results['endpoints'])}, "
+                f"files: {len(results['files'])}, source_code: {len(results['source_code'])}, "
+                f"admin_panels: {len(results['admin_panels'])}, configs: {len(results['configs'])}"
+            )
+            
+            return results
+            
+        except Exception as e:
+            total_time = time.time() - discovery_start
+            logger.error(
+                f"[WebRecon] [domain={domain}] Discovery failed after {total_time:.3f}s: {e}",
+                exc_info=True
+            )
+            raise
     
     def generate_dorks(self, domain: str) -> List[str]:
         """Generate dork queries for a domain.
@@ -254,6 +351,9 @@ class WebRecon:
         Returns:
             List of discovered subdomains
         """
+        import time
+        enum_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting subdomain enumeration with wordlist")
         subdomains = []
         
         # Extended subdomain wordlist
@@ -285,6 +385,10 @@ class WebRecon:
             'auth', 'login', 'signin', 'account', 'accounts',
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(common_prefixes)} subdomain prefixes")
+        tasks_created = 0
+        tasks_skipped = 0
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for prefix in common_prefixes:
@@ -292,6 +396,7 @@ class WebRecon:
                 
                 # Skip if already seen
                 if self._seen_urls.contains(subdomain):
+                    tasks_skipped += 2  # Both HTTP and HTTPS
                     continue
                 self._seen_urls.add(subdomain)
                 
@@ -299,19 +404,43 @@ class WebRecon:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{subdomain}"
                     tasks.append(self._check_subdomain(client, url, subdomain, protocol == 'https'))
+                    tasks_created += 1
+            
+            logger.info(
+                f"[WebRecon] [domain={domain}] Created {tasks_created} subdomain check tasks "
+                f"(skipped {tasks_skipped} duplicates)"
+            )
             
             # Run checks in parallel
+            check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            check_time = time.time() - check_start
+            logger.info(f"[WebRecon] [domain={domain}] Completed {len(results)} subdomain checks in {check_time:.3f}s")
+            
+            successful = 0
+            errors = 0
             for result in results:
-                if isinstance(result, dict) and result:
+                if isinstance(result, Exception):
+                    errors += 1
+                    logger.warning(f"[WebRecon] [domain={domain}] Subdomain check error: {type(result).__name__}: {result}")
+                elif isinstance(result, dict) and result:
+                    successful += 1
                     # Avoid duplicates
                     existing = next((s for s in subdomains if s["subdomain"] == result["subdomain"]), None)
                     if not existing:
                         subdomains.append(result)
+                        logger.info(f"[WebRecon] [domain={domain}] Found subdomain: {result.get('subdomain')} (status: {result.get('status')})")
                     elif result.get("https") and not existing.get("https"):
                         # Prefer HTTPS version
                         subdomains.remove(existing)
                         subdomains.append(result)
+                        logger.info(f"[WebRecon] [domain={domain}] Upgraded subdomain to HTTPS: {result.get('subdomain')}")
+            
+            enum_time = time.time() - enum_start
+            logger.info(
+                f"[WebRecon] [domain={domain}] Subdomain enumeration completed in {enum_time:.3f}s - "
+                f"found: {len(subdomains)}, successful: {successful}, errors: {errors}"
+            )
         
         return subdomains
     
@@ -323,17 +452,42 @@ class WebRecon:
         is_https: bool
     ) -> Optional[Dict[str, Any]]:
         """Check if a subdomain is accessible."""
+        import time
+        request_start = time.time()
+        protocol = "HTTPS" if is_https else "HTTP"
+        logger.info(f"[WebRecon] [subdomain={subdomain}] Checking {protocol} GET {url}")
+        
         try:
             response = await client.get(url, timeout=5.0)
-            return {
+            request_time = time.time() - request_start
+            content_length = len(response.content) if response.content else 0
+            server_header = response.headers.get("server", "unknown")
+            
+            result = {
                 "subdomain": subdomain,
                 "status": response.status_code,
                 "https": is_https,
                 "url": url,
-                "server": response.headers.get("server", ""),
+                "server": server_header,
                 "title": self._extract_title(response.text) if response.text else ""
             }
-        except:
+            logger.info(
+                f"[WebRecon] [subdomain={subdomain}] HTTP {protocol} GET {url} - "
+                f"Status: {response.status_code} - Time: {request_time:.3f}s - "
+                f"Size: {content_length} bytes - Server: {server_header}"
+            )
+            return result
+        except httpx.TimeoutException:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [subdomain={subdomain}] Timeout checking {url} after {request_time:.3f}s")
+            return None
+        except httpx.ConnectError as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [subdomain={subdomain}] Connection error for {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            return None
+        except Exception as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [subdomain={subdomain}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
             return None
     
     def _extract_title(self, html: str) -> str:
@@ -355,6 +509,9 @@ class WebRecon:
         Returns:
             List of discovered endpoints
         """
+        import time
+        endpoint_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting endpoint scanning")
         endpoints = []
         
         # Extended list of sensitive endpoints
@@ -389,6 +546,8 @@ class WebRecon:
             '/.DS_Store', '/Thumbs.db',
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(paths)} endpoint paths")
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path in paths:
@@ -398,11 +557,30 @@ class WebRecon:
                         self._seen_urls.add(url)
                         tasks.append(self._check_endpoint(client, url, path))
             
+            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks")
+            
             # Run checks in parallel with limit
+            check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            check_time = time.time() - check_start
+            logger.info(f"[WebRecon] [domain={domain}] Completed {len(results)} endpoint checks in {check_time:.3f}s")
+            
+            successful = 0
+            errors = 0
             for result in results:
-                if isinstance(result, dict) and result:
+                if isinstance(result, Exception):
+                    errors += 1
+                    logger.warning(f"[WebRecon] [domain={domain}] Endpoint check error: {type(result).__name__}: {result}")
+                elif isinstance(result, dict) and result:
+                    successful += 1
                     endpoints.append(result)
+                    logger.info(f"[WebRecon] [domain={domain}] Found endpoint: {result.get('path')} (status: {result.get('status')})")
+            
+            endpoint_time = time.time() - endpoint_start
+            logger.info(
+                f"[WebRecon] [domain={domain}] Endpoint scanning completed in {endpoint_time:.3f}s - "
+                f"found: {len(endpoints)}, successful: {successful}, errors: {errors}"
+            )
         
         return endpoints
     
@@ -413,19 +591,43 @@ class WebRecon:
         path: str
     ) -> Optional[Dict[str, Any]]:
         """Check a single endpoint."""
+        import time
+        request_start = time.time()
+        protocol = "HTTPS" if url.startswith("https://") else "HTTP"
+        
         try:
             response = await client.get(url, timeout=5.0)
+            request_time = time.time() - request_start
+            content_length = len(response.content) if response.content else 0
+            content_type = response.headers.get("content-type", "unknown")
+            server_header = response.headers.get("server", "unknown")
+            
             if response.status_code != 404:
-                return {
+                result = {
                     "path": path,
                     "url": url,
                     "status": response.status_code,
-                    "content_length": len(response.content),
-                    "content_type": response.headers.get("content-type", ""),
-                    "server": response.headers.get("server", "")
+                    "content_length": content_length,
+                    "content_type": content_type,
+                    "server": server_header
                 }
+                logger.info(
+                    f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - "
+                    f"Status: {response.status_code} - Time: {request_time:.3f}s - "
+                    f"Size: {content_length} bytes - Type: {content_type} - Server: {server_header}"
+                )
+                return result
+            else:
+                logger.info(f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
+        except httpx.TimeoutException:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [endpoint={path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [endpoint={path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
-            logger.debug(f"Error checking {url}: {e}")
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [endpoint={path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_sensitive_files(self, domain: str) -> List[Dict[str, Any]]:
@@ -437,6 +639,9 @@ class WebRecon:
         Returns:
             List of detected sensitive files
         """
+        import time
+        file_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting sensitive file detection")
         files = []
         
         # Sensitive file patterns
@@ -466,6 +671,8 @@ class WebRecon:
             '/composer.json', '/package.json', '/requirements.txt',
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(sensitive_files)} sensitive file patterns")
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for file_path in sensitive_files:
@@ -475,10 +682,29 @@ class WebRecon:
                         self._seen_urls.add(url)
                         tasks.append(self._check_file(client, url, file_path))
             
+            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} file check tasks")
+            
+            check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            check_time = time.time() - check_start
+            logger.info(f"[WebRecon] [domain={domain}] Completed {len(results)} file checks in {check_time:.3f}s")
+            
+            successful = 0
+            errors = 0
             for result in results:
-                if isinstance(result, dict) and result:
+                if isinstance(result, Exception):
+                    errors += 1
+                    logger.warning(f"[WebRecon] [domain={domain}] File check error: {type(result).__name__}: {result}")
+                elif isinstance(result, dict) and result:
+                    successful += 1
                     files.append(result)
+                    logger.info(f"[WebRecon] [domain={domain}] Found sensitive file: {result.get('path')} ({result.get('content_length', 0)} bytes)")
+            
+            file_time = time.time() - file_start
+            logger.info(
+                f"[WebRecon] [domain={domain}] Sensitive file detection completed in {file_time:.3f}s - "
+                f"found: {len(files)}, successful: {successful}, errors: {errors}"
+            )
         
         return files
     
@@ -489,21 +715,44 @@ class WebRecon:
         file_path: str
     ) -> Optional[Dict[str, Any]]:
         """Check if a sensitive file is accessible."""
+        import time
+        request_start = time.time()
+        protocol = "HTTPS" if url.startswith("https://") else "HTTP"
+        
         try:
             response = await client.get(url, timeout=5.0)
+            request_time = time.time() - request_start
+            content_length = len(response.content) if response.content else 0
+            content_type = response.headers.get("content-type", "unknown")
+            
             if response.status_code == 200:
                 content_preview = response.text[:500] if response.text else ""
-                return {
+                result = {
                     "path": file_path,
                     "url": url,
                     "status": response.status_code,
-                    "content_length": len(response.content),
-                    "content_type": response.headers.get("content-type", ""),
+                    "content_length": content_length,
+                    "content_type": content_type,
                     "content_preview": content_preview,
                     "file_type": file_path.split('.')[-1] if '.' in file_path else "unknown"
                 }
+                logger.info(
+                    f"[WebRecon] [file={file_path}] HTTP {protocol} GET {url} - "
+                    f"Status: 200 (EXPOSED) - Time: {request_time:.3f}s - "
+                    f"Size: {content_length} bytes - Type: {content_type}"
+                )
+                return result
+            else:
+                logger.info(f"[WebRecon] [file={file_path}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+        except httpx.TimeoutException:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [file={file_path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [file={file_path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
-            logger.debug(f"Error checking file {url}: {e}")
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [file={file_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_source_code_exposure(self, domain: str) -> List[Dict[str, Any]]:
@@ -515,6 +764,9 @@ class WebRecon:
         Returns:
             List of source code exposures
         """
+        import time
+        exposure_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting source code exposure detection")
         exposures = []
         
         # Source control indicators
@@ -535,27 +787,55 @@ class WebRecon:
             ('/_darcs/README', 'darcs'),
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(vcs_indicators)} VCS indicators")
+        check_count = 0
+        found_count = 0
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             for path, vcs_type in vcs_indicators:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
+                        check_count += 1
+                        request_start = time.time()
                         try:
                             response = await client.get(url, timeout=5.0)
+                            request_time = time.time() - request_start
                             if response.status_code == 200:
+                                content_length = len(response.content) if response.content else 0
+                                found_count += 1
+                                logger.info(
+                                    f"[WebRecon] [vcs={vcs_type}] HTTP {protocol.upper()} GET {url} - "
+                                    f"Status: 200 (EXPOSED) - Time: {request_time:.3f}s - "
+                                    f"Size: {content_length} bytes - CRITICAL: VCS repository exposed"
+                                )
                                 exposures.append({
                                     "type": vcs_type,
                                     "path": path,
                                     "url": url,
                                     "status": response.status_code,
-                                    "content_length": len(response.content),
+                                    "content_length": content_length,
                                     "severity": "critical"
                                 })
                                 break  # Found, no need to check http if https works
-                        except:
-                            pass
+                            else:
+                                logger.info(f"[WebRecon] [vcs={vcs_type}] HTTP {protocol.upper()} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+                        except httpx.TimeoutException:
+                            request_time = time.time() - request_start
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Timeout checking {url} after {request_time:.3f}s")
+                        except httpx.ConnectError as e:
+                            request_time = time.time() - request_start
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Connection error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+                        except Exception as e:
+                            request_time = time.time() - request_start
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         
+        exposure_time = time.time() - exposure_start
+        logger.info(
+            f"[WebRecon] [domain={domain}] Source code exposure detection completed in {exposure_time:.3f}s - "
+            f"checked: {check_count}, found: {found_count}"
+        )
         return exposures
     
     async def _discover_admin_panels(self, domain: str) -> List[Dict[str, Any]]:
@@ -567,6 +847,9 @@ class WebRecon:
         Returns:
             List of discovered admin panels
         """
+        import time
+        admin_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting admin panel discovery")
         admin_panels = []
         
         # Common admin panel paths
@@ -599,6 +882,8 @@ class WebRecon:
             ('/gitlab', 'GitLab'),
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(admin_paths)} admin panel paths")
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path, panel_name in admin_paths:
@@ -608,11 +893,27 @@ class WebRecon:
                         self._seen_urls.add(url)
                         tasks.append(self._check_admin_panel(client, url, path, panel_name))
             
+            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} admin panel check tasks")
+            check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            check_time = time.time() - check_start
+            logger.info(f"[WebRecon] [domain={domain}] Completed {len(results)} admin panel checks in {check_time:.3f}s")
+            
+            successful = 0
+            errors = 0
             for result in results:
-                if isinstance(result, dict) and result:
+                if isinstance(result, Exception):
+                    errors += 1
+                    logger.warning(f"[WebRecon] [domain={domain}] Admin panel check error: {type(result).__name__}: {result}")
+                elif isinstance(result, dict) and result:
+                    successful += 1
                     admin_panels.append(result)
         
+        admin_time = time.time() - admin_start
+        logger.info(
+            f"[WebRecon] [domain={domain}] Admin panel discovery completed in {admin_time:.3f}s - "
+            f"found: {len(admin_panels)}, successful: {successful}, errors: {errors}"
+        )
         return admin_panels
     
     async def _check_admin_panel(
@@ -623,8 +924,16 @@ class WebRecon:
         panel_name: str
     ) -> Optional[Dict[str, Any]]:
         """Check if an admin panel is accessible."""
+        import time
+        request_start = time.time()
+        protocol = "HTTPS" if url.startswith("https://") else "HTTP"
+        
         try:
             response = await client.get(url, timeout=5.0)
+            request_time = time.time() - request_start
+            content_length = len(response.content) if response.content else 0
+            server_header = response.headers.get("server", "unknown")
+            
             # Check for common indicators
             content_lower = response.text.lower() if response.text else ""
             is_login_page = any(keyword in content_lower for keyword in [
@@ -632,16 +941,32 @@ class WebRecon:
             ])
             
             if response.status_code in [200, 301, 302, 401, 403] or is_login_page:
+                severity = "high" if response.status_code == 200 else "medium"
+                logger.info(
+                    f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - "
+                    f"Status: {response.status_code} - Time: {request_time:.3f}s - "
+                    f"Size: {content_length} bytes - Server: {server_header} - "
+                    f"Login page: {is_login_page} - Severity: {severity}"
+                )
                 return {
                     "name": panel_name,
                     "path": path,
                     "url": url,
                     "status": response.status_code,
                     "is_login_page": is_login_page,
-                    "severity": "high" if response.status_code == 200 else "medium"
+                    "severity": severity
                 }
+            else:
+                logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+        except httpx.TimeoutException:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
-            logger.debug(f"Error checking admin panel {url}: {e}")
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_config_files(self, domain: str) -> List[Dict[str, Any]]:
@@ -653,6 +978,9 @@ class WebRecon:
         Returns:
             List of detected configuration files
         """
+        import time
+        config_start = time.time()
+        logger.info(f"[WebRecon] [domain={domain}] Starting configuration file detection")
         configs = []
         
         # Configuration file patterns
@@ -666,6 +994,8 @@ class WebRecon:
             '/.env', '/.env.production', '/.env.local',
         ]
         
+        logger.info(f"[WebRecon] [domain={domain}] Checking {len(config_files)} configuration file patterns")
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for config_path in config_files:
@@ -675,11 +1005,27 @@ class WebRecon:
                         self._seen_urls.add(url)
                         tasks.append(self._check_config_file(client, url, config_path))
             
+            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} config file check tasks")
+            check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            check_time = time.time() - check_start
+            logger.info(f"[WebRecon] [domain={domain}] Completed {len(results)} config file checks in {check_time:.3f}s")
+            
+            successful = 0
+            errors = 0
             for result in results:
-                if isinstance(result, dict) and result:
+                if isinstance(result, Exception):
+                    errors += 1
+                    logger.warning(f"[WebRecon] [domain={domain}] Config file check error: {type(result).__name__}: {result}")
+                elif isinstance(result, dict) and result:
+                    successful += 1
                     configs.append(result)
         
+        config_time = time.time() - config_start
+        logger.info(
+            f"[WebRecon] [domain={domain}] Configuration file detection completed in {config_time:.3f}s - "
+            f"found: {len(configs)}, successful: {successful}, errors: {errors}"
+        )
         return configs
     
     async def _check_config_file(
@@ -689,8 +1035,16 @@ class WebRecon:
         config_path: str
     ) -> Optional[Dict[str, Any]]:
         """Check if a configuration file is accessible."""
+        import time
+        request_start = time.time()
+        protocol = "HTTPS" if url.startswith("https://") else "HTTP"
+        
         try:
             response = await client.get(url, timeout=5.0)
+            request_time = time.time() - request_start
+            content_length = len(response.content) if response.content else 0
+            content_type = response.headers.get("content-type", "unknown")
+            
             if response.status_code == 200:
                 # Check if it looks like a config file
                 content = response.text if response.text else ""
@@ -700,16 +1054,33 @@ class WebRecon:
                 ])
                 
                 if is_config or config_path.endswith(('.env', '.config', '.conf')):
+                    logger.info(
+                        f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - "
+                        f"Status: 200 (EXPOSED) - Time: {request_time:.3f}s - "
+                        f"Size: {content_length} bytes - Type: {content_type} - "
+                        f"Contains secrets: {is_config}"
+                    )
                     return {
                         "path": config_path,
                         "url": url,
                         "status": response.status_code,
-                        "content_length": len(response.content),
+                        "content_length": content_length,
                         "content_preview": content[:200],
                         "severity": "critical"
                     }
+                else:
+                    logger.info(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: 200 - Time: {request_time:.3f}s (not a config file)")
+            else:
+                logger.info(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+        except httpx.TimeoutException:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [config={config_path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [config={config_path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
-            logger.debug(f"Error checking config file {url}: {e}")
+            request_time = time.time() - request_start
+            logger.warning(f"[WebRecon] [config={config_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     def get_cached_results(self, domain: str) -> Optional[Dict[str, Any]]:
