@@ -137,6 +137,28 @@ class Settings(BaseSettings):
         description="Enable detailed CORS logging for debugging"
     )
     
+    # Redis Configuration
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379",
+        env="REDIS_URL",
+        description="Redis connection URL"
+    )
+    REDIS_DB: int = Field(
+        default=0,
+        env="REDIS_DB",
+        description="Redis database number"
+    )
+    REDIS_SOCKET_TIMEOUT: int = Field(
+        default=5,
+        env="REDIS_SOCKET_TIMEOUT",
+        description="Redis socket timeout in seconds"
+    )
+    REDIS_SOCKET_CONNECT_TIMEOUT: int = Field(
+        default=5,
+        env="REDIS_SOCKET_CONNECT_TIMEOUT",
+        description="Redis connection timeout in seconds"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

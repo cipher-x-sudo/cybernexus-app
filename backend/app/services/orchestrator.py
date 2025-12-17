@@ -21,12 +21,14 @@ import uuid
 import asyncio
 import time
 import base64
+import json
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
 from fastapi import WebSocket
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
+from app.core.database.redis_client import get_redis_client, RedisClient
 
 # Import real collectors
 from app.collectors.web_recon import WebRecon
@@ -257,9 +259,29 @@ class Orchestrator:
     job execution, queuing, and result aggregation.
     """
     
+    # Redis key prefixes
+    KEY_JOB = "job:{}"
+    KEY_JOB_QUEUE = "queue:jobs"
+    KEY_FINDING = "finding:{}"
+    KEY_FINDINGS_BY_SCORE = "findings:by_score"
+    KEY_EVENTS = "events:recent"
+    KEY_INDEX_JOBS_CAPABILITY = "index:jobs:capability:{}"
+    KEY_INDEX_JOBS_TARGET = "index:jobs:target:{}"
+    KEY_INDEX_JOBS_STATUS = "index:jobs:status:{}"
+    KEY_STATS = "stats:orchestrator"
+    
     def __init__(self):
         """Initialize the orchestrator"""
-        # Job storage (using custom DSA)
+        # Redis client
+        try:
+            self.redis = get_redis_client()
+            self._use_redis = self.redis.is_connected()
+        except Exception as e:
+            logger.warning(f"Redis not available, using in-memory storage only: {e}")
+            self.redis = None
+            self._use_redis = False
+        
+        # Job storage (using custom DSA for in-memory, Redis for persistence)
         self._jobs = HashMap()  # job_id -> Job
         self._job_queue = MinHeap()  # Priority queue for pending jobs (lower priority value = higher priority)
         self._findings_index = AVLTree()  # Indexed by risk_score for fast retrieval
@@ -286,6 +308,15 @@ class Orchestrator:
             "high_findings": 0
         }
         
+        # Load stats from Redis if available
+        if self._use_redis:
+            try:
+                stats = self.redis.get_json(self.KEY_STATS)
+                if stats:
+                    self._stats.update(stats)
+            except Exception as e:
+                logger.warning(f"Failed to load stats from Redis: {e}")
+        
         # DarkWatch instance storage (for API access to advanced features)
         self._darkwatch_instances = HashMap()  # job_id -> DarkWatch instance
         
@@ -302,7 +333,7 @@ class Orchestrator:
         self._bypass_tester = BypassTester()
         self._config_audit = ConfigAudit()
         
-        logger.info("Orchestrator initialized with real collectors")
+        logger.info(f"Orchestrator initialized with real collectors (Redis: {'enabled' if self._use_redis else 'disabled'})")
     
     def register_tool_executor(self, tool_name: str, executor: Any):
         """Register a tool executor function for a specific tool"""
@@ -382,28 +413,55 @@ class Orchestrator:
             created_at=datetime.now()
         )
         
-        # Store job
+        # Store job (in-memory and Redis)
         self._jobs.put(job_id, job)
         
-        # Index by capability
+        if self._use_redis:
+            try:
+                # Store job in Redis
+                self.redis.set_json(self.KEY_JOB.format(job_id), job.to_dict())
+                
+                # Add to job queue (sorted set with priority as score)
+                queue_score = priority.value * 1000000 + datetime.now().timestamp()  # Lower priority = lower score
+                self.redis.zadd(self.KEY_JOB_QUEUE, {job_id: queue_score})
+                
+                # Index by capability
+                self.redis.sadd(self.KEY_INDEX_JOBS_CAPABILITY.format(capability.value), job_id)
+                
+                # Index by target
+                self.redis.sadd(self.KEY_INDEX_JOBS_TARGET.format(target), job_id)
+                
+                # Index by status
+                self.redis.sadd(self.KEY_INDEX_JOBS_STATUS.format(JobStatus.PENDING.value), job_id)
+            except Exception as e:
+                logger.warning(f"Failed to store job in Redis: {e}")
+        
+        # Index by capability (in-memory)
         cap_jobs = self._jobs_by_capability.get(capability.value) or []
         cap_jobs.append(job_id)
         self._jobs_by_capability.put(capability.value, cap_jobs)
         
-        # Index by target
+        # Index by target (in-memory)
         target_jobs = self._jobs_by_target.get(target) or []
         target_jobs.append(job_id)
         self._jobs_by_target.put(target, target_jobs)
         
-        # Index by status
+        # Index by status (in-memory)
         status_jobs = self._jobs_by_status.get(JobStatus.PENDING.value) or []
         status_jobs.append(job_id)
         self._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)
         
-        # Add to queue
+        # Add to queue (in-memory)
         self._job_queue.push((priority.value, datetime.now().timestamp(), job_id))
         
         self._stats["total_jobs"] += 1
+        
+        # Save stats to Redis
+        if self._use_redis:
+            try:
+                self.redis.set_json(self.KEY_STATS, self._stats)
+            except Exception:
+                pass
         
         # Add event
         self._add_event("job_created", {
@@ -442,6 +500,15 @@ class Orchestrator:
                 self._all_findings.append(finding)
                 self._findings_index.insert(finding.risk_score, finding)
                 
+                # Store in Redis
+                if self._use_redis:
+                    try:
+                        self.redis.set_json(self.KEY_FINDING.format(finding.id), finding.to_dict())
+                        # Index by risk score (sorted set)
+                        self.redis.zadd(self.KEY_FINDINGS_BY_SCORE, {finding.id: finding.risk_score})
+                    except Exception as e:
+                        logger.warning(f"Failed to store finding in Redis: {e}")
+                
                 if finding.severity == "critical":
                     self._stats["critical_findings"] += 1
                 elif finding.severity == "high":
@@ -450,12 +517,26 @@ class Orchestrator:
             job.findings = findings
             self._stats["total_findings"] += len(findings)
             
+            # Save stats to Redis
+            if self._use_redis:
+                try:
+                    self.redis.set_json(self.KEY_STATS, self._stats)
+                except Exception:
+                    pass
+            
             # Complete job
             self._update_job_status(job, JobStatus.COMPLETED)
             job.completed_at = datetime.now()
             job.progress = 100
             
             self._stats["completed_jobs"] += 1
+            
+            # Save stats to Redis
+            if self._use_redis:
+                try:
+                    self.redis.set_json(self.KEY_STATS, self._stats)
+                except Exception:
+                    pass
             
             self._add_event("job_completed", {
                 "job_id": job_id,
@@ -470,6 +551,13 @@ class Orchestrator:
             self._update_job_status(job, JobStatus.FAILED)
             job.error = str(e)
             self._stats["failed_jobs"] += 1
+            
+            # Save stats to Redis
+            if self._use_redis:
+                try:
+                    self.redis.set_json(self.KEY_STATS, self._stats)
+                except Exception:
+                    pass
             
             self._add_event("job_failed", {
                 "job_id": job_id,
@@ -2716,13 +2804,25 @@ class Orchestrator:
         """Update job status and indexes"""
         old_status = job.status
         
-        # Remove from old status index
+        # Update Redis indices
+        if self._use_redis:
+            try:
+                # Remove from old status index
+                self.redis.srem(self.KEY_INDEX_JOBS_STATUS.format(old_status.value), job.id)
+                # Add to new status index
+                self.redis.sadd(self.KEY_INDEX_JOBS_STATUS.format(new_status.value), job.id)
+                # Update job in Redis
+                self.redis.set_json(self.KEY_JOB.format(job.id), job.to_dict())
+            except Exception as e:
+                logger.warning(f"Failed to update job status in Redis: {e}")
+        
+        # Remove from old status index (in-memory)
         old_status_jobs = self._jobs_by_status.get(old_status.value) or []
         if job.id in old_status_jobs:
             old_status_jobs.remove(job.id)
         self._jobs_by_status.put(old_status.value, old_status_jobs)
         
-        # Add to new status index
+        # Add to new status index (in-memory)
         new_status_jobs = self._jobs_by_status.get(new_status.value) or []
         new_status_jobs.append(job.id)
         self._jobs_by_status.put(new_status.value, new_status_jobs)
@@ -2736,6 +2836,18 @@ class Orchestrator:
             "data": data,
             "timestamp": datetime.now().isoformat()
         }
+        
+        # Store in Redis
+        if self._use_redis:
+            try:
+                # Push to left of list (most recent first)
+                self.redis.lpush(self.KEY_EVENTS, json.dumps(event, default=str))
+                # Trim list to max events
+                self.redis.ltrim(self.KEY_EVENTS, 0, self._max_events - 1)
+            except Exception as e:
+                logger.warning(f"Failed to store event in Redis: {e}")
+        
+        # Store in-memory
         self._events.insert(0, event)
         
         # Trim old events
@@ -2744,7 +2856,40 @@ class Orchestrator:
     
     def get_job(self, job_id: str) -> Optional[Job]:
         """Get a job by ID"""
-        return self._jobs.get(job_id)
+        # Check in-memory first
+        job = self._jobs.get(job_id)
+        if job:
+            return job
+        
+        # Check Redis if not in memory
+        if self._use_redis:
+            try:
+                job_data = self.redis.get_json(self.KEY_JOB.format(job_id))
+                if job_data:
+                    # Reconstruct Job object from dict
+                    job = Job(
+                        id=job_data["id"],
+                        capability=Capability(job_data["capability"]),
+                        target=job_data["target"],
+                        status=JobStatus(job_data["status"]),
+                        priority=JobPriority(job_data["priority"]),
+                        config=job_data.get("config", {}),
+                        progress=job_data.get("progress", 0),
+                        created_at=datetime.fromisoformat(job_data["created_at"])
+                    )
+                    if "started_at" in job_data:
+                        job.started_at = datetime.fromisoformat(job_data["started_at"])
+                    if "completed_at" in job_data:
+                        job.completed_at = datetime.fromisoformat(job_data["completed_at"])
+                    if "error" in job_data:
+                        job.error = job_data["error"]
+                    # Store in memory for future access
+                    self._jobs.put(job_id, job)
+                    return job
+            except Exception as e:
+                logger.warning(f"Failed to get job from Redis: {e}")
+        
+        return None
     
     def get_darkwatch_instance(self, job_id: str):
         """Get DarkWatch instance for a job (if available)"""
@@ -2871,6 +3016,22 @@ class Orchestrator:
     
     def get_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent events for live feed"""
+        # Try Redis first
+        if self._use_redis:
+            try:
+                events_json = self.redis.lrange(self.KEY_EVENTS, 0, limit - 1)
+                if events_json:
+                    events = []
+                    for event_str in events_json:
+                        try:
+                            events.append(json.loads(event_str))
+                        except json.JSONDecodeError:
+                            continue
+                    return events
+            except Exception as e:
+                logger.warning(f"Failed to get events from Redis: {e}")
+        
+        # Fallback to in-memory
         return self._events[:limit]
 
 
