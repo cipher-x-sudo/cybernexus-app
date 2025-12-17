@@ -416,6 +416,132 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // ============================================================================
+  // Email Security Specific Methods
+  // ============================================================================
+
+  /**
+   * Get email security scan history for a domain
+   */
+  async getEmailHistory(domain: string, limit: number = 10) {
+    return this.request<{
+      domain: string;
+      history: Array<{
+        job_id: string;
+        timestamp: string;
+        score: number;
+        findings_count: number;
+        status: string;
+      }>;
+    }>(`/capabilities/email/${encodeURIComponent(domain)}/history?limit=${limit}`);
+  }
+
+  /**
+   * Get email compliance report for a domain
+   */
+  async getEmailCompliance(domain: string) {
+    return this.request<{
+      domain: string;
+      message: string;
+      last_scan: string | null;
+    }>(`/capabilities/email/${encodeURIComponent(domain)}/compliance`);
+  }
+
+  /**
+   * Run bypass vulnerability tests for a domain
+   */
+  async runEmailBypassTest(domain: string) {
+    return this.request<{
+      job_id: string;
+      domain: string;
+      message: string;
+      status: string;
+    }>(`/capabilities/email/${encodeURIComponent(domain)}/bypass-test`, {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Get email infrastructure graph data
+   */
+  async getEmailInfrastructure(domain: string) {
+    return this.request<{
+      domain: string;
+      nodes: Array<{
+        id: string;
+        type: string;
+        label: string;
+      }>;
+      edges: Array<{
+        from: string;
+        to: string;
+        relation: string;
+      }>;
+    }>(`/capabilities/email/${encodeURIComponent(domain)}/infrastructure`);
+  }
+
+  /**
+   * Export email security report
+   */
+  async exportEmailReport(domain: string, format: "json" | "csv" = "json") {
+    const url = `/capabilities/email/${encodeURIComponent(domain)}/export?format=${format}`;
+    
+    if (format === "csv") {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `email_report_${domain}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return { success: true };
+    } else {
+      return this.request<any>(url);
+    }
+  }
+
+  /**
+   * Compare two email security scans
+   */
+  async compareEmailScans(domain: string, jobId1: string, jobId2: string) {
+    return this.request<{
+      domain: string;
+      job1: {
+        id: string;
+        timestamp: string;
+        score: number;
+        findings_count: number;
+      };
+      job2: {
+        id: string;
+        timestamp: string;
+        score: number;
+        findings_count: number;
+      };
+      comparison: {
+        score_change: number;
+        new_findings: any[];
+        resolved_findings: any[];
+        findings_count_change: number;
+      };
+    }>(`/capabilities/email/${encodeURIComponent(domain)}/compare?job_id1=${jobId1}&job_id2=${jobId2}`);
+  }
 }
 
 // Export singleton instance

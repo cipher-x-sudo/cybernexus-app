@@ -33,6 +33,10 @@ from app.collectors.web_recon import WebRecon
 from app.collectors.email_audit import EmailAudit
 from app.collectors.config_audit import ConfigAudit
 
+# Import email security services
+from app.services.bypass_tester import BypassTester
+from app.services.compliance_engine import ComplianceEngine
+
 
 class Capability(str, Enum):
     """User-facing security capabilities"""
@@ -307,6 +311,8 @@ class Orchestrator:
         # Initialize real collectors
         self._web_recon = WebRecon()
         self._email_audit = EmailAudit()
+        self._bypass_tester = BypassTester()
+        self._compliance_engine = ComplianceEngine()
         self._config_audit = ConfigAudit()
         
         logger.info("Orchestrator initialized with real collectors")
@@ -529,16 +535,57 @@ class Orchestrator:
         return findings
     
     async def _execute_email_audit(self, job: Job) -> List[Finding]:
-        """Execute real email security audit using EmailAudit collector"""
+        """Execute comprehensive email security audit using EmailAudit collector"""
         findings = []
         
+        job.progress = 10
+        logger.info(f"Running comprehensive email audit for {job.target}")
+        
+        # Get config from job (default to comprehensive checks)
+        config = job.config or {}
+        audit_config = {
+            "check_bimi": config.get("check_bimi", True),
+            "check_mta_sts": config.get("check_mta_sts", True),
+            "check_dane": config.get("check_dane", True),
+            "check_arc": config.get("check_arc", True),
+            "check_subdomains": config.get("check_subdomains", True),
+            "check_ptr": config.get("check_ptr", True),
+            "check_dnssec": config.get("check_dnssec", True)
+        }
+        
+        # Run comprehensive email audit
         job.progress = 20
-        logger.info(f"Running email audit for {job.target}")
+        results = await self._email_audit.audit(job.target, audit_config)
         
-        # Run real email audit
-        results = await self._email_audit.audit(job.target)
+        job.progress = 50
         
-        job.progress = 80
+        # Run bypass vulnerability analysis
+        if config.get("run_bypass_tests", True):
+            bypass_results = await self._bypass_tester.analyze_bypass_vulnerabilities(
+                job.target, results
+            )
+            results["bypass_analysis"] = bypass_results
+            
+            # Convert bypass vulnerabilities to findings
+            for vuln in bypass_results.get("vulnerabilities", []):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity=vuln.get("severity", "medium"),
+                    title=vuln.get("title", "Bypass Vulnerability"),
+                    description=vuln.get("description", ""),
+                    evidence={
+                        "type": vuln.get("type"),
+                        "test_case": vuln.get("test_case"),
+                        "attack_vector": vuln.get("attack_vector")
+                    },
+                    affected_assets=[job.target],
+                    recommendations=[vuln.get("recommendation", "")],
+                    discovered_at=datetime.now(),
+                    risk_score=self._severity_to_score(vuln.get("severity", "medium"))
+                ))
+        
+        job.progress = 70
         
         # Convert SPF issues to findings
         spf = results.get("spf", {})
@@ -678,6 +725,92 @@ class Orchestrator:
                 risk_score=70.0
             ))
         
+        # Add findings for advanced checks
+        job.progress = 75
+        
+        # BIMI findings
+        if "bimi" in results:
+            bimi = results.get("bimi", {})
+            if not bimi.get("exists"):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="low",
+                    title="No BIMI Record Found",
+                    description="BIMI (Brand Indicators) not configured. Optional but recommended for brand protection.",
+                    evidence={"bimi_exists": False},
+                    affected_assets=[job.target],
+                    recommendations=["Consider implementing BIMI for brand logo display in email clients"],
+                    discovered_at=datetime.now(),
+                    risk_score=20.0
+                ))
+        
+        # MTA-STS findings
+        if "mta_sts" in results:
+            mta_sts = results.get("mta_sts", {})
+            if not mta_sts.get("exists"):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="low",
+                    title="No MTA-STS Configuration",
+                    description="MTA-STS not configured. Optional but recommended for secure email transport.",
+                    evidence={"mta_sts_exists": False},
+                    affected_assets=[job.target],
+                    recommendations=["Consider implementing MTA-STS for secure SMTP transport"],
+                    discovered_at=datetime.now(),
+                    risk_score=25.0
+                ))
+            elif mta_sts.get("mode") == "none":
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="medium",
+                    title="MTA-STS Mode is 'none'",
+                    description="MTA-STS is in testing mode. Upgrade to enforce mode for protection.",
+                    evidence={"mta_sts_mode": "none"},
+                    affected_assets=[job.target],
+                    recommendations=["Upgrade MTA-STS mode to 'enforce'"],
+                    discovered_at=datetime.now(),
+                    risk_score=40.0
+                ))
+        
+        # Subdomain findings
+        if "subdomains" in results:
+            subdomains = results.get("subdomains", {})
+            for issue in subdomains.get("issues", []):
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity=issue.get("severity", "medium"),
+                    title=f"Subdomain Issue: {issue.get('issue', 'Unknown')}",
+                    description=issue.get("issue", ""),
+                    evidence={"subdomain_analysis": subdomains},
+                    affected_assets=[job.target],
+                    recommendations=["Review and secure email configuration for all subdomains"],
+                    discovered_at=datetime.now(),
+                    risk_score=self._severity_to_score(issue.get("severity", "medium"))
+                ))
+        
+        # Add compliance findings
+        if "compliance" in results:
+            compliance = results.get("compliance", {})
+            overall_score = compliance.get("overall_score", 0)
+            
+            if overall_score < 50:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.EMAIL_SECURITY,
+                    severity="high",
+                    title=f"Low Email Security Compliance Score: {overall_score:.0f}/100",
+                    description=f"Overall compliance score is {overall_score:.0f}/100. Multiple standards need improvement.",
+                    evidence={"compliance": compliance},
+                    affected_assets=[job.target],
+                    recommendations=self._get_compliance_recommendations(compliance),
+                    discovered_at=datetime.now(),
+                    risk_score=100 - overall_score
+                ))
+        
         # Add risk assessment as a finding
         risk = results.get("risk_assessment", {})
         if risk.get("spoofing_risk") in ["critical", "high"]:
@@ -697,6 +830,7 @@ class Orchestrator:
                 risk_score=self._severity_to_score(risk.get("spoofing_risk", "medium"))
             ))
         
+        job.progress = 100
         return findings
     
     async def _execute_exposure_discovery(self, job: Job) -> List[Finding]:
@@ -1283,6 +1417,32 @@ class Orchestrator:
             "info": 10.0
         }
         return scores.get(severity, 50.0)
+    
+    def _get_compliance_recommendations(self, compliance: Dict[str, Any]) -> List[str]:
+        """Extract recommendations from compliance scores.
+        
+        Args:
+            compliance: Compliance dictionary from email audit
+            
+        Returns:
+            List of recommendations
+        """
+        recommendations = []
+        
+        for standard_key in ["rfc_7208_spf", "rfc_6376_dkim", "rfc_7489_dmarc", "m3aawg"]:
+            standard = compliance.get(standard_key, {})
+            recs = standard.get("recommendations", [])
+            recommendations.extend(recs)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_recs = []
+        for rec in recommendations:
+            if rec not in seen:
+                seen.add(rec)
+                unique_recs.append(rec)
+        
+        return unique_recs
     
     def _get_spf_recommendations(self, spf: Dict[str, Any]) -> List[str]:
         """Get SPF-specific recommendations"""

@@ -1174,13 +1174,17 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
     - data: Finding object, progress info, completion summary, or error message
     - timestamp: ISO format timestamp
     """
+    logger.info(f"[WebSocket] [exposure] [job_id={job_id}] Client attempting to connect")
     await websocket.accept()
+    logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] WebSocket connection accepted")
     orchestrator = get_orchestrator()
     
     try:
         # Verify job exists
+        logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Verifying job exists")
         job = orchestrator.get_job(job_id)
         if not job:
+            logger.warning(f"[WebSocket] [exposure] [job_id={job_id}] Job not found")
             await websocket.send_json({
                 "type": "error",
                 "data": {"error": f"Job {job_id} not found"},
@@ -1190,19 +1194,23 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             return
         
         # Verify job is for exposure discovery capability
+        logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Verifying capability (current: {job.capability.value})")
         if job.capability != Capability.EXPOSURE_DISCOVERY:
             await websocket.send_json({
                 "type": "error",
                 "data": {"error": f"Job {job_id} is not an exposure discovery job"},
                 "timestamp": datetime.now().isoformat()
             })
+            logger.warning(f"[WebSocket] [exposure] [job_id={job_id}] Job is not exposure discovery (capability: {job.capability.value})")
             await websocket.close()
             return
         
-        logger.info(f"[WebSocket] Client connected to exposure discovery job {job_id}")
+        logger.info(f"[WebSocket] [exposure] [job_id={job_id}] Client connected to exposure discovery job (target: {job.target}, status: {job.status.value})")
         
         # Register WebSocket connection
+        logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Registering WebSocket connection")
         await orchestrator.register_websocket(job_id, websocket)
+        logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] WebSocket connection registered")
         
         # Send initial connection message
         await websocket.send_json({
@@ -1365,6 +1373,333 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             pass
         finally:
             await orchestrator.unregister_websocket(job_id)
+
+
+# ============================================================================
+# Email Security Specific Endpoints
+# ============================================================================
+
+@router.get("/email/{domain}/history")
+async def get_email_history(
+    domain: str,
+    limit: int = Query(default=10, ge=1, le=50)
+):
+    """
+    Get historical email security scan data for a domain.
+    
+    Returns list of past scans with timestamps and scores.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Get all email security jobs for this domain
+        jobs = orchestrator.get_jobs(
+            capability=Capability.EMAIL_SECURITY,
+            limit=limit * 2  # Get more to filter by target
+        )
+        
+        # Filter by domain and get most recent
+        domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
+        domain_jobs.sort(key=lambda x: x.created_at, reverse=True)
+        domain_jobs = domain_jobs[:limit]
+        
+        history = []
+        for job in domain_jobs:
+            findings = orchestrator.get_job_findings(job.id)
+            score = 0
+            if findings:
+                # Calculate average risk score (inverted to get security score)
+                avg_risk = sum(f.risk_score for f in findings) / len(findings)
+                score = max(0, 100 - avg_risk)
+            
+            history.append({
+                "job_id": job.id,
+                "timestamp": job.created_at.isoformat(),
+                "score": score,
+                "findings_count": len(findings),
+                "status": job.status.value
+            })
+        
+        return {"domain": domain, "history": history}
+    except Exception as e:
+        logger.error(f"Error getting email history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/email/{domain}/compliance")
+async def get_email_compliance(domain: str):
+    """
+    Get compliance report for a domain's email security configuration.
+    
+    Returns compliance scores for RFC standards and M3AAWG best practices.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Get most recent email security job for this domain
+        jobs = orchestrator.get_jobs(
+            capability=Capability.EMAIL_SECURITY,
+            limit=50
+        )
+        
+        domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
+        if not domain_jobs:
+            raise HTTPException(status_code=404, detail=f"No email security scan found for {domain}")
+        
+        latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
+        
+        # Get job results (we need to access the audit results)
+        # For now, return a message that compliance is calculated during scan
+        # In a full implementation, we'd store compliance data with jobs
+        return {
+            "domain": domain,
+            "message": "Compliance data is included in scan results. Run a new scan to get latest compliance scores.",
+            "last_scan": latest_job.created_at.isoformat() if latest_job else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting email compliance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/email/{domain}/bypass-test")
+async def run_email_bypass_test(
+    domain: str,
+    background_tasks: BackgroundTasks
+):
+    """
+    Run bypass vulnerability tests for a domain.
+    
+    Creates a new email security job with bypass testing enabled.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Create job with bypass testing enabled
+        job = orchestrator.create_job(
+            capability=Capability.EMAIL_SECURITY,
+            target=domain,
+            config={"run_bypass_tests": True},
+            priority=JobPriority.NORMAL
+        )
+        
+        # Execute in background
+        background_tasks.add_task(orchestrator.execute_job, job.id)
+        
+        return {
+            "job_id": job.id,
+            "domain": domain,
+            "message": "Bypass testing job created. Check job status for results.",
+            "status": job.status.value
+        }
+    except Exception as e:
+        logger.error(f"Error creating bypass test job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/email/{domain}/infrastructure")
+async def get_email_infrastructure(domain: str):
+    """
+    Get email infrastructure graph data for a domain.
+    
+    Returns graph representation of email infrastructure (MX, SPF includes, etc.)
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Get most recent email security job
+        jobs = orchestrator.get_jobs(
+            capability=Capability.EMAIL_SECURITY,
+            limit=50
+        )
+        
+        domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
+        if not domain_jobs:
+            raise HTTPException(status_code=404, detail=f"No email security scan found for {domain}")
+        
+        latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
+        findings = orchestrator.get_job_findings(latest_job.id)
+        
+        # Extract infrastructure data from findings
+        nodes = [{"id": domain, "type": "domain", "label": domain}]
+        edges = []
+        
+        for finding in findings:
+            evidence = finding.evidence or {}
+            
+            # Extract MX records
+            if "mx_records" in evidence:
+                for mx in evidence.get("mx_records", []):
+                    mx_host = mx.get("exchange", "")
+                    if mx_host:
+                        nodes.append({"id": mx_host, "type": "mx", "label": mx_host})
+                        edges.append({"from": domain, "to": mx_host, "relation": "mx_record"})
+            
+            # Extract SPF includes
+            if "includes" in evidence:
+                for include in evidence.get("includes", []):
+                    nodes.append({"id": include, "type": "spf_include", "label": include})
+                    edges.append({"from": domain, "to": include, "relation": "spf_include"})
+        
+        # Remove duplicate nodes
+        unique_nodes = {}
+        for node in nodes:
+            if node["id"] not in unique_nodes:
+                unique_nodes[node["id"]] = node
+        
+        return {
+            "domain": domain,
+            "nodes": list(unique_nodes.values()),
+            "edges": edges
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting email infrastructure: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/email/{domain}/export")
+async def export_email_report(
+    domain: str,
+    format: str = Query(default="json", regex="^(json|csv)$")
+):
+    """
+    Export email security report for a domain.
+    
+    Supports JSON and CSV formats.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Get most recent email security job
+        jobs = orchestrator.get_jobs(
+            capability=Capability.EMAIL_SECURITY,
+            limit=50
+        )
+        
+        domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
+        if not domain_jobs:
+            raise HTTPException(status_code=404, detail=f"No email security scan found for {domain}")
+        
+        latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
+        findings = orchestrator.get_job_findings(latest_job.id)
+        
+        if format == "csv":
+            import csv
+            from io import StringIO
+            
+            output = StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(["ID", "Severity", "Title", "Description", "Risk Score", "Discovered At"])
+            
+            # Write findings
+            for finding in findings:
+                writer.writerow([
+                    finding.id,
+                    finding.severity,
+                    finding.title,
+                    finding.description,
+                    finding.risk_score,
+                    finding.discovered_at.isoformat()
+                ])
+            
+            from fastapi.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=email_report_{domain}.csv"}
+            )
+        else:
+            # JSON format
+            return {
+                "domain": domain,
+                "scan_date": latest_job.created_at.isoformat(),
+                "findings": [f.to_dict() for f in findings],
+                "summary": {
+                    "total_findings": len(findings),
+                    "by_severity": {
+                        "critical": len([f for f in findings if f.severity == "critical"]),
+                        "high": len([f for f in findings if f.severity == "high"]),
+                        "medium": len([f for f in findings if f.severity == "medium"]),
+                        "low": len([f for f in findings if f.severity == "low"]),
+                        "info": len([f for f in findings if f.severity == "info"])
+                    }
+                }
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting email report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/email/{domain}/compare")
+async def compare_email_scans(
+    domain: str,
+    job_id1: str = Query(..., description="First job ID to compare"),
+    job_id2: str = Query(..., description="Second job ID to compare")
+):
+    """
+    Compare two email security scans for a domain.
+    
+    Returns differences between the two scans.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        job1 = orchestrator.get_job(job_id1)
+        job2 = orchestrator.get_job(job_id2)
+        
+        if not job1 or not job2:
+            raise HTTPException(status_code=404, detail="One or both jobs not found")
+        
+        if job1.target.lower() != domain.lower() or job2.target.lower() != domain.lower():
+            raise HTTPException(status_code=400, detail="Jobs do not match the specified domain")
+        
+        findings1 = orchestrator.get_job_findings(job_id1)
+        findings2 = orchestrator.get_job_findings(job_id2)
+        
+        # Compare findings
+        findings1_ids = {f.id for f in findings1}
+        findings2_ids = {f.id for f in findings2}
+        
+        new_findings = [f.to_dict() for f in findings2 if f.id not in findings1_ids]
+        resolved_findings = [f.to_dict() for f in findings1 if f.id not in findings2_ids]
+        
+        # Calculate score changes
+        score1 = 100 - (sum(f.risk_score for f in findings1) / len(findings1) if findings1 else 0)
+        score2 = 100 - (sum(f.risk_score for f in findings2) / len(findings2) if findings2 else 0)
+        
+        return {
+            "domain": domain,
+            "job1": {
+                "id": job_id1,
+                "timestamp": job1.created_at.isoformat(),
+                "score": score1,
+                "findings_count": len(findings1)
+            },
+            "job2": {
+                "id": job_id2,
+                "timestamp": job2.created_at.isoformat(),
+                "score": score2,
+                "findings_count": len(findings2)
+            },
+            "comparison": {
+                "score_change": score2 - score1,
+                "new_findings": new_findings,
+                "resolved_findings": resolved_findings,
+                "findings_count_change": len(findings2) - len(findings1)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing email scans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

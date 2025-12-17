@@ -2,14 +2,17 @@
 Email Security Audit Collector
 
 Inspired by: espoofer
-Purpose: Analyze email security configurations (SPF, DKIM, DMARC).
+Purpose: Analyze email security configurations (SPF, DKIM, DMARC, BIMI, MTA-STS, DANE, ARC).
 """
 
 import asyncio
 import re
+import json
+import httpx
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import dns.resolver
+import dns.reversename
 from loguru import logger
 
 from app.core.dsa import HashMap, AVLTree, Graph
@@ -47,31 +50,88 @@ class EmailAudit:
         self._resolver.timeout = 5
         self._resolver.lifetime = 5
     
-    async def audit(self, domain: str) -> Dict[str, Any]:
-        """Perform email security audit on domain.
+    async def audit(self, domain: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform comprehensive email security audit on domain.
         
         Args:
             domain: Target domain
+            config: Optional configuration dict with flags like:
+                - check_bimi: bool
+                - check_mta_sts: bool
+                - check_dane: bool
+                - check_arc: bool
+                - check_subdomains: bool
+                - check_ptr: bool
+                - check_dnssec: bool
             
         Returns:
-            Audit results
+            Comprehensive audit results
         """
-        logger.info(f"Starting email security audit for {domain}")
+        config = config or {}
+        logger.info(f"Starting comprehensive email security audit for {domain}")
+        
+        # Run all checks in parallel where possible
+        checks = await asyncio.gather(
+            self._check_spf(domain),
+            self._check_dkim(domain),
+            self._check_dmarc(domain),
+            self._get_mx_records(domain),
+            return_exceptions=True
+        )
+        
+        spf, dkim, dmarc, mx_records = checks
+        
+        # Handle exceptions
+        if isinstance(spf, Exception):
+            logger.error(f"SPF check failed: {spf}")
+            spf = {"exists": False, "issues": [{"severity": "info", "issue": f"Error: {str(spf)}"}]}
+        if isinstance(dkim, Exception):
+            logger.error(f"DKIM check failed: {dkim}")
+            dkim = {"selectors_found": [], "issues": [{"severity": "info", "issue": f"Error: {str(dkim)}"}]}
+        if isinstance(dmarc, Exception):
+            logger.error(f"DMARC check failed: {dmarc}")
+            dmarc = {"exists": False, "issues": [{"severity": "info", "issue": f"Error: {str(dmarc)}"}]}
+        if isinstance(mx_records, Exception):
+            logger.error(f"MX records check failed: {mx_records}")
+            mx_records = []
         
         results = {
             "domain": domain,
             "timestamp": datetime.utcnow().isoformat(),
-            "spf": await self._check_spf(domain),
-            "dkim": await self._check_dkim(domain),
-            "dmarc": await self._check_dmarc(domain),
-            "mx_records": await self._get_mx_records(domain),
+            "spf": spf,
+            "dkim": dkim,
+            "dmarc": dmarc,
+            "mx_records": mx_records,
             "risk_assessment": {},
             "score": 0
         }
         
+        # Advanced checks (optional, based on config)
+        if config.get("check_bimi", True):
+            results["bimi"] = await self._check_bimi(domain)
+        
+        if config.get("check_mta_sts", True):
+            results["mta_sts"] = await self._check_mta_sts(domain)
+        
+        if config.get("check_dane", True):
+            results["dane"] = await self._check_dane(domain, mx_records)
+        
+        if config.get("check_arc", True):
+            results["arc"] = await self._check_arc(domain)
+        
+        if config.get("check_ptr", True):
+            results["ptr_records"] = await self._check_ptr_records(domain, mx_records)
+        
+        if config.get("check_dnssec", True):
+            results["dnssec"] = await self._check_dnssec(domain)
+        
+        if config.get("check_subdomains", True):
+            results["subdomains"] = await self._check_subdomains(domain)
+        
         # Calculate risk assessment and score
         results["risk_assessment"] = self._assess_risk(results)
         results["score"] = self._calculate_score(results)
+        results["compliance"] = self._calculate_compliance(results)
         
         # Add to infrastructure graph
         self._update_infra_graph(domain, results)
@@ -344,6 +404,431 @@ class EmailAudit:
         
         return mx_records
     
+    async def _check_bimi(self, domain: str) -> Dict[str, Any]:
+        """Check BIMI (Brand Indicators for Message Identification) record.
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            BIMI analysis
+        """
+        result = {
+            "exists": False,
+            "record": None,
+            "selector": "default",
+            "v": None,
+            "l": None,
+            "a": None,
+            "issues": []
+        }
+        
+        try:
+            bimi_domain = f"default._bimi.{domain}"
+            answers = self._resolver.resolve(bimi_domain, 'TXT')
+            
+            for rdata in answers:
+                txt = rdata.to_text().strip('"')
+                if txt.startswith('v=BIMI1') or 'v=BIMI1' in txt:
+                    result["exists"] = True
+                    result["record"] = txt
+                    
+                    # Parse BIMI tags
+                    tags = self._parse_bimi(txt)
+                    result["v"] = tags.get('v')
+                    result["l"] = tags.get('l')  # Logo location
+                    result["a"] = tags.get('a')  # Verified Mark Certificate location
+                    
+                    if not result["l"]:
+                        result["issues"].append({
+                            "severity": "medium",
+                            "issue": "BIMI record missing logo location (l=)"
+                        })
+                    
+                    break
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            result["issues"].append({
+                "severity": "low",
+                "issue": "No BIMI record found (optional but recommended for brand protection)"
+            })
+        except Exception as e:
+            result["issues"].append({
+                "severity": "info",
+                "issue": f"DNS error checking BIMI: {str(e)}"
+            })
+        
+        return result
+    
+    def _parse_bimi(self, record: str) -> Dict[str, str]:
+        """Parse BIMI record into tags."""
+        tags = {}
+        parts = record.split(';')
+        
+        for part in parts:
+            part = part.strip()
+            if '=' in part:
+                key, value = part.split('=', 1)
+                tags[key.strip()] = value.strip()
+        
+        return tags
+    
+    async def _check_mta_sts(self, domain: str) -> Dict[str, Any]:
+        """Check MTA-STS (Mail Transfer Agent Strict Transport Security).
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            MTA-STS analysis
+        """
+        result = {
+            "exists": False,
+            "dns_record": None,
+            "policy_exists": False,
+            "policy_url": None,
+            "policy_content": None,
+            "mode": None,
+            "max_age": None,
+            "issues": []
+        }
+        
+        try:
+            # Check DNS record
+            mta_sts_domain = f"_mta-sts.{domain}"
+            answers = self._resolver.resolve(mta_sts_domain, 'TXT')
+            
+            for rdata in answers:
+                txt = rdata.to_text().strip('"')
+                if 'mta-sts' in txt.lower():
+                    result["exists"] = True
+                    result["dns_record"] = txt
+                    
+                    # Parse MTA-STS DNS record
+                    # Format: v=STSv1; id=<id>
+                    if 'v=STSv1' in txt:
+                        # Extract policy URL
+                        policy_url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
+                        result["policy_url"] = policy_url
+                        
+                        # Try to fetch policy
+                        try:
+                            async with httpx.AsyncClient(timeout=5.0) as client:
+                                response = await client.get(policy_url)
+                                if response.status_code == 200:
+                                    result["policy_exists"] = True
+                                    result["policy_content"] = response.text
+                                    
+                                    # Parse policy
+                                    for line in response.text.split('\n'):
+                                        line = line.strip()
+                                        if line.startswith('mode:'):
+                                            result["mode"] = line.split(':', 1)[1].strip()
+                                        elif line.startswith('max_age:'):
+                                            result["max_age"] = line.split(':', 1)[1].strip()
+                                    
+                                    if result["mode"] == "none":
+                                        result["issues"].append({
+                                            "severity": "medium",
+                                            "issue": "MTA-STS mode is 'none' (testing only)"
+                                        })
+                                    elif result["mode"] != "enforce":
+                                        result["issues"].append({
+                                            "severity": "low",
+                                            "issue": f"MTA-STS mode is '{result['mode']}' (should be 'enforce')"
+                                        })
+                        except Exception as e:
+                            result["issues"].append({
+                                "severity": "medium",
+                                "issue": f"Could not fetch MTA-STS policy: {str(e)}"
+                            })
+                    
+                    break
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            result["issues"].append({
+                "severity": "low",
+                "issue": "No MTA-STS DNS record found (optional but recommended for secure email transport)"
+            })
+        except Exception as e:
+            result["issues"].append({
+                "severity": "info",
+                "issue": f"DNS error checking MTA-STS: {str(e)}"
+            })
+        
+        return result
+    
+    async def _check_dane(self, domain: str, mx_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Check DANE (DNS-Based Authentication of Named Entities) for SMTP.
+        
+        Args:
+            domain: Target domain
+            mx_records: List of MX records
+            
+        Returns:
+            DANE analysis
+        """
+        result = {
+            "exists": False,
+            "records": [],
+            "issues": []
+        }
+        
+        if not mx_records:
+            result["issues"].append({
+                "severity": "info",
+                "issue": "No MX records to check DANE for"
+            })
+            return result
+        
+        # Check TLSA records for each MX host
+        for mx in mx_records[:3]:  # Limit to first 3 MX records
+            mx_host = mx.get("exchange", "")
+            if not mx_host:
+                continue
+            
+            try:
+                # TLSA record format: _<port>._tcp.<hostname>
+                tlsa_domain = f"_25._tcp.{mx_host}"
+                answers = self._resolver.resolve(tlsa_domain, 'TLSA')
+                
+                for rdata in answers:
+                    result["exists"] = True
+                    result["records"].append({
+                        "mx": mx_host,
+                        "usage": rdata.usage,
+                        "selector": rdata.selector,
+                        "matching_type": rdata.matching_type,
+                        "certificate": str(rdata.certificate_assoc_data)[:50] + "..."
+                    })
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+                pass
+            except Exception:
+                pass
+        
+        if not result["exists"]:
+            result["issues"].append({
+                "severity": "low",
+                "issue": "No DANE TLSA records found (optional but recommended for certificate pinning)"
+            })
+        
+        return result
+    
+    async def _check_arc(self, domain: str) -> Dict[str, Any]:
+        """Check ARC (Authenticated Received Chain) configuration.
+        
+        Note: ARC is typically configured on mail servers, not DNS.
+        This checks for ARC-related DNS records if any exist.
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            ARC analysis
+        """
+        result = {
+            "configured": False,
+            "note": "ARC is typically configured on mail servers, not DNS",
+            "issues": []
+        }
+        
+        # ARC doesn't have DNS records, but we can check if the domain
+        # has proper SPF/DKIM/DMARC which are prerequisites
+        result["note"] = "ARC authentication is handled by mail servers during message transit. Ensure SPF, DKIM, and DMARC are properly configured."
+        
+        return result
+    
+    async def _check_ptr_records(self, domain: str, mx_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Check PTR (reverse DNS) records for MX servers.
+        
+        Args:
+            domain: Target domain
+            mx_records: List of MX records
+            
+        Returns:
+            PTR analysis
+        """
+        result = {
+            "mx_servers": [],
+            "issues": []
+        }
+        
+        if not mx_records:
+            return result
+        
+        for mx in mx_records[:3]:  # Limit to first 3
+            mx_host = mx.get("exchange", "")
+            if not mx_host:
+                continue
+            
+            mx_info = {
+                "host": mx_host,
+                "ptr_exists": False,
+                "ptr_record": None,
+                "reverse_matches": False
+            }
+            
+            try:
+                # Resolve MX host to IP
+                ip_answers = self._resolver.resolve(mx_host, 'A')
+                for ip_rdata in ip_answers:
+                    ip = str(ip_rdata)
+                    
+                    # Reverse lookup
+                    try:
+                        ptr_answers = self._resolver.resolve(dns.reversename.from_address(ip), 'PTR')
+                        for ptr_rdata in ptr_answers:
+                            mx_info["ptr_exists"] = True
+                            mx_info["ptr_record"] = str(ptr_rdata).rstrip('.')
+                            
+                            # Check if PTR matches forward
+                            if domain in mx_info["ptr_record"] or mx_host in mx_info["ptr_record"]:
+                                mx_info["reverse_matches"] = True
+                    except Exception:
+                        pass
+                    
+                    break
+                
+                if not mx_info["ptr_exists"]:
+                    result["issues"].append({
+                        "severity": "medium",
+                        "issue": f"No PTR record for {mx_host} (may affect email deliverability)"
+                    })
+                elif not mx_info["reverse_matches"]:
+                    result["issues"].append({
+                        "severity": "low",
+                        "issue": f"PTR record for {mx_host} doesn't match forward DNS"
+                    })
+                
+            except Exception:
+                pass
+            
+            result["mx_servers"].append(mx_info)
+        
+        return result
+    
+    async def _check_dnssec(self, domain: str) -> Dict[str, Any]:
+        """Check DNSSEC (DNS Security Extensions) status.
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            DNSSEC analysis
+        """
+        result = {
+            "signed": False,
+            "ds_record": None,
+            "issues": []
+        }
+        
+        try:
+            # Check for DS record at parent domain
+            # This is a simplified check - full DNSSEC validation is complex
+            answers = self._resolver.resolve(domain, 'DNSKEY')
+            
+            if answers:
+                result["signed"] = True
+            else:
+                result["issues"].append({
+                    "severity": "low",
+                    "issue": "DNSSEC not detected (optional but recommended for DNS security)"
+                })
+        except Exception:
+            result["issues"].append({
+                "severity": "info",
+                "issue": "Could not verify DNSSEC status"
+            })
+        
+        return result
+    
+    async def _check_subdomains(self, domain: str) -> Dict[str, Any]:
+        """Check email security configuration for common subdomains.
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            Subdomain analysis
+        """
+        result = {
+            "subdomains_checked": [],
+            "subdomains_with_email_config": [],
+            "issues": []
+        }
+        
+        # Common email-related subdomains
+        common_subdomains = [
+            "mail", "email", "smtp", "mx", "imap", "pop", "webmail",
+            "exchange", "owa", "autodiscover"
+        ]
+        
+        for subdomain in common_subdomains:
+            subdomain_full = f"{subdomain}.{domain}"
+            
+            subdomain_result = {
+                "subdomain": subdomain_full,
+                "has_mx": False,
+                "has_spf": False,
+                "has_dmarc": False,
+                "has_dkim": False
+            }
+            
+            try:
+                # Check MX
+                try:
+                    mx_answers = self._resolver.resolve(subdomain_full, 'MX')
+                    if mx_answers:
+                        subdomain_result["has_mx"] = True
+                except:
+                    pass
+                
+                # Check SPF
+                try:
+                    txt_answers = self._resolver.resolve(subdomain_full, 'TXT')
+                    for rdata in txt_answers:
+                        txt = rdata.to_text().strip('"')
+                        if txt.startswith('v=spf1'):
+                            subdomain_result["has_spf"] = True
+                            break
+                except:
+                    pass
+                
+                # Check DMARC
+                try:
+                    dmarc_domain = f"_dmarc.{subdomain_full}"
+                    dmarc_answers = self._resolver.resolve(dmarc_domain, 'TXT')
+                    for rdata in dmarc_answers:
+                        txt = rdata.to_text().strip('"')
+                        if txt.startswith('v=DMARC1'):
+                            subdomain_result["has_dmarc"] = True
+                            break
+                except:
+                    pass
+                
+                # If any email config found, add to list
+                if any([subdomain_result["has_mx"], subdomain_result["has_spf"], 
+                       subdomain_result["has_dmarc"], subdomain_result["has_dkim"]]):
+                    result["subdomains_with_email_config"].append(subdomain_result)
+                
+            except Exception:
+                pass
+            
+            result["subdomains_checked"].append(subdomain_result)
+        
+        # Check for issues
+        for sub in result["subdomains_with_email_config"]:
+            if sub["has_mx"] and not sub["has_spf"]:
+                result["issues"].append({
+                    "severity": "medium",
+                    "issue": f"Subdomain {sub['subdomain']} has MX but no SPF record"
+                })
+            if sub["has_mx"] and not sub["has_dmarc"]:
+                result["issues"].append({
+                    "severity": "low",
+                    "issue": f"Subdomain {sub['subdomain']} has MX but no DMARC record"
+                })
+        
+        return result
+    
     def _assess_risk(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Assess email spoofing risk.
         
@@ -430,6 +915,114 @@ class EmailAudit:
                 score += 5
         
         return score
+    
+    def _calculate_compliance(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate compliance scores for various standards.
+        
+        Args:
+            results: Audit results
+            
+        Returns:
+            Compliance scores and details
+        """
+        compliance = {
+            "rfc_7208_spf": {"compliant": False, "score": 0, "issues": []},
+            "rfc_6376_dkim": {"compliant": False, "score": 0, "issues": []},
+            "rfc_7489_dmarc": {"compliant": False, "score": 0, "issues": []},
+            "m3aawg": {"compliant": False, "score": 0, "issues": []},
+            "overall_score": 0
+        }
+        
+        # RFC 7208 (SPF) compliance
+        spf = results.get("spf", {})
+        if spf.get("exists"):
+            compliance["rfc_7208_spf"]["compliant"] = True
+            compliance["rfc_7208_spf"]["score"] = 80
+            
+            if spf.get("all_mechanism") == '-all':
+                compliance["rfc_7208_spf"]["score"] = 100
+            elif spf.get("all_mechanism") == '~all':
+                compliance["rfc_7208_spf"]["score"] = 70
+            elif spf.get("all_mechanism") == '+all':
+                compliance["rfc_7208_spf"]["score"] = 0
+                compliance["rfc_7208_spf"]["issues"].append("SPF uses +all (allows all)")
+            
+            if len(spf.get("includes", [])) > 10:
+                compliance["rfc_7208_spf"]["score"] -= 10
+                compliance["rfc_7208_spf"]["issues"].append("Too many SPF includes (>10)")
+        else:
+            compliance["rfc_7208_spf"]["issues"].append("No SPF record found")
+        
+        # RFC 6376 (DKIM) compliance
+        dkim = results.get("dkim", {})
+        if dkim.get("selectors_found"):
+            compliance["rfc_6376_dkim"]["compliant"] = True
+            compliance["rfc_6376_dkim"]["score"] = 100
+        else:
+            compliance["rfc_6376_dkim"]["issues"].append("No DKIM records found")
+        
+        # RFC 7489 (DMARC) compliance
+        dmarc = results.get("dmarc", {})
+        if dmarc.get("exists"):
+            compliance["rfc_7489_dmarc"]["compliant"] = True
+            compliance["rfc_7489_dmarc"]["score"] = 60
+            
+            policy = dmarc.get("policy")
+            if policy == 'reject':
+                compliance["rfc_7489_dmarc"]["score"] = 100
+            elif policy == 'quarantine':
+                compliance["rfc_7489_dmarc"]["score"] = 80
+            elif policy == 'none':
+                compliance["rfc_7489_dmarc"]["score"] = 40
+                compliance["rfc_7489_dmarc"]["issues"].append("DMARC policy is 'none'")
+            
+            if not dmarc.get("rua"):
+                compliance["rfc_7489_dmarc"]["score"] -= 10
+                compliance["rfc_7489_dmarc"]["issues"].append("No aggregate report URI")
+            
+            if dmarc.get("pct", 100) < 100:
+                compliance["rfc_7489_dmarc"]["score"] -= 5
+                compliance["rfc_7489_dmarc"]["issues"].append(f"DMARC only applies to {dmarc.get('pct')}% of emails")
+        else:
+            compliance["rfc_7489_dmarc"]["issues"].append("No DMARC record found")
+        
+        # M3AAWG best practices
+        m3aawg_score = 0
+        m3aawg_issues = []
+        
+        if spf.get("exists") and spf.get("all_mechanism") == '-all':
+            m3aawg_score += 25
+        else:
+            m3aawg_issues.append("SPF should use -all")
+        
+        if dkim.get("selectors_found"):
+            m3aawg_score += 25
+        else:
+            m3aawg_issues.append("DKIM should be configured")
+        
+        if dmarc.get("exists") and dmarc.get("policy") in ['quarantine', 'reject']:
+            m3aawg_score += 25
+        else:
+            m3aawg_issues.append("DMARC should be set to quarantine or reject")
+        
+        if dmarc.get("exists") and dmarc.get("rua"):
+            m3aawg_score += 25
+        else:
+            m3aawg_issues.append("DMARC should include aggregate reporting")
+        
+        compliance["m3aawg"]["score"] = m3aawg_score
+        compliance["m3aawg"]["compliant"] = m3aawg_score >= 75
+        compliance["m3aawg"]["issues"] = m3aawg_issues
+        
+        # Overall compliance score (weighted average)
+        compliance["overall_score"] = (
+            compliance["rfc_7208_spf"]["score"] * 0.3 +
+            compliance["rfc_6376_dkim"]["score"] * 0.3 +
+            compliance["rfc_7489_dmarc"]["score"] * 0.3 +
+            compliance["m3aawg"]["score"] * 0.1
+        )
+        
+        return compliance
     
     def _update_infra_graph(self, domain: str, results: Dict[str, Any]):
         """Update infrastructure graph with audit results.
