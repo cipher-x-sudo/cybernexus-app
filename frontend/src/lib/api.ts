@@ -542,6 +542,145 @@ class ApiClient {
       };
     }>(`/capabilities/email/${encodeURIComponent(domain)}/compare?job_id1=${jobId1}&job_id2=${jobId2}`);
   }
+
+  // ============================================================================
+  // Investigation API
+  // ============================================================================
+
+  /**
+   * Get screenshot from an investigation job
+   */
+  async getInvestigationScreenshot(jobId: string): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/capabilities/investigation/${jobId}/screenshot`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get screenshot: ${response.statusText}`);
+    }
+    
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  /**
+   * Get HAR file from an investigation job
+   */
+  async getInvestigationHAR(jobId: string) {
+    return this.request<any>(`/capabilities/investigation/${jobId}/har`);
+  }
+
+  /**
+   * Get domain tree graph from an investigation job
+   */
+  async getInvestigationDomainTree(jobId: string) {
+    return this.request<{
+      nodes: Array<{
+        id: string;
+        label: string;
+        type: string;
+        depth?: number;
+        requests?: number;
+        risk?: number;
+        resource_type?: string;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        type?: string;
+      }>;
+      summary?: Record<string, any>;
+    }>(`/capabilities/investigation/${jobId}/domain-tree`);
+  }
+
+  /**
+   * Compare two investigation results
+   */
+  async compareInvestigations(jobId1: string, jobId2: string) {
+    return this.request<{
+      job1: string;
+      job2: string;
+      target1: string;
+      target2: string;
+      visual_similarity: {
+        perceptual_hash_similarity: number | null;
+        ssim_score: number | null;
+        overall_similarity: number;
+        is_similar: boolean;
+      } | null;
+      domain_differences: {
+        added_domains: string[];
+        removed_domains: string[];
+        common_domains: string[];
+      };
+      findings_comparison: {
+        count1: number;
+        count2: number;
+        new_findings: number;
+        resolved_findings: number;
+      };
+    }>(`/capabilities/investigation/compare?job_id1=${jobId1}&job_id2=${jobId2}`);
+  }
+
+  /**
+   * Export investigation results
+   */
+  async exportInvestigation(jobId: string, format: "json" | "html" = "json") {
+    const url = `/capabilities/investigation/${jobId}/export?format=${format}`;
+    
+    if (format === "html") {
+      const response = await fetch(`${this.baseUrl}${url}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `investigation_${jobId}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return { success: true };
+    } else {
+      const response = await fetch(`${this.baseUrl}${url}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `investigation_${jobId}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return { success: true };
+    }
+  }
 }
 
 // Export singleton instance

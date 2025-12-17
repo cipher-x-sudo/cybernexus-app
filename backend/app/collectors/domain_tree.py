@@ -292,10 +292,103 @@ class DomainTree:
         data = f"{method}:{url}:{timestamp}"
         return hashlib.md5(data.encode()).hexdigest()[:12]
     
+    def _extract_requests_from_har(self, har: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Extract network requests from HAR file.
+        
+        Args:
+            har: HAR file content as dictionary
+        
+        Returns:
+            List of request dictionaries
+        """
+        requests = []
+        entries = har.get('entries', [])
+        
+        for entry in entries:
+            har_request = entry.get('request', {})
+            har_response = entry.get('response', {})
+            har_timings = entry.get('timings', {})
+            
+            url = har_request.get('url', '')
+            method = har_request.get('method', 'GET')
+            
+            # Determine resource type from MIME type or URL
+            mime_type = har_response.get('content', {}).get('mimeType', '')
+            resource_type = self._determine_resource_type(url, mime_type)
+            
+            # Calculate timing
+            total_time = sum(
+                v for v in har_timings.values() 
+                if isinstance(v, (int, float)) and v > 0
+            )
+            
+            # Get response size
+            body_size = har_response.get('bodySize', 0)
+            if body_size < 0:
+                body_size = har_response.get('content', {}).get('size', 0)
+            
+            # Find initiator (simplified - would need better tracking)
+            initiator = None
+            # Check referer header
+            headers = har_request.get('headers', [])
+            for header in headers:
+                if header.get('name', '').lower() == 'referer':
+                    initiator = header.get('value')
+                    break
+            
+            requests.append({
+                "url": url,
+                "method": method,
+                "type": resource_type,
+                "status": har_response.get('status', 0),
+                "size": body_size,
+                "time": total_time,
+                "initiator": initiator,
+                "mime_type": mime_type
+            })
+        
+        return requests
+    
+    def _determine_resource_type(self, url: str, mime_type: str) -> str:
+        """Determine resource type from URL and MIME type"""
+        url_lower = url.lower()
+        mime_lower = mime_type.lower()
+        
+        # Check MIME type first
+        if 'text/html' in mime_lower:
+            return 'document'
+        elif 'text/css' in mime_lower:
+            return 'stylesheet'
+        elif 'javascript' in mime_lower or 'application/javascript' in mime_lower:
+            return 'script'
+        elif 'image/' in mime_lower:
+            return 'image'
+        elif 'font' in mime_lower or 'woff' in mime_lower:
+            return 'font'
+        elif 'video' in mime_lower or 'audio' in mime_lower:
+            return 'media'
+        
+        # Fallback to URL extension
+        if url_lower.endswith(('.html', '.htm')):
+            return 'document'
+        elif url_lower.endswith('.css'):
+            return 'stylesheet'
+        elif url_lower.endswith(('.js', '.mjs')):
+            return 'script'
+        elif url_lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp')):
+            return 'image'
+        elif url_lower.endswith(('.woff', '.woff2', '.ttf', '.otf')):
+            return 'font'
+        elif url_lower.endswith(('.mp4', '.webm', '.mp3')):
+            return 'media'
+        
+        return 'other'
+    
     def _simulate_page_capture(self, url: str) -> List[Dict[str, Any]]:
         """
         Simulate capturing a page's network requests.
-        In production, this would use Playwright/Puppeteer.
+        Fallback method when HAR is not available.
         
         Returns simulated request data for demonstration.
         """
@@ -414,9 +507,210 @@ class DomainTree:
         
         return simulated_requests
     
+    async def capture_url_async(
+        self,
+        url: str,
+        har_data: Optional[Dict[str, Any]] = None,
+        follow_redirects: bool = True
+    ) -> CaptureResult:
+        """
+        Capture a URL and build its domain tree from HAR data.
+        
+        Args:
+            url: Target URL to capture
+            har_data: Optional HAR file data (if provided, uses this instead of simulation)
+            follow_redirects: Whether to follow HTTP redirects
+            
+        Returns:
+            CaptureResult with complete domain tree and analysis
+        """
+        start_time = datetime.now()
+        capture_id = self._generate_capture_id(url)
+        
+        target_domain = self._extract_domain(url)
+        target_base = self._get_base_domain(target_domain)
+        
+        # Use HAR data if provided, otherwise simulate
+        if har_data:
+            raw_requests = self._extract_requests_from_har(har_data)
+        else:
+            raw_requests = self._simulate_page_capture(url)
+        
+        # Process requests and build structures (same as before)
+        return self._process_capture_requests(
+            capture_id, url, target_domain, target_base,
+            raw_requests, start_time, follow_redirects
+        )
+    
+    def _process_capture_requests(
+        self,
+        capture_id: str,
+        url: str,
+        target_domain: str,
+        target_base: str,
+        raw_requests: List[Dict[str, Any]],
+        start_time: datetime,
+        follow_redirects: bool
+    ) -> CaptureResult:
+        """Process captured requests and build domain tree"""
+        captured_requests: List[CapturedRequest] = []
+        domain_nodes: Dict[str, DomainNode] = {}
+        unique_domains: Set[str] = set()
+        third_party_domains: Set[str] = set()
+        trackers: Dict[str, List[str]] = {}
+        cookies: Dict[str, List[str]] = {}
+        redirect_chain: List[str] = [url]
+        total_size = 0
+        
+        # Create root domain node
+        root_node = DomainNode(
+            domain=target_domain,
+            full_url=url,
+            depth=0,
+            parent_domain=None,
+            resource_type=ResourceType.DOCUMENT,
+            is_root=True
+        )
+        domain_nodes[target_domain] = root_node
+        unique_domains.add(target_domain)
+        
+        # Add root to graph
+        self.domain_graph.add_vertex(target_domain, {"type": "root", "url": url})
+        
+        for req_data in raw_requests:
+            req_url = req_data["url"]
+            req_domain = self._extract_domain(req_url)
+            req_base = self._get_base_domain(req_domain)
+            
+            # Generate request ID
+            request_id = self._generate_request_id(req_url, req_data["method"])
+            
+            # Determine resource type
+            resource_type = ResourceType(req_data["type"])
+            
+            # Check if third-party
+            is_third_party = req_base != target_base
+            
+            # Create captured request
+            captured_req = CapturedRequest(
+                request_id=request_id,
+                url=req_url,
+                method=RequestMethod(req_data["method"]),
+                resource_type=resource_type,
+                initiator=req_data.get("initiator"),
+                timestamp=datetime.now(),
+                response_status=req_data["status"],
+                response_size=req_data["size"],
+                response_time_ms=req_data["time"],
+                is_third_party=is_third_party
+            )
+            captured_requests.append(captured_req)
+            
+            # Update timeline
+            self.request_timeline.append(captured_req.to_dict())
+            
+            # Cache request
+            self.request_cache.put(request_id, captured_req)
+            
+            # Update statistics
+            total_size += req_data["size"]
+            unique_domains.add(req_domain)
+            
+            if is_third_party:
+                third_party_domains.add(req_domain)
+            
+            # Check for trackers
+            is_tracker, tracker_name = self._is_tracker(req_domain)
+            if is_tracker:
+                if tracker_name not in trackers:
+                    trackers[tracker_name] = []
+                trackers[tracker_name].append(req_url)
+            
+            # Build domain node if not exists
+            if req_domain not in domain_nodes:
+                # Find parent domain from initiator
+                parent_domain = None
+                depth = 1
+                if req_data.get("initiator"):
+                    initiator_domain = self._extract_domain(req_data["initiator"])
+                    if initiator_domain in domain_nodes:
+                        parent_domain = initiator_domain
+                        depth = domain_nodes[initiator_domain].depth + 1
+                        domain_nodes[initiator_domain].children.append(req_domain)
+                
+                node = DomainNode(
+                    domain=req_domain,
+                    full_url=req_url,
+                    depth=depth,
+                    parent_domain=parent_domain,
+                    resource_type=resource_type
+                )
+                
+                if is_tracker:
+                    node.trackers_detected.append(tracker_name)
+                    node.risk_score = 0.7
+                elif is_third_party and not self._is_cdn(req_domain):
+                    node.risk_score = 0.4
+                
+                domain_nodes[req_domain] = node
+                
+                # Add to graph
+                self.domain_graph.add_vertex(req_domain, {
+                    "type": "third_party" if is_third_party else "first_party",
+                    "is_tracker": is_tracker,
+                    "resource_type": resource_type.value
+                })
+                
+                if parent_domain:
+                    self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
+            
+            # Add request to domain node
+            domain_nodes[req_domain].requests.append(request_id)
+        
+        # Calculate capture duration
+        end_time = datetime.now()
+        duration_ms = (end_time - start_time).total_seconds() * 1000
+        
+        # Risk assessment
+        risk_assessment = self._assess_risk(
+            third_party_count=len(third_party_domains),
+            tracker_count=len(trackers),
+            total_domains=len(unique_domains),
+            redirect_count=len(redirect_chain) - 1
+        )
+        
+        # Create capture result
+        result = CaptureResult(
+            capture_id=capture_id,
+            target_url=url,
+            final_url=url,  # Would be different if redirected
+            captured_at=start_time,
+            capture_duration_ms=duration_ms,
+            domain_tree=domain_nodes,
+            requests=captured_requests,
+            redirect_chain=redirect_chain,
+            unique_domains=unique_domains,
+            third_party_domains=third_party_domains,
+            trackers=trackers,
+            cookies=cookies,
+            total_size_bytes=total_size,
+            risk_assessment=risk_assessment
+        )
+        
+        # Cache the capture
+        self.captures.put(capture_id, result)
+        
+        # Update stats
+        self.stats["total_captures"] += 1
+        self.stats["total_domains_analyzed"] += len(unique_domains)
+        self.stats["total_trackers_found"] += len(trackers)
+        self.stats["total_third_parties"] += len(third_party_domains)
+        
+        return result
+    
     def capture_url(self, url: str, follow_redirects: bool = True) -> CaptureResult:
         """
-        Capture a URL and build its domain tree
+        Capture a URL and build its domain tree (synchronous version)
         
         Args:
             url: Target URL to capture
@@ -431,8 +725,14 @@ class DomainTree:
         target_domain = self._extract_domain(url)
         target_base = self._get_base_domain(target_domain)
         
-        # Simulate page capture
+        # Simulate page capture (fallback when no HAR available)
         raw_requests = self._simulate_page_capture(url)
+        
+        # Use shared processing logic
+        return self._process_capture_requests(
+            capture_id, url, target_domain, target_base,
+            raw_requests, start_time, follow_redirects
+        )
         
         # Process requests and build structures
         captured_requests: List[CapturedRequest] = []

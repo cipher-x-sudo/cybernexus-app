@@ -56,4 +56,9 @@ loguru==0.7.2
 # Scheduling
 apscheduler==3.10.4
 
+# Browser Automation & Investigation
+playwright==1.40.0
+pillow==10.1.0
+imagehash==4.3.1
+scikit-image==0.22.0
 

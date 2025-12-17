@@ -16,11 +16,12 @@ Capabilities:
 from datetime import datetime
 from typing import List, Optional, Dict, Any, AsyncGenerator
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 from loguru import logger
 import json
 import asyncio
+import base64
 from concurrent.futures import ThreadPoolExecutor
 
 from app.services.orchestrator import (
@@ -1698,6 +1699,348 @@ async def compare_email_scans(
         raise
     except Exception as e:
         logger.error(f"Error comparing email scans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Investigation Endpoints
+# ============================================================================
+
+@router.get("/investigation/{job_id}/screenshot")
+async def get_investigation_screenshot(job_id: str):
+    """
+    Get screenshot from an investigation job.
+    
+    Returns the captured screenshot as PNG image.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        job = orchestrator.get_job(job_id)
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        if job.capability != Capability.INVESTIGATION:
+            raise HTTPException(status_code=400, detail="Job is not an investigation job")
+        
+        # Get screenshot from job metadata
+        capture_data = getattr(job, 'metadata', {}).get('capture', {})
+        screenshot_b64 = capture_data.get('screenshot')
+        
+        if not screenshot_b64:
+            raise HTTPException(status_code=404, detail="Screenshot not available for this job")
+        
+        # Decode and return as image
+        screenshot_bytes = base64.b64decode(screenshot_b64)
+        return Response(
+            content=screenshot_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"attachment; filename=investigation_{job_id}_screenshot.png"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving screenshot: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/investigation/{job_id}/har")
+async def get_investigation_har(job_id: str):
+    """
+    Get HAR file from an investigation job.
+    
+    Returns the captured HAR file as JSON.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        job = orchestrator.get_job(job_id)
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        if job.capability != Capability.INVESTIGATION:
+            raise HTTPException(status_code=400, detail="Job is not an investigation job")
+        
+        # Get HAR from job metadata
+        capture_data = getattr(job, 'metadata', {}).get('capture', {})
+        har_data = capture_data.get('har')
+        
+        if not har_data:
+            raise HTTPException(status_code=404, detail="HAR file not available for this job")
+        
+        return Response(
+            content=json.dumps(har_data, indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename=investigation_{job_id}.har"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving HAR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/investigation/{job_id}/domain-tree")
+async def get_investigation_domain_tree(job_id: str):
+    """
+    Get domain tree graph from an investigation job.
+    
+    Returns the domain tree structure as JSON for visualization.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        job = orchestrator.get_job(job_id)
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        if job.capability != Capability.INVESTIGATION:
+            raise HTTPException(status_code=400, detail="Job is not an investigation job")
+        
+        # Get domain tree from findings or metadata
+        # For now, we'll extract from findings evidence
+        findings = orchestrator.get_job_findings(job_id)
+        
+        domain_tree_data = {
+            "nodes": [],
+            "edges": [],
+            "summary": {}
+        }
+        
+        # Extract domain information from findings
+        for finding in findings:
+            evidence = finding.evidence or {}
+            if 'domain_tree' in evidence:
+                domain_tree_data = evidence['domain_tree']
+                break
+            elif 'domains' in evidence:
+                # Build simple tree from domain list
+                domains = evidence.get('domains', [])
+                for i, domain in enumerate(domains):
+                    domain_tree_data['nodes'].append({
+                        "id": domain,
+                        "label": domain,
+                        "type": "domain"
+                    })
+                    if i > 0:
+                        domain_tree_data['edges'].append({
+                            "source": domains[0],
+                            "target": domain
+                        })
+        
+        return domain_tree_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving domain tree: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/investigation/compare")
+async def compare_investigations(
+    job_id1: str = Query(..., description="First investigation job ID"),
+    job_id2: str = Query(..., description="Second investigation job ID")
+):
+    """
+    Compare two investigation results.
+    
+    Returns comparison data including visual similarity, domain differences, etc.
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        job1 = orchestrator.get_job(job_id1)
+        job2 = orchestrator.get_job(job_id2)
+        
+        if not job1 or not job2:
+            raise HTTPException(status_code=404, detail="One or both jobs not found")
+        
+        if job1.capability != Capability.INVESTIGATION or job2.capability != Capability.INVESTIGATION:
+            raise HTTPException(status_code=400, detail="Both jobs must be investigation jobs")
+        
+        # Get capture data
+        capture1 = getattr(job1, 'metadata', {}).get('capture', {})
+        capture2 = getattr(job2, 'metadata', {}).get('capture', {})
+        
+        comparison = {
+            "job1": job_id1,
+            "job2": job_id2,
+            "target1": job1.target,
+            "target2": job2.target,
+            "visual_similarity": None,
+            "domain_differences": {},
+            "findings_comparison": {}
+        }
+        
+        # Visual similarity comparison
+        screenshot1 = capture1.get('screenshot')
+        screenshot2 = capture2.get('screenshot')
+        
+        if screenshot1 and screenshot2:
+            from app.services.visual_similarity import get_visual_similarity_service
+            visual_similarity = get_visual_similarity_service()
+            
+            img1_data = base64.b64decode(screenshot1)
+            img2_data = base64.b64decode(screenshot2)
+            
+            similarity_result = visual_similarity.compare_images(img1_data, img2_data)
+            comparison['visual_similarity'] = similarity_result
+        
+        # Domain differences
+        har1 = capture1.get('har', {})
+        har2 = capture2.get('har', {})
+        
+        if har1 and har2:
+            domains1 = set()
+            domains2 = set()
+            
+            for entry in har1.get('entries', []):
+                url = entry.get('request', {}).get('url', '')
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                if parsed.netloc:
+                    domains1.add(parsed.netloc)
+            
+            for entry in har2.get('entries', []):
+                url = entry.get('request', {}).get('url', '')
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                if parsed.netloc:
+                    domains2.add(parsed.netloc)
+            
+            comparison['domain_differences'] = {
+                "added_domains": list(domains2 - domains1),
+                "removed_domains": list(domains1 - domains2),
+                "common_domains": list(domains1 & domains2)
+            }
+        
+        # Findings comparison
+        findings1 = orchestrator.get_job_findings(job_id1)
+        findings2 = orchestrator.get_job_findings(job_id2)
+        
+        comparison['findings_comparison'] = {
+            "count1": len(findings1),
+            "count2": len(findings2),
+            "new_findings": len([f for f in findings2 if f.id not in [f2.id for f2 in findings1]]),
+            "resolved_findings": len([f for f in findings1 if f.id not in [f2.id for f2 in findings2]])
+        }
+        
+        return comparison
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing investigations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/investigation/{job_id}/export")
+async def export_investigation(
+    job_id: str,
+    format: str = Query(default="json", regex="^(json|html)$")
+):
+    """
+    Export complete investigation results.
+    
+    Returns investigation data in specified format (json or html).
+    """
+    try:
+        orchestrator = get_orchestrator()
+        job = orchestrator.get_job(job_id)
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        if job.capability != Capability.INVESTIGATION:
+            raise HTTPException(status_code=400, detail="Job is not an investigation job")
+        
+        findings = orchestrator.get_job_findings(job_id)
+        capture_data = getattr(job, 'metadata', {}).get('capture', {})
+        
+        export_data = {
+            "job_id": job_id,
+            "target": job.target,
+            "status": job.status.value,
+            "created_at": job.created_at.isoformat(),
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "findings": [f.to_dict() for f in findings],
+            "capture": {
+                "final_url": capture_data.get('final_url'),
+                "title": capture_data.get('title'),
+                "redirect_chain": capture_data.get('redirect_chain', []),
+                "capture_time": capture_data.get('capture_time')
+            }
+        }
+        
+        if format == "json":
+            return Response(
+                content=json.dumps(export_data, indent=2),
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f"attachment; filename=investigation_{job_id}.json"
+                }
+            )
+        elif format == "html":
+            # Generate HTML report
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Investigation Report - {job.target}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background: #1a1a2e; color: #fff; }}
+        .header {{ background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .finding {{ background: #0f3460; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #e94560; }}
+        .severity-critical {{ border-left-color: #e94560; }}
+        .severity-high {{ border-left-color: #f39c12; }}
+        .severity-medium {{ border-left-color: #f1c40f; }}
+        .severity-low {{ border-left-color: #3498db; }}
+        .severity-info {{ border-left-color: #95a5a6; }}
+        .evidence {{ background: #16213e; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Investigation Report</h1>
+        <p><strong>Target:</strong> {job.target}</p>
+        <p><strong>Job ID:</strong> {job_id}</p>
+        <p><strong>Status:</strong> {job.status.value}</p>
+        <p><strong>Findings:</strong> {len(findings)}</p>
+    </div>
+    
+    <h2>Findings</h2>
+    {''.join([f'''
+    <div class="finding severity-{f.severity}">
+        <h3>{f.title}</h3>
+        <p>{f.description}</p>
+        <div class="evidence">
+            <strong>Evidence:</strong><br>
+            <pre>{json.dumps(f.evidence, indent=2)}</pre>
+        </div>
+        <p><strong>Risk Score:</strong> {f.risk_score}</p>
+        <p><strong>Recommendations:</strong></p>
+        <ul>
+            {''.join([f'<li>{rec}</li>' for rec in f.recommendations])}
+        </ul>
+    </div>
+    ''' for f in findings])}
+</body>
+</html>
+            """
+            return Response(
+                content=html_content,
+                media_type="text/html",
+                headers={
+                    "Content-Disposition": f"attachment; filename=investigation_{job_id}.html"
+                }
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting investigation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

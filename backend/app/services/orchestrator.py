@@ -20,6 +20,7 @@ from enum import Enum
 import uuid
 import asyncio
 import time
+import base64
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
@@ -31,9 +32,12 @@ from app.core.dsa import HashMap, MinHeap, AVLTree
 from app.collectors.web_recon import WebRecon
 from app.collectors.email_audit import EmailAudit
 from app.collectors.config_audit import ConfigAudit
+from app.collectors.domain_tree import DomainTree
 
 # Import email security services
 from app.services.bypass_tester import BypassTester
+from app.services.browser_capture import get_browser_capture_service
+from app.services.visual_similarity import get_visual_similarity_service
 
 
 class Capability(str, Enum):
@@ -507,7 +511,7 @@ class Orchestrator:
             elif job.capability == Capability.NETWORK_SECURITY:
                 findings = self._generate_network_findings(job)
             elif job.capability == Capability.INVESTIGATION:
-                findings = self._generate_investigation_findings(job)
+                findings = await self._execute_investigation(job)
         except Exception as e:
             logger.error(f"Collector error for {job.capability.value}: {e}")
             raise
@@ -2368,22 +2372,333 @@ class Orchestrator:
             )
         ]
     
-    def _generate_investigation_findings(self, job: Job) -> List[Finding]:
-        """Generate sample investigation findings"""
-        return [
-            Finding(
+    async def _execute_investigation(self, job: Job) -> List[Finding]:
+        """
+        Execute comprehensive investigation using browser capture and domain tree analysis.
+        
+        Features:
+        - Real page capture with Playwright
+        - Screenshot generation
+        - HAR file extraction
+        - Domain tree mapping
+        - Tracker detection
+        - Visual similarity analysis (if enabled)
+        - Dark web cross-referencing (if enabled)
+        """
+        findings = []
+        job.progress = 10
+        
+        try:
+            config = job.config or {}
+            target = job.target
+            
+            # Ensure target has protocol
+            if not target.startswith(('http://', 'https://')):
+                target = f"https://{target}"
+            
+            logger.info(f"[Orchestrator] Starting investigation for {target}")
+            
+            # Initialize services
+            browser_service = get_browser_capture_service()
+            domain_tree = DomainTree()
+            visual_similarity = get_visual_similarity_service()
+            
+            # Initialize browser if needed
+            await browser_service.initialize()
+            job.progress = 20
+            
+            # Capture page with browser
+            capture_options = {
+                'wait_until': 'networkidle',
+                'timeout': 30000,
+                'full_page': config.get('capture_screenshot', True),
+            }
+            
+            logger.info(f"[Orchestrator] Capturing page: {target}")
+            capture_result = await browser_service.capture_page(target, capture_options)
+            job.progress = 40
+            
+            # Store capture data in job metadata for API access
+            if not hasattr(job, 'metadata'):
+                job.metadata = {}
+            job.metadata['capture'] = {
+                'screenshot': capture_result.get('screenshot'),
+                'har': capture_result.get('har'),
+                'final_url': capture_result.get('final_url'),
+                'title': capture_result.get('title'),
+                'redirect_chain': capture_result.get('redirect_chain', []),
+                'capture_time': capture_result.get('capture_time')
+            }
+            
+            # Process HAR with DomainTree
+            if config.get('map_resources', True) and capture_result.get('har'):
+                logger.info(f"[Orchestrator] Building domain tree from HAR")
+                domain_result = await domain_tree.capture_url_async(
+                    target,
+                    har_data=capture_result.get('har')
+                )
+                job.progress = 60
+                
+                # Generate findings from domain tree analysis
+                findings.extend(self._findings_from_domain_tree(domain_result, target))
+            
+            # Visual similarity analysis (if enabled)
+            if config.get('visual_similarity', False) and capture_result.get('screenshot'):
+                logger.info(f"[Orchestrator] Running visual similarity analysis")
+                screenshot_data = base64.b64decode(capture_result['screenshot'])
+                similarity_matches = visual_similarity.compare_against_references(
+                    screenshot_data,
+                    threshold=70.0
+                )
+                
+                if similarity_matches:
+                    findings.append(Finding(
+                        id=f"find-{uuid.uuid4().hex[:8]}",
+                        capability=Capability.INVESTIGATION,
+                        severity="high",
+                        title="Visual Similarity to Known Sites Detected",
+                        description=f"Page screenshot matches {len(similarity_matches)} known reference(s) with >70% similarity",
+                        evidence={
+                            "matches": similarity_matches,
+                            "top_match": similarity_matches[0] if similarity_matches else None
+                        },
+                        affected_assets=[target],
+                        recommendations=[
+                            "Review visual similarity matches for potential phishing/clone sites",
+                            "Compare page structure and content with known legitimate sites"
+                        ],
+                        discovered_at=datetime.now(),
+                        risk_score=75.0
+                    ))
+                job.progress = 75
+            
+            # Dark web cross-referencing (if enabled)
+            if config.get('cross_reference_darkweb', False):
+                logger.info(f"[Orchestrator] Cross-referencing with dark web intelligence")
+                darkweb_findings = self._cross_reference_darkweb(target)
+                findings.extend(darkweb_findings)
+                job.progress = 85
+            
+            # Reputation checking (if enabled)
+            if config.get('check_reputation', True):
+                logger.info(f"[Orchestrator] Checking domain reputation")
+                reputation_findings = self._check_domain_reputation(target)
+                findings.extend(reputation_findings)
+                job.progress = 90
+            
+            # Summary finding
+            findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.INVESTIGATION,
                 severity="info",
-                title="Domain Analysis Complete",
-                description=f"Investigation of {job.target} completed",
-                evidence={"resources_found": 45, "external_connections": 12},
-                affected_assets=[job.target],
-                recommendations=["Review external connections"],
+                title="Investigation Complete",
+                description=f"Comprehensive investigation of {target} completed with {len(findings)} findings",
+                evidence={
+                    "total_findings": len(findings),
+                    "screenshot_captured": config.get('capture_screenshot', True),
+                    "har_available": bool(capture_result.get('har')),
+                    "domain_tree_built": config.get('map_resources', True),
+                    "final_url": capture_result.get('final_url', target),
+                    "redirect_count": len(capture_result.get('redirect_chain', [])) - 1
+                },
+                affected_assets=[target],
+                recommendations=["Review all findings for security implications"],
                 discovered_at=datetime.now(),
-                risk_score=30.0
-            )
-        ]
+                risk_score=0.0
+            ))
+            
+            logger.info(f"[Orchestrator] Investigation completed with {len(findings)} findings")
+            return findings
+            
+        except Exception as e:
+            logger.error(f"[Orchestrator] Investigation error: {e}", exc_info=True)
+            # Return error finding
+            return [
+                Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.INVESTIGATION,
+                    severity="high",
+                    title="Investigation Failed",
+                    description=f"Error during investigation: {str(e)}",
+                    evidence={"error": str(e)},
+                    affected_assets=[job.target],
+                    recommendations=["Check target URL accessibility", "Verify network connectivity"],
+                    discovered_at=datetime.now(),
+                    risk_score=0.0
+                )
+            ]
+    
+    def _findings_from_domain_tree(self, domain_result, target: str) -> List[Finding]:
+        """Generate findings from domain tree analysis"""
+        findings = []
+        
+        # Tracker detection
+        if domain_result.trackers:
+            tracker_count = sum(len(urls) for urls in domain_result.trackers.values())
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INVESTIGATION,
+                severity="medium",
+                title=f"{len(domain_result.trackers)} Tracking Services Detected",
+                description=f"Page loads {tracker_count} requests from {len(domain_result.trackers)} tracking services",
+                evidence={
+                    "trackers": list(domain_result.trackers.keys()),
+                    "tracker_count": len(domain_result.trackers),
+                    "total_tracking_requests": tracker_count
+                },
+                affected_assets=[target],
+                recommendations=[
+                    "Review privacy implications of tracking services",
+                    "Consider implementing tracking protection",
+                    "Audit data collection practices"
+                ],
+                discovered_at=datetime.now(),
+                risk_score=40.0
+            ))
+        
+        # Third-party domain analysis
+        if domain_result.third_party_domains:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INVESTIGATION,
+                severity="low" if len(domain_result.third_party_domains) < 10 else "medium",
+                title=f"{len(domain_result.third_party_domains)} Third-Party Domains Detected",
+                description=f"Page loads resources from {len(domain_result.third_party_domains)} third-party domains",
+                evidence={
+                    "third_party_domains": list(domain_result.third_party_domains),
+                    "third_party_count": len(domain_result.third_party_domains),
+                    "total_domains": len(domain_result.unique_domains)
+                },
+                affected_assets=[target],
+                recommendations=[
+                    "Review third-party dependencies for security risks",
+                    "Implement Subresource Integrity (SRI) for third-party scripts",
+                    "Monitor third-party services for security updates"
+                ],
+                discovered_at=datetime.now(),
+                risk_score=30.0 if len(domain_result.third_party_domains) < 10 else 50.0
+            ))
+        
+        # Risk assessment
+        risk_score = domain_result.risk_assessment.get('score', 0)
+        if risk_score > 50:
+            findings.append(Finding(
+                id=f"find-{uuid.uuid4().hex[:8]}",
+                capability=Capability.INVESTIGATION,
+                severity="high" if risk_score > 70 else "medium",
+                title=f"High Risk Score Detected ({risk_score}/100)",
+                description=f"Domain analysis indicates elevated risk level: {domain_result.risk_assessment.get('level', 'unknown')}",
+                evidence={
+                    "risk_score": risk_score,
+                    "risk_level": domain_result.risk_assessment.get('level'),
+                    "risk_factors": domain_result.risk_assessment.get('factors', []),
+                    "third_party_count": domain_result.risk_assessment.get('third_party_count', 0),
+                    "tracker_count": domain_result.risk_assessment.get('tracker_count', 0)
+                },
+                affected_assets=[target],
+                recommendations=[
+                    "Review risk factors in detail",
+                    "Implement security controls to mitigate identified risks",
+                    "Consider additional security monitoring"
+                ],
+                discovered_at=datetime.now(),
+                risk_score=float(risk_score)
+            ))
+        
+        return findings
+    
+    def _cross_reference_darkweb(self, target: str) -> List[Finding]:
+        """Cross-reference target with dark web intelligence findings"""
+        findings = []
+        
+        try:
+            # Extract domain from target
+            from urllib.parse import urlparse
+            parsed = urlparse(target if target.startswith('http') else f'https://{target}')
+            domain = parsed.netloc or target.split('/')[0]
+            
+            # Search existing dark web findings for this domain
+            darkweb_findings = [
+                f for f in self._all_findings
+                if f.capability == Capability.DARK_WEB_INTELLIGENCE
+                and domain.lower() in f.evidence.get('domain', '').lower()
+            ]
+            
+            if darkweb_findings:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.INVESTIGATION,
+                    severity="critical",
+                    title="Dark Web Mention Detected",
+                    description=f"Domain {domain} found in {len(darkweb_findings)} dark web intelligence finding(s)",
+                    evidence={
+                        "domain": domain,
+                        "darkweb_findings_count": len(darkweb_findings),
+                        "related_findings": [f.id for f in darkweb_findings[:5]]  # Limit to 5
+                    },
+                    affected_assets=[target],
+                    recommendations=[
+                        "Immediately investigate dark web mentions",
+                        "Review related dark web intelligence findings",
+                        "Consider incident response procedures"
+                    ],
+                    discovered_at=datetime.now(),
+                    risk_score=90.0
+                ))
+        except Exception as e:
+            logger.error(f"[Orchestrator] Error in dark web cross-reference: {e}")
+        
+        return findings
+    
+    def _check_domain_reputation(self, target: str) -> List[Finding]:
+        """Check domain reputation (simplified implementation)"""
+        findings = []
+        
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(target if target.startswith('http') else f'https://{target}')
+            domain = parsed.netloc or target.split('/')[0]
+            
+            # Basic reputation checks (can be enhanced with actual reputation APIs)
+            suspicious_indicators = []
+            
+            # Check for suspicious TLDs
+            suspicious_tlds = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz']
+            if any(domain.endswith(tld) for tld in suspicious_tlds):
+                suspicious_indicators.append("Suspicious TLD detected")
+            
+            # Check for typosquatting patterns (simplified)
+            common_domains = ['google', 'facebook', 'microsoft', 'apple', 'amazon']
+            domain_lower = domain.lower()
+            for common in common_domains:
+                if common in domain_lower and domain_lower != common:
+                    suspicious_indicators.append(f"Potential typosquatting: {common}")
+                    break
+            
+            if suspicious_indicators:
+                findings.append(Finding(
+                    id=f"find-{uuid.uuid4().hex[:8]}",
+                    capability=Capability.INVESTIGATION,
+                    severity="medium",
+                    title="Reputation Concerns Detected",
+                    description=f"Domain reputation check identified {len(suspicious_indicators)} concern(s)",
+                    evidence={
+                        "domain": domain,
+                        "indicators": suspicious_indicators
+                    },
+                    affected_assets=[target],
+                    recommendations=[
+                        "Verify domain legitimacy through additional sources",
+                        "Check domain registration information",
+                        "Review domain history and ownership"
+                    ],
+                    discovered_at=datetime.now(),
+                    risk_score=45.0
+                ))
+        except Exception as e:
+            logger.error(f"[Orchestrator] Error in reputation check: {e}")
+        
+        return findings
     
     def _update_job_status(self, job: Job, new_status: JobStatus):
         """Update job status and indexes"""
