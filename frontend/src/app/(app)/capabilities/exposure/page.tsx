@@ -764,9 +764,9 @@ export default function ExposureDiscoveryPage() {
                             ))}
                           </div>
                           {selectedFinding.evidence.dork_count && 
-                           selectedFinding.evidence.dork_count > selectedFinding.evidence.sample_dorks.length && (
+                           selectedFinding.evidence.dork_count !== selectedFinding.evidence.sample_dorks.length && (
                             <div className="mt-2 text-xs text-white/40 font-mono text-center">
-                              Showing {selectedFinding.evidence.sample_dorks.length} of {selectedFinding.evidence.dork_count} dorks
+                              {selectedFinding.evidence.sample_dorks.length} of {selectedFinding.evidence.dork_count} dorks shown
                             </div>
                           )}
                         </div>

@@ -1121,6 +1121,8 @@ class Orchestrator:
         # Report dork queries generated
         dorks_count = results.get("dorks_generated", 0)
         if dorks_count > 0:
+            # Get all dorks, not just a sample
+            all_dorks = self._web_recon.generate_dorks(job.target)
             await create_and_stream_finding(
                 category="endpoint",  # Dorks are informational
                 severity="info",
@@ -1128,7 +1130,7 @@ class Orchestrator:
                 description="Search engine dork queries have been generated for manual investigation",
                 evidence={
                     "dork_count": dorks_count,
-                    "sample_dorks": self._web_recon.generate_dorks(job.target)[:10]
+                    "sample_dorks": all_dorks  # Send all dorks, not just first 10
                 },
                 affected_assets=[job.target],
                 recommendations=["Use these dorks in Google to find exposed information", "Review and remove any sensitive findings"],
