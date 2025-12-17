@@ -991,6 +991,7 @@ class WebRecon:
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(admin_paths)} admin panel paths")
         
+        # Follow redirects for all admin panels to get final status code and avoid false positives
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path, panel_name in admin_paths:
@@ -998,7 +999,8 @@ class WebRecon:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
-                        tasks.append(self._check_admin_panel(client, url, path, panel_name))
+                        # Follow redirects for all admin panels to verify actual accessibility
+                        tasks.append(self._check_admin_panel(client, url, path, panel_name, follow_redirects=True))
             
             logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} admin panel check tasks")
             check_start = time.time()
@@ -1028,18 +1030,52 @@ class WebRecon:
         client: httpx.AsyncClient, 
         url: str, 
         path: str, 
-        panel_name: str
+        panel_name: str,
+        follow_redirects: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Check if an admin panel is accessible."""
+        """Check if an admin panel is accessible.
+        
+        Args:
+            client: HTTP client (will be ignored if follow_redirects=True)
+            url: URL to check
+            path: Admin panel path
+            panel_name: Name of the admin panel
+            follow_redirects: If True, follow redirects and return final status code
+            
+        Returns:
+            Admin panel information dict or None
+        """
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
         
+        # Use a separate client if we need to follow redirects
+        if follow_redirects:
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as redirect_client:
+                return await self._check_admin_panel_with_client(redirect_client, url, path, panel_name, request_start, protocol)
+        else:
+            return await self._check_admin_panel_with_client(client, url, path, panel_name, request_start, protocol)
+    
+    async def _check_admin_panel_with_client(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        path: str,
+        panel_name: str,
+        request_start: float,
+        protocol: str
+    ) -> Optional[Dict[str, Any]]:
+        """Internal method to check admin panel with a given client."""
+        import time
         try:
             response = await client.get(url, timeout=5.0)
             request_time = time.time() - request_start
             content_length = len(response.content) if response.content else 0
             server_header = response.headers.get("server", "unknown")
+            
+            # Get final URL after redirects
+            final_url = str(response.url)
+            was_redirected = final_url != url
             
             # Check for common indicators
             content_lower = response.text.lower() if response.text else ""
@@ -1047,15 +1083,22 @@ class WebRecon:
                 'login', 'password', 'username', 'sign in', 'log in'
             ])
             
+            # Skip if redirected to 404
+            if response.status_code == 404:
+                redirect_info = f" -> {final_url} (404)" if was_redirected else ""
+                logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url}{redirect_info} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
+                return None
+            
             if response.status_code in [200, 301, 302, 401, 403] or is_login_page:
                 severity = "high" if response.status_code == 200 else "medium"
+                redirect_info = f" -> {final_url}" if was_redirected else ""
                 logger.info(
-                    f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - "
+                    f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url}{redirect_info} - "
                     f"Status: {response.status_code} - Time: {request_time:.3f}s - "
                     f"Size: {content_length} bytes - Server: {server_header} - "
                     f"Login page: {is_login_page} - Severity: {severity}"
                 )
-                return {
+                result = {
                     "name": panel_name,
                     "path": path,
                     "url": url,
@@ -1063,8 +1106,13 @@ class WebRecon:
                     "is_login_page": is_login_page,
                     "severity": severity
                 }
+                if was_redirected:
+                    result["final_url"] = final_url
+                    result["was_redirected"] = True
+                return result
             else:
-                logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+                redirect_info = f" -> {final_url}" if was_redirected else ""
+                logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url}{redirect_info} - Status: {response.status_code} - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
             logger.warning(f"[WebRecon] [admin_panel={panel_name}] Timeout: {url} after {request_time:.3f}s")

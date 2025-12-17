@@ -1037,28 +1037,59 @@ class Orchestrator:
         admin_panels = results.get("admin_panels", [])
         admin_count = len(admin_panels)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {admin_count} admin panels")
+        admin_processed = 0
         for idx, panel in enumerate(admin_panels):
+            status = panel.get("status", 0)
+            url = panel.get("url", "")
+            path = panel.get("path", "")
+            panel_name = panel.get("name", "")
+            
+            # Skip any admin panel that redirects to 404 (not actually accessible)
+            if status == 404:
+                logger.debug(
+                    f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping admin panel {panel_name} at {path}: "
+                    f"final status is 404 (not accessible)" + 
+                    (f" (redirected from {url})" if panel.get("was_redirected") else "")
+                )
+                continue
+            
             logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing admin panel {idx+1}/{admin_count}: "
-                f"{panel.get('name')} at {panel.get('path')}"
+                f"{panel_name} at {path}"
             )
+            
+            evidence = {
+                "name": panel_name,
+                "url": url,
+                "path": path,
+                "status": status,
+                "is_login_page": panel.get("is_login_page", False)
+            }
+            if panel.get("was_redirected"):
+                evidence["final_url"] = panel.get("final_url")
+                evidence["was_redirected"] = True
+            
+            description = f"Admin panel found at {url}"
+            if panel.get("was_redirected"):
+                description += f" (redirected to {panel.get('final_url')})"
+            
             await create_and_stream_finding(
                 category="admin_panel",
                 severity=panel.get("severity", "high"),
-                title=f"Admin Panel Discovered: {panel.get('name')}",
-                description=f"Admin panel found at {panel.get('url')}",
-                evidence={
-                    "name": panel.get("name"),
-                    "url": panel.get("url"),
-                    "path": panel.get("path"),
-                    "status": panel.get("status"),
-                    "is_login_page": panel.get("is_login_page", False)
-                },
-                affected_assets=[panel.get("url")],
+                title=f"Admin Panel Discovered: {panel_name}",
+                description=description,
+                evidence=evidence,
+                affected_assets=[url],
                 recommendations=["Restrict access by IP whitelist", "Implement strong authentication", "Enable 2FA"],
                 risk_score=70.0 if panel.get("severity") == "high" else 50.0,
                 source="admin_panel_discovery"
             )
+            admin_processed += 1
+        
+        logger.info(
+            f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {admin_processed} admin panel findings "
+            f"(from {admin_count} discovered)"
+        )
         
         # Process configuration files
         configs = results.get("configs", [])
