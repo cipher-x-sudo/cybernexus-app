@@ -227,7 +227,11 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
                 if allow_creds:
                     response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-                response.headers["Access-Control-Allow-Headers"] = "*"
+                # When credentials are enabled, must explicitly list headers (cannot use "*")
+                if allow_creds:
+                    response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
+                else:
+                    response.headers["Access-Control-Allow-Headers"] = "*"
                 if not has_cors_headers:
                     logger.info(f"[CORS ENFORCE] Added CORS headers for {method} {path}")
             else:
@@ -252,12 +256,24 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
 # (Last added = first executed on response)
 
 # 1. CORSMiddleware - tries to set CORS headers (runs FIRST on response)
+# When allow_credentials=True, we cannot use allow_headers=["*"], must be explicit
+allowed_headers = [
+    "accept",
+    "accept-language",
+    "content-type",
+    "content-length",
+    "authorization",
+    "x-requested-with",
+    "x-csrf-token",
+    "x-api-key",
+] if allow_creds else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=allow_creds,  # Must be False if origins=["*"]
     allow_methods=["*"],  # Allow all methods including OPTIONS
-    allow_headers=["*"],
+    allow_headers=allowed_headers,
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
@@ -291,9 +307,26 @@ async def options_handler(request: Request, full_path: str):
         )
     
     # Build CORS headers
+    # When credentials are enabled, must explicitly list headers (cannot use "*")
+    requested_headers = request.headers.get("access-control-request-headers", "")
+    if allow_creds:
+        # Explicitly allow common headers when credentials are enabled
+        allowed_headers_list = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
+        # If specific headers were requested, include them if they're safe
+        if requested_headers:
+            # Add requested headers that aren't already in the list
+            requested_list = [h.strip().lower() for h in requested_headers.split(",")]
+            existing_list = [h.strip().lower() for h in allowed_headers_list.split(",")]
+            for req_header in requested_list:
+                if req_header not in existing_list:
+                    allowed_headers_list += f", {req_header}"
+        cors_allow_headers = allowed_headers_list
+    else:
+        cors_allow_headers = requested_headers if requested_headers else "*"
+    
     cors_headers = {
         "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
-        "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+        "Access-Control-Allow-Headers": cors_allow_headers,
         "Access-Control-Max-Age": "3600",
     }
     
