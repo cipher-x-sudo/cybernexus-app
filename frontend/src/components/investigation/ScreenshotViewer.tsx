@@ -104,7 +104,6 @@ export function ScreenshotViewer({ screenshotUrl, className, onExport }: Screens
                   src={screenshotUrl}
                   alt="Page screenshot"
                   className="max-w-full h-auto"
-                  style={{ imageRendering: "high-quality" }}
                 />
                 {showAnnotations && (
                   <div className="absolute inset-0 pointer-events-none">
