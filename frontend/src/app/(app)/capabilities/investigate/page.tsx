@@ -22,7 +22,6 @@ export default function InvestigationPage() {
   const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
   const [findings, setFindings] = useState<CapabilityFinding[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "screenshot" | "domain-tree" | "waterfall" | "har" | "findings">("overview");
   
   // Investigation data
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -185,15 +184,6 @@ export default function InvestigationPage() {
     }
   };
 
-  const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "screenshot", label: "Screenshot" },
-    { id: "domain-tree", label: "Domain Tree" },
-    { id: "waterfall", label: "Waterfall" },
-    { id: "har", label: "HAR" },
-    { id: "findings", label: "Findings" },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -352,50 +342,12 @@ export default function InvestigationPage() {
         </form>
       </GlassCard>
 
-      {/* Results Tabs */}
+      {/* Results Grid */}
       {currentJob && currentJob.status === "completed" && (
-        <>
-          <div className="flex items-center gap-2 border-b border-white/[0.08]">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={cn(
-                  "px-4 py-2 text-sm font-mono transition-colors",
-                  activeTab === tab.id
-                    ? "text-orange-400 border-b-2 border-orange-500"
-                    : "text-white/50 hover:text-white/70"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab Content */}
-          <div className="space-y-6">
-            {activeTab === "overview" && (
-              <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <InvestigationFindings findings={findings} />
-                </div>
-                <div>
-                  {riskData && (
-                    <RiskDashboard
-                      riskScore={riskData.riskScore}
-                      riskLevel={riskData.riskLevel}
-                      riskFactors={riskData.riskFactors}
-                      thirdPartyCount={riskData.thirdPartyCount}
-                      trackerCount={riskData.trackerCount}
-                      totalDomains={riskData.totalDomains}
-                    />
-                  )}
-                  {currentJob && <ExportPanel jobId={currentJob.id} className="mt-6" />}
-                </div>
-              </div>
-            )}
-
-            {activeTab === "screenshot" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Screenshot - Prominent */}
+          {screenshotUrl && (
+            <div className="lg:col-span-8">
               <ScreenshotViewer
                 screenshotUrl={screenshotUrl}
                 onExport={() => {
@@ -407,25 +359,56 @@ export default function InvestigationPage() {
                   }
                 }}
               />
-            )}
+            </div>
+          )}
 
-            {activeTab === "domain-tree" && domainTree && (
+          {/* Risk Dashboard - Sidebar */}
+          {riskData && (
+            <div className="lg:col-span-4">
+              <RiskDashboard
+                riskScore={riskData.riskScore}
+                riskLevel={riskData.riskLevel}
+                riskFactors={riskData.riskFactors}
+                thirdPartyCount={riskData.thirdPartyCount}
+                trackerCount={riskData.trackerCount}
+                totalDomains={riskData.totalDomains}
+              />
+            </div>
+          )}
+
+          {/* Domain Tree - Full Width */}
+          {domainTree && (
+            <div className="lg:col-span-12">
               <DomainTreeView nodes={domainTree.nodes} edges={domainTree.edges} />
-            )}
+            </div>
+          )}
 
-            {activeTab === "waterfall" && harData && (
-              <ResourceWaterfall harData={harData} />
-            )}
-
-            {activeTab === "har" && harData && (
-              <HARViewer harData={harData} />
-            )}
-
-            {activeTab === "findings" && (
+          {/* Findings - Full Width */}
+          {findings.length > 0 && (
+            <div className="lg:col-span-12">
               <InvestigationFindings findings={findings} />
-            )}
-          </div>
-        </>
+            </div>
+          )}
+
+          {/* Waterfall and HAR - Side by Side */}
+          {harData && (
+            <>
+              <div className="lg:col-span-6">
+                <ResourceWaterfall harData={harData} />
+              </div>
+              <div className="lg:col-span-6">
+                <HARViewer harData={harData} />
+              </div>
+            </>
+          )}
+
+          {/* Export Panel - Bottom */}
+          {currentJob && (
+            <div className="lg:col-span-12">
+              <ExportPanel jobId={currentJob.id} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
