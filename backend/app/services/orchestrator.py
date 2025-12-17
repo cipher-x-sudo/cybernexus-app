@@ -35,7 +35,6 @@ from app.collectors.config_audit import ConfigAudit
 
 # Import email security services
 from app.services.bypass_tester import BypassTester
-from app.services.compliance_engine import ComplianceEngine
 
 
 class Capability(str, Enum):
@@ -312,7 +311,6 @@ class Orchestrator:
         self._web_recon = WebRecon()
         self._email_audit = EmailAudit()
         self._bypass_tester = BypassTester()
-        self._compliance_engine = ComplianceEngine()
         self._config_audit = ConfigAudit()
         
         logger.info("Orchestrator initialized with real collectors")
@@ -790,25 +788,6 @@ class Orchestrator:
                     recommendations=["Review and secure email configuration for all subdomains"],
                     discovered_at=datetime.now(),
                     risk_score=self._severity_to_score(issue.get("severity", "medium"))
-                ))
-        
-        # Add compliance findings
-        if "compliance" in results:
-            compliance = results.get("compliance", {})
-            overall_score = compliance.get("overall_score", 0)
-            
-            if overall_score < 50:
-                findings.append(Finding(
-                    id=f"find-{uuid.uuid4().hex[:8]}",
-                    capability=Capability.EMAIL_SECURITY,
-                    severity="high",
-                    title=f"Low Email Security Compliance Score: {overall_score:.0f}/100",
-                    description=f"Overall compliance score is {overall_score:.0f}/100. Multiple standards need improvement.",
-                    evidence={"compliance": compliance},
-                    affected_assets=[job.target],
-                    recommendations=self._get_compliance_recommendations(compliance),
-                    discovered_at=datetime.now(),
-                    risk_score=100 - overall_score
                 ))
         
         # Add risk assessment as a finding
@@ -1417,32 +1396,6 @@ class Orchestrator:
             "info": 10.0
         }
         return scores.get(severity, 50.0)
-    
-    def _get_compliance_recommendations(self, compliance: Dict[str, Any]) -> List[str]:
-        """Extract recommendations from compliance scores.
-        
-        Args:
-            compliance: Compliance dictionary from email audit
-            
-        Returns:
-            List of recommendations
-        """
-        recommendations = []
-        
-        for standard_key in ["rfc_7208_spf", "rfc_6376_dkim", "rfc_7489_dmarc", "m3aawg"]:
-            standard = compliance.get(standard_key, {})
-            recs = standard.get("recommendations", [])
-            recommendations.extend(recs)
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_recs = []
-        for rec in recommendations:
-            if rec not in seen:
-                seen.add(rec)
-                unique_recs.append(rec)
-        
-        return unique_recs
     
     def _get_spf_recommendations(self, spf: Dict[str, Any]) -> List[str]:
         """Get SPF-specific recommendations"""

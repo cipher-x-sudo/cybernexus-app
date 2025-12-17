@@ -441,7 +441,7 @@ export default function EmailSecurityPage() {
       {findings.length > 0 && (
         <>
           {/* Dashboard Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ScoreCard
               score={stats.securityScore}
               title="Security Score"
@@ -468,30 +468,6 @@ export default function EmailSecurityPage() {
                   <span className="text-amber-400">Medium</span>
                   <span className="text-white font-mono">{stats.bySeverity.medium}</span>
                 </div>
-              </div>
-            </GlassCard>
-            <GlassCard className="p-6">
-              <h3 className="text-sm font-mono text-white/60 mb-4">Quick Actions</h3>
-              <div className="space-y-2">
-                <GlassButton
-                  onClick={() => {
-                    const complianceSection = document.getElementById("compliance-section");
-                    complianceSection?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full"
-                >
-                  View Compliance
-                </GlassButton>
-                <GlassButton
-                  onClick={() => api.getEmailInfrastructure(target.trim())}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full"
-                >
-                  Infrastructure Map
-                </GlassButton>
               </div>
             </GlassCard>
           </div>
@@ -659,31 +635,6 @@ export default function EmailSecurityPage() {
                 </GlassCard>
               )}
 
-              {/* Compliance Report */}
-              {categorizedFindings.compliance.length > 0 && (
-                <GlassCard id="compliance-section" className="p-6">
-                  <h2 className="font-mono text-lg font-semibold text-white mb-4">Compliance Report</h2>
-                  <div className="space-y-4">
-                    {categorizedFindings.compliance.map((finding) => (
-                      <div key={finding.id} className="p-4 rounded-xl border border-white/10">
-                        <p className="text-sm font-medium text-white">{finding.title}</p>
-                        <p className="text-xs text-white/60 mt-1">{finding.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              )}
-              
-              {/* Compliance Info (if no compliance findings yet) */}
-              {categorizedFindings.compliance.length === 0 && (
-                <GlassCard id="compliance-section" className="p-6">
-                  <h2 className="font-mono text-lg font-semibold text-white mb-4">Compliance Report</h2>
-                  <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
-                    <p className="text-sm text-amber-400 font-mono">Compliance scores are calculated during scan</p>
-                    <p className="text-xs text-white/60 mt-1">Run a scan to see detailed compliance breakdown</p>
-                  </div>
-                </GlassCard>
-              )}
             </div>
             
             {/* Finding Details Sidebar */}
