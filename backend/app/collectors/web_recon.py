@@ -617,16 +617,31 @@ class WebRecon:
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(paths)} endpoint paths")
         
+        # Define critical paths that require redirect following to verify actual accessibility
+        critical_paths = {
+            '/.git/config', '/.git/HEAD', '/.git/index', '/.git/logs/HEAD',
+            '/.svn/entries', '/.svn/wc.db',
+            '/.hg/requires', '/.hg/hgrc',
+            '/.env', '/.env.local', '/.env.production', '/.env.development',
+            '/.env.test', '/.env.staging',
+            '/.bzr/README', '/_darcs/README'
+        }
+        
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path in paths:
+                # Determine if this is a critical path that needs redirect following
+                is_critical = path in critical_paths
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
-                        tasks.append(self._check_endpoint(client, url, path))
+                        tasks.append(self._check_endpoint(client, url, path, follow_redirects=is_critical))
             
-            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks")
+            logger.info(
+                f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks "
+                f"({sum(1 for p in paths if p in critical_paths)} critical paths with redirect following)"
+            )
             
             # Run checks in parallel with limit
             check_start = time.time()
@@ -657,13 +672,41 @@ class WebRecon:
         self, 
         client: httpx.AsyncClient, 
         url: str, 
-        path: str
+        path: str,
+        follow_redirects: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Check a single endpoint."""
+        """Check a single endpoint.
+        
+        Args:
+            client: HTTP client (will be ignored if follow_redirects=True)
+            url: URL to check
+            path: Endpoint path
+            follow_redirects: If True, follow redirects and return final status code
+            
+        Returns:
+            Endpoint information dict or None
+        """
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
         
+        # Use a separate client if we need to follow redirects
+        if follow_redirects:
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as redirect_client:
+                return await self._check_endpoint_with_client(redirect_client, url, path, request_start, protocol)
+        else:
+            return await self._check_endpoint_with_client(client, url, path, request_start, protocol)
+    
+    async def _check_endpoint_with_client(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        path: str,
+        request_start: float,
+        protocol: str
+    ) -> Optional[Dict[str, Any]]:
+        """Internal method to check endpoint with a given client."""
+        import time
         try:
             response = await client.get(url, timeout=5.0)
             request_time = time.time() - request_start
@@ -671,23 +714,31 @@ class WebRecon:
             content_type = response.headers.get("content-type", "unknown")
             server_header = response.headers.get("server", "unknown")
             
+            # Get final URL after redirects
+            final_url = str(response.url)
+            was_redirected = final_url != url
+            
             if response.status_code != 404:
                 result = {
                     "path": path,
                     "url": url,
+                    "final_url": final_url if was_redirected else None,
                     "status": response.status_code,
                     "content_length": content_length,
                     "content_type": content_type,
-                    "server": server_header
+                    "server": server_header,
+                    "was_redirected": was_redirected
                 }
+                redirect_info = f" -> {final_url}" if was_redirected else ""
                 logger.info(
-                    f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - "
+                    f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url}{redirect_info} - "
                     f"Status: {response.status_code} - Time: {request_time:.3f}s - "
                     f"Size: {content_length} bytes - Type: {content_type} - Server: {server_header}"
                 )
                 return result
             else:
-                logger.info(f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
+                redirect_info = f" -> {final_url} (404)" if was_redirected else ""
+                logger.info(f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url}{redirect_info} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
             logger.warning(f"[WebRecon] [endpoint={path}] Timeout: {url} after {request_time:.3f}s")

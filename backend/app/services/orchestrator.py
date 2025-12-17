@@ -709,12 +709,12 @@ class Orchestrator:
         
         job.progress = 5
         logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Starting comprehensive exposure discovery")
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Job created at {job.created_at.isoformat()}, priority: {job.priority.value}")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Job created at {job.created_at.isoformat()}, priority: {job.priority.value}")
         
         # Progress callback for WebSocket streaming (sync wrapper)
         def progress_callback(progress: int, message: str):
             job.progress = progress
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Progress update: {progress}% - {message} "
                 f"(findings so far: {len(findings)})"
             )
@@ -731,7 +731,7 @@ class Orchestrator:
         
         # Run comprehensive web reconnaissance with progress updates
         recon_start = time.time()
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Calling WebRecon.discover_assets()")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Calling WebRecon.discover_assets()")
         try:
             results = await self._web_recon.discover_assets(
                 job.target,
@@ -786,7 +786,7 @@ class Orchestrator:
             findings.append(finding)
             job.add_finding(finding)
             
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Created finding: "
                 f"id={finding.id}, category={category}, severity={severity}, "
                 f"risk_score={risk_score}, source={source}, title={title[:50]}..."
@@ -799,18 +799,16 @@ class Orchestrator:
                     "data": finding.to_dict(),
                     "timestamp": datetime.now().isoformat()
                 })
-                logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Streamed finding {finding.id} via WebSocket")
+                logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Streamed finding {finding.id} via WebSocket")
             except Exception as e:
                 logger.warning(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Failed to stream finding {finding.id}: {e}")
             
             return finding
         
         # Process subdomains
-        subdomain_start = time.time()
         subdomains = results.get("subdomains", [])
         subdomain_count = len(subdomains)
-        subdomain_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {subdomain_count} subdomains")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {subdomain_count} subdomains")
         if subdomains:
             processed_count = 0
             # Individual subdomain findings
@@ -821,7 +819,7 @@ class Orchestrator:
                     severity = "medium"
                     risk_score = 50.0
                 
-                logger.info(
+                logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing subdomain {idx+1}/{min(50, subdomain_count)}: "
                     f"{subdomain.get('subdomain')} (severity: {severity}, https: {subdomain.get('https')})"
                 )
@@ -846,26 +844,22 @@ class Orchestrator:
                 )
                 processed_count += 1
             
-            subdomain_time = time.time() - subdomain_start
             logger.info(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {processed_count} subdomain findings "
-                f"(limited from {subdomain_count} total) in {subdomain_time:.3f}s"
+                f"(limited from {subdomain_count} total)"
             )
-        else:
-            subdomain_time = time.time() - subdomain_start
-            logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] No subdomains to process (completed in {subdomain_time:.3f}s)")
         
         # Process endpoints
-        endpoint_start = time.time()
         endpoints = results.get("endpoints", [])
         endpoint_count = len(endpoints)
-        endpoint_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {endpoint_count} endpoints")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {endpoint_count} endpoints")
         endpoint_processed = 0
         for idx, endpoint in enumerate(endpoints):
             path = endpoint.get("path", "")
             status = endpoint.get("status", 0)
             url = endpoint.get("url", f"https://{job.target}{path}")
+            was_redirected = endpoint.get("was_redirected", False)
+            final_url = endpoint.get("final_url", url)
             
             # Determine severity and category
             severity = "info"
@@ -874,18 +868,56 @@ class Orchestrator:
             title = f"Endpoint Discovered: {path}"
             recommendations = ["Review endpoint access controls"]
             
+            # Check if this is a critical source code exposure path
+            is_critical_source_code = False
             if "/.git" in path:
-                severity = "critical"
-                risk_score = 90.0
-                category = "source_code"
-                title = "Git Repository Exposed"
-                recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
+                is_critical_source_code = True
+                # Only report as critical if final status is 200 (actually accessible)
+                if status == 200:
+                    severity = "critical"
+                    risk_score = 90.0
+                    category = "source_code"
+                    title = "Git Repository Exposed"
+                    recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
+                else:
+                    # Redirected to non-200, don't report as critical
+                    logger.debug(
+                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
+                        f"redirected to status {status} (not actually accessible)"
+                    )
+                    continue
             elif path == "/.env" or ".env" in path:
-                severity = "critical"
-                risk_score = 95.0
-                category = "file"
-                title = "Environment File Exposed"
-                recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
+                is_critical_source_code = True
+                # Only report as critical if final status is 200 (actually accessible)
+                if status == 200:
+                    severity = "critical"
+                    risk_score = 95.0
+                    category = "file"
+                    title = "Environment File Exposed"
+                    recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
+                else:
+                    # Redirected to non-200, don't report as critical
+                    logger.debug(
+                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
+                        f"redirected to status {status} (not actually accessible)"
+                    )
+                    continue
+            elif "/.svn" in path or "/.hg" in path or "/.bzr" in path or "/_darcs" in path:
+                is_critical_source_code = True
+                # Only report as critical if final status is 200 (actually accessible)
+                if status == 200:
+                    severity = "critical"
+                    risk_score = 85.0
+                    category = "source_code"
+                    title = f"Source Code Repository Exposed: {path}"
+                    recommendations = ["Block access to VCS directory immediately", "Check for exposed secrets"]
+                else:
+                    # Redirected to non-200, don't report as critical
+                    logger.debug(
+                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
+                        f"redirected to status {status} (not actually accessible)"
+                    )
+                    continue
             elif any(admin in path.lower() for admin in ["/admin", "/wp-admin", "/administrator", "/cpanel"]):
                 severity = "high"
                 risk_score = 70.0
@@ -907,24 +939,31 @@ class Orchestrator:
                 severity = "info"
                 risk_score = 10.0
             
-            if status == 200 or (status >= 300 and status < 400):
-                logger.info(
+            # For non-critical paths, report redirects as informational
+            # For critical source code paths, we already handled them above (only 200 status)
+            if status == 200 or (status >= 300 and status < 400 and not is_critical_source_code):
+                logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing endpoint {idx+1}/{endpoint_count}: "
-                    f"{path} (status: {status}, severity: {severity}, category: {category})"
+                    f"{path} (status: {status}, severity: {severity}, category: {category}, redirected: {was_redirected})"
                 )
+                evidence = {
+                    "url": url,
+                    "path": path,
+                    "status_code": status,
+                    "content_length": endpoint.get("content_length", 0),
+                    "content_type": endpoint.get("content_type", ""),
+                    "server": endpoint.get("server", "")
+                }
+                if was_redirected:
+                    evidence["final_url"] = final_url
+                    evidence["was_redirected"] = True
+                
                 await create_and_stream_finding(
                     category=category,
                     severity=severity,
                     title=title,
-                    description=f"Discovered accessible endpoint at {url}",
-                    evidence={
-                        "url": url,
-                        "path": path,
-                        "status_code": status,
-                        "content_length": endpoint.get("content_length", 0),
-                        "content_type": endpoint.get("content_type", ""),
-                        "server": endpoint.get("server", "")
-                    },
+                    description=f"Discovered accessible endpoint at {url}" + (f" (redirected to {final_url})" if was_redirected else ""),
+                    evidence=evidence,
                     affected_assets=[url],
                     recommendations=recommendations,
                     risk_score=risk_score,
@@ -932,18 +971,15 @@ class Orchestrator:
                 )
                 endpoint_processed += 1
         
-        endpoint_time = time.time() - endpoint_start
         logger.info(
             f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {endpoint_processed} endpoint findings "
-            f"(from {endpoint_count} discovered) in {endpoint_time:.3f}s"
+            f"(from {endpoint_count} discovered)"
         )
         
         # Process sensitive files
-        file_start = time.time()
         files = results.get("files", [])
         file_count = len(files)
-        file_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {file_count} sensitive files")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {file_count} sensitive files")
         file_processed = 0
         for idx, file_info in enumerate(files):
             path = file_info.get("path", "")
@@ -965,7 +1001,7 @@ class Orchestrator:
                 severity = "medium"
                 risk_score = 60.0
             
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing file {idx+1}/{file_count}: "
                 f"{path} (severity: {severity}, size: {file_info.get('content_length', 0)} bytes)"
             )
@@ -990,20 +1026,17 @@ class Orchestrator:
             )
             file_processed += 1
         
-        file_time = time.time() - file_start
         logger.info(
             f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {file_processed} file findings "
-            f"(from {file_count} discovered) in {file_time:.3f}s"
+            f"(from {file_count} discovered)"
         )
         
         # Process source code exposures
-        source_start = time.time()
         source_code = results.get("source_code", [])
         source_count = len(source_code)
-        source_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {source_count} source code exposures")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {source_count} source code exposures")
         for idx, exposure in enumerate(source_code):
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing source code exposure {idx+1}/{source_count}: "
                 f"{exposure.get('type')} at {exposure.get('path')}"
             )
@@ -1024,17 +1057,13 @@ class Orchestrator:
                 risk_score=90.0,
                 source="source_code_detection"
             )
-        source_time = time.time() - source_start
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {source_count} source code exposures in {source_time:.3f}s")
         
         # Process admin panels
-        admin_start = time.time()
         admin_panels = results.get("admin_panels", [])
         admin_count = len(admin_panels)
-        admin_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {admin_count} admin panels")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {admin_count} admin panels")
         for idx, panel in enumerate(admin_panels):
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing admin panel {idx+1}/{admin_count}: "
                 f"{panel.get('name')} at {panel.get('path')}"
             )
@@ -1055,17 +1084,13 @@ class Orchestrator:
                 risk_score=70.0 if panel.get("severity") == "high" else 50.0,
                 source="admin_panel_discovery"
             )
-        admin_time = time.time() - admin_start
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {admin_count} admin panels in {admin_time:.3f}s")
         
         # Process configuration files
-        config_start = time.time()
         configs = results.get("configs", [])
         config_count = len(configs)
-        config_time = 0.0
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {config_count} configuration files")
+        logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {config_count} configuration files")
         for idx, config in enumerate(configs):
-            logger.info(
+            logger.debug(
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing config file {idx+1}/{config_count}: "
                 f"{config.get('path')} ({config.get('content_length', 0)} bytes)"
             )
@@ -1086,8 +1111,6 @@ class Orchestrator:
                 risk_score=95.0,
                 source="config_detection"
             )
-        config_time = time.time() - config_start
-        logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processed {config_count} configuration files in {config_time:.3f}s")
         
         # Report dork queries generated
         dorks_count = results.get("dorks_generated", 0)
@@ -1111,50 +1134,19 @@ class Orchestrator:
         progress_callback(100, "Discovery complete")
         
         execution_time = time.time() - execution_start
-        
-        # Calculate finding breakdown
-        finding_breakdown = {
-            "subdomain": sum(1 for f in findings if f.evidence.get('category') == 'subdomain'),
-            "endpoint": sum(1 for f in findings if f.evidence.get('category') == 'endpoint'),
-            "file": sum(1 for f in findings if f.evidence.get('category') == 'file'),
-            "source_code": sum(1 for f in findings if f.evidence.get('category') == 'source_code'),
-            "admin_panel": sum(1 for f in findings if f.evidence.get('category') == 'admin_panel'),
-            "config": sum(1 for f in findings if f.evidence.get('category') == 'config')
-        }
-        
-        # Calculate severity breakdown
-        severity_breakdown = {
-            "critical": sum(1 for f in findings if f.severity == 'critical'),
-            "high": sum(1 for f in findings if f.severity == 'high'),
-            "medium": sum(1 for f in findings if f.severity == 'medium'),
-            "low": sum(1 for f in findings if f.severity == 'low'),
-            "info": sum(1 for f in findings if f.severity == 'info')
-        }
-        
-        # Calculate average risk score
-        avg_risk_score = sum(f.risk_score for f in findings) / len(findings) if findings else 0
-        
         logger.info(
             f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Exposure discovery completed in {execution_time:.3f}s - "
             f"total findings: {len(findings)} (subdomains: {subdomain_count}, endpoints: {endpoint_count}, "
             f"files: {file_count}, source_code: {source_count}, admin_panels: {admin_count}, configs: {config_count})"
         )
-        logger.info(
+        logger.debug(
             f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Finding breakdown by category: "
-            f"{finding_breakdown['subdomain']} subdomains, {finding_breakdown['endpoint']} endpoints, "
-            f"{finding_breakdown['file']} files, {finding_breakdown['source_code']} source_code, "
-            f"{finding_breakdown['admin_panel']} admin_panels, {finding_breakdown['config']} configs"
-        )
-        logger.info(
-            f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Severity breakdown: "
-            f"{severity_breakdown['critical']} critical, {severity_breakdown['high']} high, "
-            f"{severity_breakdown['medium']} medium, {severity_breakdown['low']} low, {severity_breakdown['info']} info"
-        )
-        logger.info(
-            f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Average risk score: {avg_risk_score:.2f}, "
-            f"Phase timings - subdomains: {subdomain_time:.3f}s, endpoints: {endpoint_time:.3f}s, "
-            f"files: {file_time:.3f}s, source_code: {source_time:.3f}s, admin_panels: {admin_time:.3f}s, "
-            f"configs: {config_time:.3f}s"
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'subdomain')} subdomains, "
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'endpoint')} endpoints, "
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'file')} files, "
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'source_code')} source_code, "
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'admin_panel')} admin_panels, "
+            f"{sum(1 for f in findings if f.evidence.get('category') == 'config')} configs"
         )
         return findings
     
