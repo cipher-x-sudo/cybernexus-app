@@ -16,12 +16,19 @@ try:
     from PIL import Image
     from PIL import ImageStat
     import imagehash
-    from skimage.metrics import structural_similarity as ssim
     HAS_DEPS = True
 except ImportError:
     HAS_DEPS = False
     Image = None
     imagehash = None
+
+# Try to import scikit-image separately to avoid breaking if it has compatibility issues
+try:
+    from skimage.metrics import structural_similarity as ssim
+    HAS_SSIM = True
+except (ImportError, ValueError):
+    # ValueError can occur with numpy compatibility issues
+    HAS_SSIM = False
     ssim = None
 
 from loguru import logger
@@ -84,7 +91,7 @@ class VisualSimilarityService:
         Returns:
             SSIM score (0-1, higher is more similar) or None if error
         """
-        if not HAS_DEPS:
+        if not HAS_DEPS or not HAS_SSIM:
             return None
         
         try:
@@ -149,7 +156,7 @@ class VisualSimilarityService:
                 perceptual_similarity = max(0, 100 - (hamming_distance / 64.0 * 100))
                 result['perceptual_hash_similarity'] = perceptual_similarity
             
-            # Calculate SSIM
+            # Calculate SSIM (if available)
             ssim_score = self.calculate_ssim(image1_data, image2_data)
             if ssim_score is not None:
                 result['ssim_score'] = ssim_score
@@ -158,10 +165,15 @@ class VisualSimilarityService:
                 ssim_similarity = 0
             
             # Calculate overall similarity (weighted average)
+            # If SSIM is not available, use only perceptual hash
             if result['perceptual_hash_similarity'] is not None:
-                overall = (result['perceptual_hash_similarity'] * 0.4 + ssim_similarity * 0.6)
+                if ssim_score is not None:
+                    overall = (result['perceptual_hash_similarity'] * 0.4 + ssim_similarity * 0.6)
+                else:
+                    # Fallback to perceptual hash only if SSIM unavailable
+                    overall = result['perceptual_hash_similarity']
             else:
-                overall = ssim_similarity
+                overall = ssim_similarity if ssim_score is not None else 0
             
             result['overall_similarity'] = round(overall, 2)
             result['is_similar'] = result['overall_similarity'] > 70.0
