@@ -617,31 +617,18 @@ class WebRecon:
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(paths)} endpoint paths")
         
-        # Define critical paths that require redirect following to verify actual accessibility
-        critical_paths = {
-            '/.git/config', '/.git/HEAD', '/.git/index', '/.git/logs/HEAD',
-            '/.svn/entries', '/.svn/wc.db',
-            '/.hg/requires', '/.hg/hgrc',
-            '/.env', '/.env.local', '/.env.production', '/.env.development',
-            '/.env.test', '/.env.staging',
-            '/.bzr/README', '/_darcs/README'
-        }
-        
+        # Follow redirects for all endpoints to get final status code and avoid false positives
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path in paths:
-                # Determine if this is a critical path that needs redirect following
-                is_critical = path in critical_paths
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
-                        tasks.append(self._check_endpoint(client, url, path, follow_redirects=is_critical))
+                        # Follow redirects for all endpoints to verify actual accessibility
+                        tasks.append(self._check_endpoint(client, url, path, follow_redirects=True))
             
-            logger.info(
-                f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks "
-                f"({sum(1 for p in paths if p in critical_paths)} critical paths with redirect following)"
-            )
+            logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks (all with redirect following)")
             
             # Run checks in parallel with limit
             check_start = time.time()

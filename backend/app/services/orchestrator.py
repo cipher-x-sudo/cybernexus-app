@@ -861,6 +861,14 @@ class Orchestrator:
             was_redirected = endpoint.get("was_redirected", False)
             final_url = endpoint.get("final_url", url)
             
+            # Skip any endpoint that redirects to 404 (not actually accessible)
+            if status == 404:
+                logger.debug(
+                    f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping endpoint {path}: "
+                    f"final status is 404 (not accessible)" + (f" (redirected from {url})" if was_redirected else "")
+                )
+                continue
+            
             # Determine severity and category
             severity = "info"
             risk_score = 20.0
@@ -868,56 +876,24 @@ class Orchestrator:
             title = f"Endpoint Discovered: {path}"
             recommendations = ["Review endpoint access controls"]
             
-            # Check if this is a critical source code exposure path
-            is_critical_source_code = False
             if "/.git" in path:
-                is_critical_source_code = True
-                # Only report as critical if final status is 200 (actually accessible)
-                if status == 200:
-                    severity = "critical"
-                    risk_score = 90.0
-                    category = "source_code"
-                    title = "Git Repository Exposed"
-                    recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
-                else:
-                    # Redirected to non-200, don't report as critical
-                    logger.debug(
-                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
-                        f"redirected to status {status} (not actually accessible)"
-                    )
-                    continue
+                severity = "critical"
+                risk_score = 90.0
+                category = "source_code"
+                title = "Git Repository Exposed"
+                recommendations = ["Block access to .git directory immediately", "Check for exposed secrets in git history"]
             elif path == "/.env" or ".env" in path:
-                is_critical_source_code = True
-                # Only report as critical if final status is 200 (actually accessible)
-                if status == 200:
-                    severity = "critical"
-                    risk_score = 95.0
-                    category = "file"
-                    title = "Environment File Exposed"
-                    recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
-                else:
-                    # Redirected to non-200, don't report as critical
-                    logger.debug(
-                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
-                        f"redirected to status {status} (not actually accessible)"
-                    )
-                    continue
+                severity = "critical"
+                risk_score = 95.0
+                category = "file"
+                title = "Environment File Exposed"
+                recommendations = ["Remove .env from web root", "Rotate all exposed credentials"]
             elif "/.svn" in path or "/.hg" in path or "/.bzr" in path or "/_darcs" in path:
-                is_critical_source_code = True
-                # Only report as critical if final status is 200 (actually accessible)
-                if status == 200:
-                    severity = "critical"
-                    risk_score = 85.0
-                    category = "source_code"
-                    title = f"Source Code Repository Exposed: {path}"
-                    recommendations = ["Block access to VCS directory immediately", "Check for exposed secrets"]
-                else:
-                    # Redirected to non-200, don't report as critical
-                    logger.debug(
-                        f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping critical finding for {path}: "
-                        f"redirected to status {status} (not actually accessible)"
-                    )
-                    continue
+                severity = "critical"
+                risk_score = 85.0
+                category = "source_code"
+                title = f"Source Code Repository Exposed: {path}"
+                recommendations = ["Block access to VCS directory immediately", "Check for exposed secrets"]
             elif any(admin in path.lower() for admin in ["/admin", "/wp-admin", "/administrator", "/cpanel"]):
                 severity = "high"
                 risk_score = 70.0
@@ -939,9 +915,8 @@ class Orchestrator:
                 severity = "info"
                 risk_score = 10.0
             
-            # For non-critical paths, report redirects as informational
-            # For critical source code paths, we already handled them above (only 200 status)
-            if status == 200 or (status >= 300 and status < 400 and not is_critical_source_code):
+            # Report endpoint if status is 200 or redirect (3xx) - but 404s are already filtered above
+            if status == 200 or (status >= 300 and status < 400):
                 logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing endpoint {idx+1}/{endpoint_count}: "
                     f"{path} (status: {status}, severity: {severity}, category: {category}, redirected: {was_redirected})"
