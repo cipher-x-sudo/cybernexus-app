@@ -435,11 +435,16 @@ Attackers may impersonate IT support, banks, or government agencies.
         self.content.put(content.content_id, content)
         
         # Add to graph
-        self.content_graph.add_vertex(content.content_id, {
-            "type": "content",
-            "category": content.category.value,
-            "difficulty": content.difficulty.value
-        })
+        self.content_graph.add_node(
+            content.content_id,
+            label=content.title,
+            node_type="content",
+            data={
+                "type": "content",
+                "category": content.category.value,
+                "difficulty": content.difficulty.value
+            }
+        )
         
         # Add relationships for prerequisites
         for prereq in content.prerequisites:

@@ -294,11 +294,11 @@ class TunnelDetector:
         self._track_connection(conn_key, request)
         
         # Update graph
-        if not self.connection_graph.has_vertex(source_ip):
-            self.connection_graph.add_vertex(source_ip, {"type": "client"})
+        if source_ip not in self.connection_graph:
+            self.connection_graph.add_node(source_ip, label=source_ip, node_type="ip", data={"type": "client"})
         dest_key = f"{destination_ip}:{destination_port}"
-        if not self.connection_graph.has_vertex(dest_key):
-            self.connection_graph.add_vertex(dest_key, {"type": "server"})
+        if dest_key not in self.connection_graph:
+            self.connection_graph.add_node(dest_key, label=dest_key, node_type="endpoint", data={"type": "server"})
         self.connection_graph.add_edge(source_ip, dest_key)
         
         self.stats["requests_analyzed"] += 1

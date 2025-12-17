@@ -575,7 +575,7 @@ class DomainTree:
         unique_domains.add(target_domain)
         
         # Add root to graph
-        self.domain_graph.add_vertex(target_domain, {"type": "root", "url": url})
+        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
         
         for req_data in raw_requests:
             req_url = req_data["url"]
@@ -655,7 +655,7 @@ class DomainTree:
                 domain_nodes[req_domain] = node
                 
                 # Add to graph
-                self.domain_graph.add_vertex(req_domain, {
+                self.domain_graph.add_node(req_domain, {
                     "type": "third_party" if is_third_party else "first_party",
                     "is_tracker": is_tracker,
                     "resource_type": resource_type.value
@@ -757,7 +757,7 @@ class DomainTree:
         unique_domains.add(target_domain)
         
         # Add root to graph
-        self.domain_graph.add_vertex(target_domain, {"type": "root", "url": url})
+        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
         
         for req_data in raw_requests:
             req_url = req_data["url"]
@@ -837,7 +837,7 @@ class DomainTree:
                 domain_nodes[req_domain] = node
                 
                 # Add to graph
-                self.domain_graph.add_vertex(req_domain, {
+                self.domain_graph.add_node(req_domain, {
                     "type": "third_party" if is_third_party else "first_party",
                     "is_tracker": is_tracker,
                     "resource_type": resource_type.value
