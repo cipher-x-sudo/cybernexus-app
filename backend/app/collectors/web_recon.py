@@ -7,6 +7,7 @@ Purpose: Asset discovery through dorking and domain analysis.
 
 import asyncio
 import re
+import socket
 from typing import Any, Dict, List, Optional, Callable
 from urllib.parse import urlparse, urljoin
 from datetime import datetime
@@ -131,6 +132,32 @@ class WebRecon:
         # Initialize dork patterns
         for pattern in self.DORK_PATTERNS:
             self._dork_trie.insert(pattern, pattern)
+    
+    async def _resolve_dns(self, hostname: str, timeout: float = 2.0) -> bool:
+        """Check if a hostname resolves via DNS.
+        
+        Args:
+            hostname: Hostname to resolve
+            timeout: DNS resolution timeout in seconds
+            
+        Returns:
+            True if hostname resolves, False otherwise
+        """
+        try:
+            # Use asyncio to run DNS resolution in executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
+                ),
+                timeout=timeout
+            )
+            return True
+        except (socket.gaierror, asyncio.TimeoutError, OSError):
+            return False
+        except Exception:
+            return False
     
     async def discover_assets(
         self, 
@@ -386,20 +413,50 @@ class WebRecon:
         ]
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(common_prefixes)} subdomain prefixes")
+        
+        # First, perform DNS resolution checks for all subdomains
+        dns_start = time.time()
+        dns_tasks = []
+        subdomain_list = []
+        for prefix in common_prefixes:
+            subdomain = f"{prefix}.{domain}"
+            
+            # Skip if already seen
+            if self._seen_urls.contains(subdomain):
+                continue
+            self._seen_urls.add(subdomain)
+            
+            subdomain_list.append(subdomain)
+            dns_tasks.append(self._resolve_dns(subdomain))
+        
+        # Resolve all DNS queries in parallel
+        dns_results = await asyncio.gather(*dns_tasks, return_exceptions=True)
+        dns_time = time.time() - dns_start
+        
+        # Filter to only subdomains that resolved
+        resolved_subdomains = []
+        dns_failed = 0
+        for subdomain, resolved in zip(subdomain_list, dns_results):
+            if isinstance(resolved, Exception):
+                logger.debug(f"[WebRecon] [domain={domain}] DNS resolution error for {subdomain}: {type(resolved).__name__}: {resolved}")
+                dns_failed += 1
+            elif resolved:
+                resolved_subdomains.append(subdomain)
+            else:
+                logger.debug(f"[WebRecon] [domain={domain}] DNS resolution failed for {subdomain} (hostname not found)")
+                dns_failed += 1
+        
+        logger.info(
+            f"[WebRecon] [domain={domain}] DNS resolution completed in {dns_time:.3f}s - "
+            f"resolved: {len(resolved_subdomains)}, failed: {dns_failed}"
+        )
+        
         tasks_created = 0
         tasks_skipped = 0
         
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
-            for prefix in common_prefixes:
-                subdomain = f"{prefix}.{domain}"
-                
-                # Skip if already seen
-                if self._seen_urls.contains(subdomain):
-                    tasks_skipped += 2  # Both HTTP and HTTPS
-                    continue
-                self._seen_urls.add(subdomain)
-                
+            for subdomain in resolved_subdomains:
                 # Check both HTTPS and HTTP
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{subdomain}"
@@ -408,7 +465,7 @@ class WebRecon:
             
             logger.info(
                 f"[WebRecon] [domain={domain}] Created {tasks_created} subdomain check tasks "
-                f"(skipped {tasks_skipped} duplicates)"
+                f"(skipped {tasks_skipped} duplicates, {dns_failed} DNS failures)"
             )
             
             # Run checks in parallel
@@ -422,7 +479,7 @@ class WebRecon:
             for result in results:
                 if isinstance(result, Exception):
                     errors += 1
-                    # Don't log individual errors - they're expected for non-existent subdomains
+                    logger.warning(f"[WebRecon] [domain={domain}] Subdomain check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
                     # Avoid duplicates
@@ -455,8 +512,7 @@ class WebRecon:
         import time
         request_start = time.time()
         protocol = "HTTPS" if is_https else "HTTP"
-        # Only log successful checks or at debug level to reduce noise
-        logger.debug(f"[WebRecon] [subdomain={subdomain}] Checking {protocol} GET {url}")
+        logger.info(f"[WebRecon] [subdomain={subdomain}] Checking {protocol} GET {url}")
         
         try:
             response = await client.get(url, timeout=5.0)
@@ -480,16 +536,27 @@ class WebRecon:
             return result
         except httpx.TimeoutException:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [subdomain={subdomain}] Timeout checking {url} after {request_time:.3f}s")
+            logger.warning(f"[WebRecon] [subdomain={subdomain}] Timeout checking {url} after {request_time:.3f}s")
             return None
-        except httpx.ConnectError:
-            # Connection errors are expected for non-existent subdomains - log at debug level
+        except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [subdomain={subdomain}] Connection failed (subdomain likely doesn't exist) after {request_time:.3f}s")
+            # Check if this is a DNS resolution error
+            error_str = str(e).lower()
+            is_dns_error = "name or service not known" in error_str or "errno -2" in error_str
+            if is_dns_error:
+                logger.debug(f"[WebRecon] [subdomain={subdomain}] DNS resolution error for {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            else:
+                logger.warning(f"[WebRecon] [subdomain={subdomain}] Connection error for {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
             return None
         except Exception as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [subdomain={subdomain}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            # Check if this is a DNS resolution error
+            error_str = str(e).lower()
+            is_dns_error = "name or service not known" in error_str or "errno -2" in error_str
+            if is_dns_error:
+                logger.debug(f"[WebRecon] [subdomain={subdomain}] DNS resolution error for {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            else:
+                logger.warning(f"[WebRecon] [subdomain={subdomain}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
             return None
     
     def _extract_title(self, html: str) -> str:
@@ -572,7 +639,7 @@ class WebRecon:
             for result in results:
                 if isinstance(result, Exception):
                     errors += 1
-                    # Don't log individual errors - they're expected for non-existent endpoints
+                    logger.warning(f"[WebRecon] [domain={domain}] Endpoint check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
                     endpoints.append(result)
@@ -620,16 +687,16 @@ class WebRecon:
                 )
                 return result
             else:
-                logger.debug(f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
+                logger.info(f"[WebRecon] [endpoint={path}] HTTP {protocol} GET {url} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [endpoint={path}] Timeout: {url} after {request_time:.3f}s")
-        except httpx.ConnectError:
+            logger.warning(f"[WebRecon] [endpoint={path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [endpoint={path}] Connection failed (endpoint likely doesn't exist) after {request_time:.3f}s")
+            logger.warning(f"[WebRecon] [endpoint={path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [endpoint={path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            logger.warning(f"[WebRecon] [endpoint={path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_sensitive_files(self, domain: str) -> List[Dict[str, Any]]:
@@ -696,7 +763,7 @@ class WebRecon:
             for result in results:
                 if isinstance(result, Exception):
                     errors += 1
-                    # Don't log individual errors - they're expected for non-existent files
+                    logger.warning(f"[WebRecon] [domain={domain}] File check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
                     files.append(result)
@@ -748,13 +815,13 @@ class WebRecon:
                 logger.info(f"[WebRecon] [file={file_path}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [file={file_path}] Timeout: {url} after {request_time:.3f}s")
-        except httpx.ConnectError:
+            logger.warning(f"[WebRecon] [file={file_path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [file={file_path}] Connection failed (file likely doesn't exist) after {request_time:.3f}s")
+            logger.warning(f"[WebRecon] [file={file_path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [file={file_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            logger.warning(f"[WebRecon] [file={file_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_source_code_exposure(self, domain: str) -> List[Dict[str, Any]]:
@@ -825,13 +892,13 @@ class WebRecon:
                                 logger.info(f"[WebRecon] [vcs={vcs_type}] HTTP {protocol.upper()} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
                         except httpx.TimeoutException:
                             request_time = time.time() - request_start
-                            logger.debug(f"[WebRecon] [vcs={vcs_type}] Timeout checking {url} after {request_time:.3f}s")
-                        except httpx.ConnectError:
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Timeout checking {url} after {request_time:.3f}s")
+                        except httpx.ConnectError as e:
                             request_time = time.time() - request_start
-                            logger.debug(f"[WebRecon] [vcs={vcs_type}] Connection failed (VCS likely doesn't exist) after {request_time:.3f}s")
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Connection error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
                         except Exception as e:
                             request_time = time.time() - request_start
-                            logger.debug(f"[WebRecon] [vcs={vcs_type}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+                            logger.warning(f"[WebRecon] [vcs={vcs_type}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         
         exposure_time = time.time() - exposure_start
         logger.info(
@@ -906,7 +973,7 @@ class WebRecon:
             for result in results:
                 if isinstance(result, Exception):
                     errors += 1
-                    # Don't log individual errors - they're expected for non-existent admin panels
+                    logger.warning(f"[WebRecon] [domain={domain}] Admin panel check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
                     admin_panels.append(result)
@@ -959,16 +1026,16 @@ class WebRecon:
                     "severity": severity
                 }
             else:
-                logger.debug(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+                logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [admin_panel={panel_name}] Timeout: {url} after {request_time:.3f}s")
-        except httpx.ConnectError:
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [admin_panel={panel_name}] Connection failed (admin panel likely doesn't exist) after {request_time:.3f}s")
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [admin_panel={panel_name}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            logger.warning(f"[WebRecon] [admin_panel={panel_name}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     async def _detect_config_files(self, domain: str) -> List[Dict[str, Any]]:
@@ -1018,7 +1085,7 @@ class WebRecon:
             for result in results:
                 if isinstance(result, Exception):
                     errors += 1
-                    # Don't log individual errors - they're expected for non-existent config files
+                    logger.warning(f"[WebRecon] [domain={domain}] Config file check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
                     configs.append(result)
@@ -1071,18 +1138,18 @@ class WebRecon:
                         "severity": "critical"
                     }
                 else:
-                    logger.debug(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: 200 - Time: {request_time:.3f}s (not a config file)")
+                    logger.info(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: 200 - Time: {request_time:.3f}s (not a config file)")
             else:
-                logger.debug(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
+                logger.info(f"[WebRecon] [config={config_path}] HTTP {protocol} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
         except httpx.TimeoutException:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [config={config_path}] Timeout: {url} after {request_time:.3f}s")
-        except httpx.ConnectError:
+            logger.warning(f"[WebRecon] [config={config_path}] Timeout: {url} after {request_time:.3f}s")
+        except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [config={config_path}] Connection failed (config file likely doesn't exist) after {request_time:.3f}s")
+            logger.warning(f"[WebRecon] [config={config_path}] Connection error: {url} after {request_time:.3f}s - {type(e).__name__}: {e}")
         except Exception as e:
             request_time = time.time() - request_start
-            logger.debug(f"[WebRecon] [config={config_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
+            logger.warning(f"[WebRecon] [config={config_path}] Error checking {url} after {request_time:.3f}s: {type(e).__name__}: {e}")
         return None
     
     def get_cached_results(self, domain: str) -> Optional[Dict[str, Any]]:
