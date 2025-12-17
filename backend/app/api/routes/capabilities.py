@@ -1405,7 +1405,7 @@ async def get_email_history(
         
         history = []
         for job in domain_jobs:
-            findings = orchestrator.get_job_findings(job.id)
+            findings = job.findings
             score = 0
             if findings:
                 # Calculate average risk score (inverted to get security score)
@@ -1519,7 +1519,7 @@ async def get_email_infrastructure(domain: str):
             raise HTTPException(status_code=404, detail=f"No email security scan found for {domain}")
         
         latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
-        findings = orchestrator.get_job_findings(latest_job.id)
+        findings = latest_job.findings
         
         # Extract infrastructure data from findings
         nodes = [{"id": domain, "type": "domain", "label": domain}]
@@ -1584,7 +1584,7 @@ async def export_email_report(
             raise HTTPException(status_code=404, detail=f"No email security scan found for {domain}")
         
         latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
-        findings = orchestrator.get_job_findings(latest_job.id)
+        findings = latest_job.findings
         
         if format == "csv":
             import csv
@@ -1660,8 +1660,8 @@ async def compare_email_scans(
         if job1.target.lower() != domain.lower() or job2.target.lower() != domain.lower():
             raise HTTPException(status_code=400, detail="Jobs do not match the specified domain")
         
-        findings1 = orchestrator.get_job_findings(job_id1)
-        findings2 = orchestrator.get_job_findings(job_id2)
+        findings1 = job1.findings
+        findings2 = job2.findings
         
         # Compare findings
         findings1_ids = {f.id for f in findings1}
@@ -1811,7 +1811,7 @@ async def get_investigation_domain_tree(job_id: str):
         
         if not domain_tree_data:
             # Fallback: try to extract from findings
-            findings = orchestrator.get_job_findings(job_id)
+            findings = job.findings
             domain_tree_data = {
                 "nodes": [],
                 "edges": [],
@@ -1931,8 +1931,8 @@ async def compare_investigations(
             }
         
         # Findings comparison
-        findings1 = orchestrator.get_job_findings(job_id1)
-        findings2 = orchestrator.get_job_findings(job_id2)
+        findings1 = job1.findings
+        findings2 = job2.findings
         
         comparison['findings_comparison'] = {
             "count1": len(findings1),
@@ -1969,7 +1969,7 @@ async def export_investigation(
         if job.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Job is not an investigation job")
         
-        findings = orchestrator.get_job_findings(job_id)
+        findings = job.findings
         capture_data = getattr(job, 'metadata', {}).get('capture', {})
         
         export_data = {
