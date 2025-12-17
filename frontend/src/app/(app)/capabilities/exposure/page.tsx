@@ -710,10 +710,72 @@ export default function ExposureDiscoveryPage() {
                         )}
                       </div>
                       
+                      {/* Dork Queries Special Display */}
+                      {selectedFinding.evidence?.sample_dorks && Array.isArray(selectedFinding.evidence.sample_dorks) && (
+                        <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <div className="text-xs font-mono text-cyan-400/70 mb-1">Dork Queries</div>
+                              <div className="text-sm font-mono text-white">
+                                {selectedFinding.evidence.dork_count || selectedFinding.evidence.sample_dorks.length} dorks generated
+                              </div>
+                            </div>
+                            <CopyButton 
+                              text={selectedFinding.evidence.sample_dorks.join('\n')} 
+                              size="md"
+                            />
+                          </div>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {selectedFinding.evidence.sample_dorks.map((dork: string, idx: number) => (
+                              <div
+                                key={idx}
+                                className="group p-2 rounded bg-white/[0.02] border border-white/[0.05] hover:border-cyan-500/30 transition-colors"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <span className="text-xs text-white/30 font-mono flex-shrink-0 mt-0.5">
+                                    {idx + 1}.
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <a
+                                      href={`https://www.google.com/search?q=${encodeURIComponent(dork)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs font-mono text-cyan-400 hover:text-cyan-300 break-all flex items-center gap-1 group/link"
+                                    >
+                                      <span className="truncate">{dork}</span>
+                                      <svg
+                                        className="w-3 h-3 flex-shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                        />
+                                      </svg>
+                                    </a>
+                                  </div>
+                                  <CopyButton text={dork} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {selectedFinding.evidence.dork_count && 
+                           selectedFinding.evidence.dork_count > selectedFinding.evidence.sample_dorks.length && (
+                            <div className="mt-2 text-xs text-white/40 font-mono text-center">
+                              Showing {selectedFinding.evidence.sample_dorks.length} of {selectedFinding.evidence.dork_count} dorks
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       {/* Additional Evidence Fields */}
                       {Object.entries(selectedFinding.evidence || {})
                         .filter(([key]) => 
-                          !['status_code', 'content_type', 'server', 'content_length', 'url', 'final_url', 'was_redirected', 'category', 'source'].includes(key)
+                          !['status_code', 'content_type', 'server', 'content_length', 'url', 'final_url', 'was_redirected', 'category', 'source', 'sample_dorks', 'dork_count'].includes(key)
                         )
                         .map(([key, value]) => (
                           <div key={key} className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
