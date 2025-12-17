@@ -8,10 +8,8 @@ import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 import {
   extractInfrastructureFindings,
   calculateInfrastructureStats,
-  groupFindingsByCategory,
   InfrastructureFinding,
   InfrastructureStats,
-  InfrastructureCategory,
 } from "@/components/infrastructure/helpers";
 import { InfrastructureCard } from "@/components/infrastructure/InfrastructureCard";
 import { StatsTile } from "@/components/infrastructure/StatsTile";
@@ -22,11 +20,7 @@ import {
   TimelineChart,
   TestCoverageChart,
 } from "@/components/infrastructure/InfrastructureCharts";
-import { TimelineView } from "@/components/infrastructure/TimelineView";
-import { ComparisonView } from "@/components/infrastructure/ComparisonView";
 import { exportInfrastructure } from "@/lib/export";
-
-type ViewMode = "grid" | "grouped" | "timeline" | "comparison";
 
 export default function InfrastructurePage() {
   const [target, setTarget] = useState("");
@@ -37,7 +31,6 @@ export default function InfrastructurePage() {
   const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
   const [findings, setFindings] = useState<CapabilityFinding[]>([]);
   const [selectedFinding, setSelectedFinding] = useState<InfrastructureFinding | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,14 +47,6 @@ export default function InfrastructurePage() {
     cveLookup: true,
     bypassTechniques: false,
   });
-
-  // Comparison states
-  const [comparisonScans, setComparisonScans] = useState<Array<{
-    id: string;
-    name: string;
-    findings: InfrastructureFinding[];
-    timestamp: Date;
-  }>>([]);
 
   // Refs for cleanup
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -129,12 +114,6 @@ export default function InfrastructurePage() {
 
     return filtered;
   }, [infrastructureFindings, severityFilter, categoryFilter, searchQuery, sortBy, sortDirection]);
-
-  // Grouped findings
-  const groupedFindings = useMemo(
-    () => groupFindingsByCategory(filteredAndSortedFindings),
-    [filteredAndSortedFindings]
-  );
 
   // Timeline data
   const timelineData = useMemo(() => {
@@ -276,19 +255,6 @@ export default function InfrastructurePage() {
 
   const handleExport = (format: "json" | "csv" | "pdf") => {
     exportInfrastructure(format, infrastructureFindings, stats, target);
-  };
-
-  const handleAddToComparison = () => {
-    if (infrastructureFindings.length === 0) return;
-    setComparisonScans([
-      ...comparisonScans,
-      {
-        id: currentJob?.id || Date.now().toString(),
-        name: `${target} - ${new Date().toLocaleDateString()}`,
-        findings: infrastructureFindings,
-        timestamp: new Date(),
-      },
-    ]);
   };
 
   return (
@@ -495,55 +461,30 @@ export default function InfrastructurePage() {
         </div>
       )}
 
-      {/* View Mode Toggle and Actions */}
+      {/* Export Actions */}
       {infrastructureFindings.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {(["grid", "grouped", "timeline", "comparison"] as ViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={cn(
-                  "px-4 py-2 rounded-lg font-mono text-sm transition-colors",
-                  viewMode === mode
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80"
-                )}
-              >
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <GlassButton
-              variant="ghost"
-              size="sm"
-              onClick={handleAddToComparison}
-            >
-              Add to Comparison
-            </GlassButton>
-            <GlassButton
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExport("json")}
-            >
-              Export JSON
-            </GlassButton>
-            <GlassButton
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExport("csv")}
-            >
-              Export CSV
-            </GlassButton>
-            <GlassButton
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExport("pdf")}
-            >
-              Export PDF
-            </GlassButton>
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          <GlassButton
+            variant="ghost"
+            size="sm"
+            onClick={() => handleExport("json")}
+          >
+            Export JSON
+          </GlassButton>
+          <GlassButton
+            variant="ghost"
+            size="sm"
+            onClick={() => handleExport("csv")}
+          >
+            Export CSV
+          </GlassButton>
+          <GlassButton
+            variant="ghost"
+            size="sm"
+            onClick={() => handleExport("pdf")}
+          >
+            Export PDF
+          </GlassButton>
         </div>
       )}
 
@@ -573,69 +514,27 @@ export default function InfrastructurePage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-6">
-            {viewMode === "grid" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredAndSortedFindings.map((finding) => (
-                  <InfrastructureCard
-                    key={finding.id}
-                    finding={finding}
-                    isSelected={selectedFinding?.id === finding.id}
-                    onClick={() => setSelectedFinding(finding)}
-                  />
-                ))}
-                {filteredAndSortedFindings.length === 0 && (
-                  <div className="col-span-full py-12 text-center text-white/40">
-                    <p className="font-mono">No findings match your filters</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {viewMode === "grouped" && (
-              <div className="space-y-4">
-                {groupedFindings.map((group) => (
-                  <GlassCard key={group.category} className="p-4" hover={false} padding="none">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-mono font-semibold text-white">
-                        {group.category} ({group.count})
-                      </h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {group.findings.map((finding) => (
-                        <InfrastructureCard
-                          key={finding.id}
-                          finding={finding}
-                          isSelected={selectedFinding?.id === finding.id}
-                          onClick={() => setSelectedFinding(finding)}
-                        />
-                      ))}
-                    </div>
-                  </GlassCard>
-                ))}
-              </div>
-            )}
-
-            {viewMode === "timeline" && (
-              <TimelineView
-                findings={infrastructureFindings}
-                scanStartTime={scanStartTimeRef.current || undefined}
-                scanEndTime={currentJob?.completed_at ? new Date(currentJob.completed_at) : undefined}
-                onFindingClick={setSelectedFinding}
-                selectedFindingId={selectedFinding?.id}
-              />
-            )}
-
-            {viewMode === "comparison" && (
-              <ComparisonView scanResults={comparisonScans} />
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredAndSortedFindings.map((finding) => (
+                <InfrastructureCard
+                  key={finding.id}
+                  finding={finding}
+                  isSelected={selectedFinding?.id === finding.id}
+                  onClick={() => setSelectedFinding(finding)}
+                />
+              ))}
+              {filteredAndSortedFindings.length === 0 && (
+                <div className="col-span-full py-12 text-center text-white/40">
+                  <p className="font-mono">No findings match your filters</p>
+                </div>
+              )}
+            </div>
 
             {/* Additional Charts */}
-            {viewMode !== "comparison" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RiskHeatmap findings={infrastructureFindings} />
-                <TimelineChart timelineData={timelineData} />
-              </div>
-            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <RiskHeatmap findings={infrastructureFindings} />
+              <TimelineChart timelineData={timelineData} />
+            </div>
           </div>
         </div>
       ) : (
