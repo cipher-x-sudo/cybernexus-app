@@ -162,7 +162,7 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
       },
       nodes: {
         chosen: {
-          node: (values: any, id: string, selected: boolean, hovering: boolean) => {
+          node: (values: any, id: string | number, selected: boolean, hovering: boolean) => {
             if (selected || hovering) {
               values.borderWidth = 3;
             }
