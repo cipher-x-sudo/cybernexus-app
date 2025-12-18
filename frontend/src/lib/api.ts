@@ -178,6 +178,101 @@ class ApiClient {
     return this.request<DashboardStats>("/dashboard/stats");
   }
 
+  /**
+   * Get comprehensive dashboard overview data
+   */
+  async getDashboardOverview() {
+    return this.request<{
+      risk_score: number;
+      risk_level: string;
+      trend: "improving" | "stable" | "worsening";
+      critical_findings_count: number;
+      high_findings_count: number;
+      total_jobs: number;
+      active_jobs: number;
+      recent_jobs: Array<{
+        id: string;
+        capability: string;
+        target: string;
+        status: string;
+        progress: number;
+        findings_count: number;
+        time_ago: string;
+        created_at: string;
+        completed_at: string | null;
+      }>;
+      recent_events: Array<{
+        type: string;
+        data: Record<string, any>;
+        timestamp: string;
+      }>;
+      capability_stats: Record<string, {
+        scans: number;
+        findings: number;
+        last_run: string;
+      }>;
+      threat_map_data: Array<{
+        id: string;
+        title: string;
+        severity: string;
+        risk_score: number;
+        target: string;
+        capability: string;
+        discovered_at: string;
+      }>;
+      timeline_stats: {
+        total_events: number;
+        events_24h: number;
+      };
+      timestamp: string;
+    }>("/dashboard/overview");
+  }
+
+  /**
+   * Get critical findings for dashboard
+   */
+  async getDashboardCriticalFindings(limit: number = 10) {
+    return this.request<{
+      findings: Array<{
+        id: string;
+        title: string;
+        severity: string;
+        capability: string;
+        target: string;
+        time_ago: string;
+        risk_score: number;
+        discovered_at: string;
+      }>;
+      count: number;
+    }>(`/dashboard/critical-findings?limit=${limit}`);
+  }
+
+  /**
+   * Get recent jobs for dashboard
+   */
+  async getRecentJobs(limit: number = 10, capability?: string, status?: string) {
+    const params: Record<string, string> = { limit: limit.toString() };
+    if (capability) params.capability = capability;
+    if (status) params.status = status;
+    const query = new URLSearchParams(params).toString();
+    return this.request<{
+      jobs: Array<{
+        id: string;
+        capability: string;
+        target: string;
+        status: string;
+        progress: number;
+        findings_count: number;
+        time_ago: string;
+        created_at: string;
+        started_at: string | null;
+        completed_at: string | null;
+        error: string | null;
+      }>;
+      count: number;
+    }>(`/capabilities/jobs/recent?${query}`);
+  }
+
   // Threats
   async getThreats(params?: { page?: number; pageSize?: number; severity?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
@@ -218,8 +313,29 @@ class ApiClient {
   }
 
   // Graph
-  async getGraphData() {
-    return this.request<{ nodes: Entity[]; edges: any[] }>("/graph");
+  async getGraphData(params?: { limit?: number; entity_types?: string[]; min_severity?: string }) {
+    const queryParams: Record<string, string> = {};
+    if (params?.limit) queryParams.limit = params.limit.toString();
+    if (params?.entity_types) queryParams.entity_types = params.entity_types.join(",");
+    if (params?.min_severity) queryParams.min_severity = params.min_severity;
+    const query = new URLSearchParams(queryParams).toString();
+    return this.request<{ nodes: Array<{
+      id: string;
+      label: string;
+      type: string;
+      severity: string;
+      metadata: Record<string, any>;
+      x?: number;
+      y?: number;
+      z?: number;
+    }>; edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      relation: string;
+      weight: number;
+      metadata: Record<string, any>;
+    }> }>(`/graph?${query}`);
   }
 
   // Timeline

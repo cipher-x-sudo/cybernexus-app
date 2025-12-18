@@ -13,7 +13,7 @@ from loguru import logger
 import sys
 
 from app.config import settings, init_directories
-from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb
+from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard
 from app.utils import check_tor_connectivity
 
 
@@ -360,6 +360,7 @@ app.include_router(websocket.router, prefix="/api/v1/ws", tags=["WebSocket"])
 app.include_router(capabilities.router, prefix="/api/v1/capabilities", tags=["Capabilities"])
 app.include_router(company.router, prefix="/api/v1/company", tags=["Company"])
 app.include_router(darkweb.router, prefix="/api/v1/darkweb", tags=["Dark Web"])
+app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
 
 
 @app.get("/", tags=["Health"])

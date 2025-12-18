@@ -10,12 +10,91 @@ interface ThreatPoint {
   count: number;
 }
 
+interface ThreatData {
+  id: string;
+  title: string;
+  severity: string;
+  risk_score: number;
+  target: string;
+  capability: string;
+  discovered_at: string;
+}
+
 interface MiniWorldMapProps {
-  threats?: ThreatPoint[];
+  threats?: ThreatPoint[] | ThreatData[];
   className?: string;
 }
 
-export function MiniWorldMap({ threats = defaultThreats, className }: MiniWorldMapProps) {
+// Helper to convert API threat data to ThreatPoint format
+function convertThreatsToPoints(threats: ThreatPoint[] | ThreatData[] | undefined): ThreatPoint[] {
+  if (!threats || threats.length === 0) {
+    return [];
+  }
+
+  // If already in ThreatPoint format, return as is
+  if (threats.length > 0 && 'lat' in threats[0]) {
+    return threats as ThreatPoint[];
+  }
+
+  // Convert ThreatData to ThreatPoint
+  const threatData = threats as ThreatData[];
+  
+  // Group by severity and assign locations
+  // For now, we'll use a simple hash-based location assignment
+  // In a real implementation, you'd geolocate based on target IP/domain
+  const severityGroups: Record<string, ThreatData[]> = {
+    critical: [],
+    high: [],
+    medium: [],
+    low: [],
+  };
+
+  threatData.forEach((threat) => {
+    const severity = threat.severity.toLowerCase() as keyof typeof severityGroups;
+    if (severityGroups[severity]) {
+      severityGroups[severity].push(threat);
+    } else {
+      severityGroups.medium.push(threat);
+    }
+  });
+
+  // Assign locations based on severity (distribute across map)
+  const locations: Array<{ lat: number; lng: number }> = [
+    { lat: 40.7128, lng: -74.006 }, // NYC
+    { lat: 51.5074, lng: -0.1278 }, // London
+    { lat: 35.6762, lng: 139.6503 }, // Tokyo
+    { lat: 55.7558, lng: 37.6173 }, // Moscow
+    { lat: -23.5505, lng: -46.6333 }, // São Paulo
+    { lat: 1.3521, lng: 103.8198 }, // Singapore
+    { lat: 48.8566, lng: 2.3522 }, // Paris
+    { lat: -33.8688, lng: 151.2093 }, // Sydney
+    { lat: 39.9042, lng: 116.4074 }, // Beijing
+    { lat: 28.6139, lng: 77.209 }, // Delhi
+  ];
+
+  const points: ThreatPoint[] = [];
+  let locationIndex = 0;
+
+  // Create points for each severity group
+  Object.entries(severityGroups).forEach(([severity, group]) => {
+    if (group.length > 0) {
+      // Aggregate by location (simplified - in real app, geolocate targets)
+      const location = locations[locationIndex % locations.length];
+      points.push({
+        lat: location.lat,
+        lng: location.lng,
+        severity: severity as "critical" | "high" | "medium" | "low",
+        count: group.length,
+      });
+      locationIndex++;
+    }
+  });
+
+  return points;
+}
+
+export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
+  const threatPoints = convertThreatsToPoints(threats);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -128,7 +207,7 @@ export function MiniWorldMap({ threats = defaultThreats, className }: MiniWorldM
         low: { r: 59, g: 130, b: 246 },
       };
 
-      threats.forEach((threat) => {
+      threatPoints.forEach((threat) => {
         // Convert lat/lng to x/y (simplified Mercator)
         const x = ((threat.lng + 180) / 360) * width;
         const y = ((90 - threat.lat) / 180) * height;
@@ -167,7 +246,18 @@ export function MiniWorldMap({ threats = defaultThreats, className }: MiniWorldM
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(animationId);
     };
-  }, [threats]);
+  }, [threatPoints]);
+
+  if (threatPoints.length === 0) {
+    return (
+      <div className={cn("relative w-full h-full min-h-[200px] flex items-center justify-center", className)}>
+        <div className="text-center">
+          <p className="text-sm text-white/50 font-mono">No threat data available</p>
+          <p className="text-xs text-white/30 mt-1">Threat locations will appear here</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("relative w-full h-full min-h-[200px]", className)}>
@@ -191,16 +281,4 @@ export function MiniWorldMap({ threats = defaultThreats, className }: MiniWorldM
   );
 }
 
-const defaultThreats: ThreatPoint[] = [
-  { lat: 40.7128, lng: -74.006, severity: "critical", count: 5 },
-  { lat: 51.5074, lng: -0.1278, severity: "high", count: 3 },
-  { lat: 35.6762, lng: 139.6503, severity: "critical", count: 4 },
-  { lat: 55.7558, lng: 37.6173, severity: "high", count: 6 },
-  { lat: -23.5505, lng: -46.6333, severity: "medium", count: 2 },
-  { lat: 1.3521, lng: 103.8198, severity: "low", count: 1 },
-  { lat: 48.8566, lng: 2.3522, severity: "medium", count: 3 },
-  { lat: -33.8688, lng: 151.2093, severity: "low", count: 2 },
-  { lat: 39.9042, lng: 116.4074, severity: "critical", count: 7 },
-  { lat: 28.6139, lng: 77.209, severity: "high", count: 4 },
-];
 

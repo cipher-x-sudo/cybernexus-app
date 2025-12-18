@@ -37,17 +37,15 @@ type GraphEdge = {
 // Fetch graph data from API
 async function fetchGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
   try {
-    const response = await fetch('/api/graph/');
-    if (!response.ok) {
-      throw new Error('Failed to fetch graph data');
-    }
-    const data = await response.json();
+    const { api } = await import("@/lib/api");
+    const data = await api.getGraphData({ limit: 1000 });
     return {
       nodes: data.nodes || [],
       edges: data.edges || []
     };
   } catch (error) {
     console.error('Error fetching graph data:', error);
+    // Return empty arrays - no mock data
     return { nodes: [], edges: [] };
   }
 }
@@ -217,7 +215,11 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
   );
 }
 
-export function Graph3D() {
+interface Graph3DProps {
+  graphData?: { nodes: GraphNode[]; edges: GraphEdge[] };
+}
+
+export function Graph3D({ graphData: propGraphData }: Graph3DProps = {}) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -241,12 +243,23 @@ export function Graph3D() {
       setHasError(true);
     }
     
-    // Fetch graph data
-    fetchGraphData().then((data) => {
-      setNodes(data.nodes);
-      setEdges(data.edges);
-    });
-  }, []);
+    // Use provided graph data or fetch from API
+    if (propGraphData) {
+      setNodes(propGraphData.nodes || []);
+      setEdges(propGraphData.edges || []);
+    } else {
+      fetchGraphData()
+        .then((data) => {
+          setNodes(data.nodes);
+          setEdges(data.edges);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch graph data:', error);
+          setNodes([]);
+          setEdges([]);
+        });
+    }
+  }, [propGraphData]);
 
   const filteredNodes = useMemo(() => {
     return nodes.filter((node) => {

@@ -13,79 +13,85 @@ interface ActivityEvent {
   timestamp: string;
 }
 
-const initialEvents: ActivityEvent[] = [
-  {
-    id: "1",
-    type: "job_completed",
-    message: "Email Security scan completed for example.com",
-    capability: "email_security",
-    timestamp: "Just now",
-  },
-  {
-    id: "2",
-    type: "finding",
-    message: "New finding: Exposed API endpoint discovered",
-    capability: "exposure_discovery",
-    severity: "high",
-    timestamp: "2m ago",
-  },
-  {
-    id: "3",
-    type: "job_started",
-    message: "Dark Web scan started for 'company-name'",
-    capability: "dark_web_intelligence",
-    timestamp: "5m ago",
-  },
-  {
-    id: "4",
-    type: "alert",
-    message: "Critical: SPF bypass vulnerability detected",
-    severity: "critical",
-    timestamp: "12m ago",
-  },
-  {
-    id: "5",
-    type: "job_completed",
-    message: "Infrastructure scan completed",
-    capability: "infrastructure_testing",
-    timestamp: "18m ago",
-  },
-];
-
 interface LiveActivityProps {
   className?: string;
+  events?: Array<{
+    id?: string;
+    type: string;
+    message: string;
+    timestamp: string;
+  }>;
 }
 
-export function LiveActivity({ className }: LiveActivityProps) {
-  const [events, setEvents] = useState<ActivityEvent[]>(initialEvents);
+export function LiveActivity({ className, events: propEvents }: LiveActivityProps) {
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [isLive, setIsLive] = useState(true);
 
-  // Simulate live updates
+  // Update events when prop changes
   useEffect(() => {
-    if (!isLive) return;
+    if (propEvents) {
+      if (propEvents.length > 0) {
+        setEvents(mapEventsToActivity(propEvents));
+      } else {
+        setEvents([]);
+      }
+    }
+  }, [propEvents]);
 
-    const interval = setInterval(() => {
-      const newEventTypes = [
-        { type: "job_started" as const, message: "Scan initiated" },
-        { type: "job_completed" as const, message: "Scan completed" },
-        { type: "finding" as const, message: "New finding detected" },
-      ];
-      
-      const randomEvent = newEventTypes[Math.floor(Math.random() * newEventTypes.length)];
-      const capabilities = ["Email Security", "Dark Web", "Infrastructure", "Exposure"];
-      
-      const newEvent: ActivityEvent = {
-        id: Date.now().toString(),
-        type: randomEvent.type,
-        message: `${randomEvent.message} - ${capabilities[Math.floor(Math.random() * capabilities.length)]}`,
-        timestamp: "Just now",
-      };
+  // Poll for new events if live
+  useEffect(() => {
+    if (!isLive || propEvents) return; // Don't poll if events are provided via props
 
-      setEvents(prev => [newEvent, ...prev.slice(0, 9)]);
+    const interval = setInterval(async () => {
+      try {
+        const { api } = await import("@/lib/api");
+        const response = await api.getCapabilityEvents(20);
+        if (response.events && response.events.length > 0) {
+          setEvents(mapEventsToActivity(response.events));
+        }
+      } catch (error) {
+        console.error("Error fetching events:", error);
+      }
     }, 15000); // Every 15 seconds
 
     return () => clearInterval(interval);
-  }, [isLive]);
+  }, [isLive, propEvents]);
+
+  // Helper function to map API events to ActivityEvent format
+  function mapEventsToActivity(apiEvents: Array<{ id?: string; type: string; message: string; timestamp: string }>): ActivityEvent[] {
+    return apiEvents.map((event, index) => {
+      // Determine event type from API event type
+      let activityType: "job_started" | "job_completed" | "finding" | "alert" = "alert";
+      if (event.type === "job_started") activityType = "job_started";
+      else if (event.type === "job_completed") activityType = "job_completed";
+      else if (event.type.includes("finding")) activityType = "finding";
+      
+      return {
+        id: event.id || `event-${index}`,
+        type: activityType,
+        message: event.message,
+        timestamp: event.timestamp,
+        capability: extractCapability(event.message),
+        severity: extractSeverity(event.message),
+      };
+    });
+  }
+
+  function extractCapability(message: string): string | undefined {
+    const capabilities = ["email_security", "dark_web", "infrastructure", "exposure_discovery"];
+    for (const cap of capabilities) {
+      if (message.toLowerCase().includes(cap.replace(/_/g, " "))) {
+        return cap;
+      }
+    }
+    return undefined;
+  }
+
+  function extractSeverity(message: string): string | undefined {
+    if (message.toLowerCase().includes("critical")) return "critical";
+    if (message.toLowerCase().includes("high")) return "high";
+    return undefined;
+  }
 
   const getEventIcon = (type: string, severity?: string) => {
     if (type === "alert" || severity === "critical") {
@@ -154,7 +160,13 @@ export function LiveActivity({ className }: LiveActivityProps) {
       </div>
 
       <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-        {events.map((event, index) => (
+        {events.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm text-white/50 font-mono">No recent activity</p>
+            <p className="text-xs text-white/30 mt-1">Events will appear here as they occur</p>
+          </div>
+        ) : (
+          events.map((event, index) => (
           <div
             key={event.id}
             className={cn(
@@ -169,7 +181,8 @@ export function LiveActivity({ className }: LiveActivityProps) {
               <p className="text-xs text-white/40 mt-0.5 font-mono">{event.timestamp}</p>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </GlassCard>
   );

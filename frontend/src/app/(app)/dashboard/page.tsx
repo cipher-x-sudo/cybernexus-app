@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { GlassCard } from "@/components/ui";
 import {
   RiskScore,
@@ -10,8 +11,94 @@ import {
   MiniWorldMap,
   LineChart,
 } from "@/components/dashboard";
+import { api } from "@/lib/api";
+import { mapToRiskScore, mapToFindings, mapToJobs, mapToEvents, mapToCapabilityStats } from "@/lib/data-mappers";
 
 export default function DashboardPage() {
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [criticalFindings, setCriticalFindings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch dashboard overview
+        const overview = await api.getDashboardOverview();
+        setDashboardData(overview);
+
+        // Fetch critical findings
+        const findingsResponse = await api.getDashboardCriticalFindings(10);
+        setCriticalFindings(findingsResponse.findings || []);
+
+      } catch (err: any) {
+        console.error("Error fetching dashboard data:", err);
+        setError(err.message || "Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Show loading state
+  if (loading && !dashboardData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white/50 font-mono text-sm">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error && !dashboardData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-red-400 font-mono mb-2">Error loading dashboard</p>
+            <p className="text-white/50 font-mono text-sm">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Use only real data - no fallbacks
+  if (!dashboardData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white/50 font-mono text-sm">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const riskScoreData = mapToRiskScore(dashboardData);
+  const findingsData = criticalFindings.length > 0 ? mapToFindings(criticalFindings) : [];
+  const recentJobs = dashboardData.recent_jobs ? mapToJobs(dashboardData.recent_jobs) : [];
+  const recentEvents = dashboardData.recent_events ? mapToEvents(dashboardData.recent_events) : [];
+  const capabilityStats = dashboardData.capability_stats ? mapToCapabilityStats(dashboardData.capability_stats) : {};
+  const threatMapData = dashboardData.threat_map_data || [];
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -36,13 +123,13 @@ export default function DashboardPage() {
       {/* Top row: Risk Score + Critical Findings */}
       <div className="grid lg:grid-cols-2 gap-6">
         <RiskScore
-          score={78}
-          riskLevel="medium"
-          trend="improving"
-          criticalIssues={3}
-          highIssues={7}
+          score={riskScoreData.score}
+          riskLevel={riskScoreData.riskLevel}
+          trend={riskScoreData.trend}
+          criticalIssues={riskScoreData.criticalIssues}
+          highIssues={riskScoreData.highIssues}
         />
-        <CriticalFindings />
+        <CriticalFindings findings={findingsData} />
       </div>
 
       {/* Quick Start */}
@@ -51,7 +138,7 @@ export default function DashboardPage() {
       />
 
       {/* Capability Cards */}
-      <CapabilityCards />
+      <CapabilityCards stats={capabilityStats} />
 
       {/* Bottom row: Map + Activity + Trends */}
       <div className="grid lg:grid-cols-3 gap-6">
@@ -65,17 +152,19 @@ export default function DashboardPage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                 </span>
-                <span className="text-xs font-mono text-white/50">12 active threats</span>
+                <span className="text-xs font-mono text-white/50">
+                  {threatMapData.length} active threats
+                </span>
               </div>
             </div>
           </div>
           <div className="h-64 lg:h-72">
-            <MiniWorldMap />
+            <MiniWorldMap threats={threatMapData} />
           </div>
         </GlassCard>
 
         {/* Live Activity */}
-        <LiveActivity />
+        <LiveActivity events={recentEvents} />
       </div>
 
       {/* Trends row */}
@@ -86,12 +175,7 @@ export default function DashboardPage() {
         <GlassCard className="p-6" hover={false}>
           <h2 className="font-mono text-lg font-semibold text-white mb-4">Recent Assessments</h2>
           <div className="space-y-3">
-            {[
-              { capability: "Email Security", target: "example.com", status: "completed", findings: 3, time: "2h ago" },
-              { capability: "Exposure Discovery", target: "example.com", status: "completed", findings: 5, time: "4h ago" },
-              { capability: "Infrastructure", target: "api.example.com", status: "completed", findings: 8, time: "6h ago" },
-              { capability: "Dark Web Intel", target: "company-name", status: "running", findings: 0, time: "Started 15m ago" },
-            ].map((scan, i) => (
+            {recentJobs.length > 0 ? recentJobs.map((scan, i) => (
               <div
                 key={i}
                 className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-colors"
@@ -122,7 +206,12 @@ export default function DashboardPage() {
                   <p className="text-xs text-white/40">{scan.time}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="py-8 text-center">
+                <p className="text-sm text-white/50 font-mono">No recent assessments</p>
+                <p className="text-xs text-white/30 mt-1">Start a scan to see results here</p>
+              </div>
+            )}
           </div>
         </GlassCard>
       </div>

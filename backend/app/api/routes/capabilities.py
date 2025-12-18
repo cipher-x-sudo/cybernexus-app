@@ -920,13 +920,48 @@ async def quick_scan(request: QuickScanRequest):
 async def get_stats():
     """
     Get overall capability and risk statistics.
+    Enhanced to include capability-specific stats from Redis.
     """
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
+    # Get base stats
+    base_stats = orchestrator.get_stats()
+    
+    # Get capability-specific statistics
+    capability_stats = {}
+    for capability in Capability:
+        cap_jobs = orchestrator.get_jobs(capability=capability, limit=1000)
+        cap_findings = orchestrator.get_findings(capability=capability, limit=1000)
+        
+        # Find last run time
+        last_run = None
+        if cap_jobs:
+            completed_jobs = [j for j in cap_jobs if j.status == JobStatus.COMPLETED]
+            if completed_jobs:
+                latest = max(completed_jobs, key=lambda j: j.completed_at if j.completed_at else datetime.min)
+                if latest.completed_at:
+                    time_diff = datetime.now() - latest.completed_at
+                    if time_diff.days > 0:
+                        last_run = f"{time_diff.days}d ago"
+                    elif time_diff.seconds > 3600:
+                        last_run = f"{time_diff.seconds // 3600}h ago"
+                    else:
+                        last_run = f"{time_diff.seconds // 60}m ago"
+        
+        capability_stats[capability.value] = {
+            "scans": len(cap_jobs),
+            "findings": len(cap_findings),
+            "last_run": last_run or "Never",
+            "completed_jobs": len([j for j in cap_jobs if j.status == JobStatus.COMPLETED]),
+            "failed_jobs": len([j for j in cap_jobs if j.status == JobStatus.FAILED]),
+            "active_jobs": len([j for j in cap_jobs if j.status == JobStatus.RUNNING])
+        }
+    
     return {
-        "orchestrator": orchestrator.get_stats(),
+        "orchestrator": base_stats,
         "risk": risk_engine.get_global_stats(),
+        "capability_stats": capability_stats,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -942,6 +977,122 @@ async def get_recent_events(limit: int = Query(default=50, le=200)):
     return {
         "events": events,
         "count": len(events)
+    }
+
+
+@router.get("/jobs/recent")
+async def get_recent_jobs(
+    limit: int = Query(default=10, ge=1, le=100),
+    capability: Optional[Capability] = None,
+    status: Optional[JobStatus] = None
+):
+    """
+    Get recent jobs with optional filtering.
+    
+    Returns jobs with formatted timestamps and findings counts.
+    """
+    orchestrator = get_orchestrator()
+    jobs = orchestrator.get_jobs(capability=capability, status=status, limit=limit)
+    
+    jobs_data = []
+    for job in jobs:
+        # Calculate time ago
+        if job.completed_at:
+            time_diff = datetime.now() - job.completed_at
+            if time_diff.days > 0:
+                time_ago = f"{time_diff.days}d ago"
+            elif time_diff.seconds > 3600:
+                time_ago = f"{time_diff.seconds // 3600}h ago"
+            else:
+                time_ago = f"{time_diff.seconds // 60}m ago"
+        elif job.started_at:
+            time_diff = datetime.now() - job.started_at
+            time_ago = f"Started {time_diff.seconds // 60}m ago"
+        else:
+            time_ago = "Just created"
+        
+        # Get findings count
+        findings_count = len(job.findings) if hasattr(job, 'findings') and job.findings else 0
+        
+        jobs_data.append({
+            "id": job.id,
+            "capability": job.capability.value,
+            "target": job.target,
+            "status": job.status.value,
+            "progress": job.progress,
+            "findings_count": findings_count,
+            "time_ago": time_ago,
+            "created_at": job.created_at.isoformat(),
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "error": job.error if hasattr(job, 'error') and job.error else None
+        })
+    
+    return {
+        "jobs": jobs_data,
+        "count": len(jobs_data)
+    }
+
+
+@router.get("/findings")
+async def get_findings(
+    capability: Optional[Capability] = None,
+    severity: Optional[str] = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+    min_risk_score: float = Query(default=0, ge=0, le=100)
+):
+    """
+    Get findings with optional filtering.
+    
+    Returns findings formatted for frontend display.
+    """
+    orchestrator = get_orchestrator()
+    
+    # Parse severity filter
+    severity_list = None
+    if severity:
+        severity_list = [s.strip() for s in severity.split(",")]
+    
+    findings = orchestrator.get_findings(
+        capability=capability,
+        severity=severity_list[0] if severity_list and len(severity_list) == 1 else None,
+        limit=limit,
+        min_risk_score=min_risk_score
+    )
+    
+    # Filter by multiple severities if provided
+    if severity_list and len(severity_list) > 1:
+        findings = [f for f in findings if f.severity in severity_list]
+    
+    findings_data = []
+    for finding in findings:
+        # Calculate time ago
+        time_diff = datetime.now() - finding.discovered_at
+        if time_diff.days > 0:
+            time_ago = f"{time_diff.days}d ago"
+        elif time_diff.seconds > 3600:
+            time_ago = f"{time_diff.seconds // 3600}h ago"
+        else:
+            time_ago = f"{time_diff.seconds // 60}m ago"
+        
+        findings_data.append({
+            "id": finding.id,
+            "title": finding.title,
+            "severity": finding.severity,
+            "capability": finding.capability.value,
+            "target": finding.target,
+            "description": finding.description,
+            "risk_score": finding.risk_score,
+            "time_ago": time_ago,
+            "discovered_at": finding.discovered_at.isoformat(),
+            "evidence": finding.evidence,
+            "affected_assets": finding.affected_assets,
+            "recommendations": finding.recommendations
+        })
+    
+    return {
+        "findings": findings_data,
+        "count": len(findings_data)
     }
 
 

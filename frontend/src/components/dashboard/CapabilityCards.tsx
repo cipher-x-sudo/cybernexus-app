@@ -27,7 +27,6 @@ const capabilities: Capability[] = [
     description: "Search for leaked documents, exposed configs, and sensitive data",
     icon: "search",
     color: "cyan",
-    stats: { scans: 12, findings: 5, lastRun: "2h ago" },
     href: "/capabilities/exposure",
   },
   {
@@ -37,7 +36,6 @@ const capabilities: Capability[] = [
     description: "Monitor .onion sites for brand mentions and credential leaks",
     icon: "globe",
     color: "purple",
-    stats: { scans: 8, findings: 2, lastRun: "4h ago" },
     href: "/capabilities/darkweb",
   },
   {
@@ -47,7 +45,6 @@ const capabilities: Capability[] = [
     description: "Test SPF, DKIM, DMARC configurations for vulnerabilities",
     icon: "mail",
     color: "amber",
-    stats: { scans: 5, findings: 3, lastRun: "1d ago" },
     href: "/capabilities/email",
   },
   {
@@ -57,7 +54,6 @@ const capabilities: Capability[] = [
     description: "Scan for CRLF injection, path traversal, and CVEs",
     icon: "server",
     color: "emerald",
-    stats: { scans: 15, findings: 8, lastRun: "6h ago" },
     href: "/capabilities/infrastructure",
   },
   {
@@ -67,7 +63,6 @@ const capabilities: Capability[] = [
     description: "Detect HTTP tunneling and covert channels",
     icon: "network",
     color: "blue",
-    stats: { scans: 2, findings: 0, lastRun: "1w ago" },
     href: "/capabilities/network",
   },
   {
@@ -77,7 +72,6 @@ const capabilities: Capability[] = [
     description: "Deep dive into URLs, domains, or indicators of compromise",
     icon: "microscope",
     color: "orange",
-    stats: { scans: 7, findings: 4, lastRun: "1h ago" },
     href: "/capabilities/investigate",
   },
 ];
@@ -169,9 +163,27 @@ const getColorClasses = (color: string) => {
 interface CapabilityCardsProps {
   className?: string;
   compact?: boolean;
+  stats?: Record<string, {
+    scans: number;
+    findings: number;
+    lastRun: string;
+  }>;
 }
 
-export function CapabilityCards({ className, compact = false }: CapabilityCardsProps) {
+export function CapabilityCards({ className, compact = false, stats: propStats }: CapabilityCardsProps) {
+  // Merge prop stats with capabilities (only use real stats from API)
+  const capabilitiesWithStats = capabilities.map((cap) => {
+    const realStats = propStats?.[cap.id];
+    return {
+      ...cap,
+      stats: realStats ? {
+        scans: realStats.scans,
+        findings: realStats.findings,
+        lastRun: realStats.lastRun,
+      } : undefined,
+    };
+  });
+
   return (
     <div className={className}>
       <div className="flex items-center justify-between mb-4">
@@ -188,7 +200,7 @@ export function CapabilityCards({ className, compact = false }: CapabilityCardsP
         "grid gap-3",
         compact ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       )}>
-        {capabilities.map((cap, index) => {
+        {capabilitiesWithStats.map((cap, index) => {
           const colors = getColorClasses(cap.color);
           return (
             <Link

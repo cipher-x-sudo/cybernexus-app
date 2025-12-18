@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
+import { api } from "@/lib/api";
 
 interface Finding {
   id: string;
@@ -18,42 +19,49 @@ interface CriticalFindingsProps {
   className?: string;
 }
 
-const defaultFindings: Finding[] = [
-  {
-    id: "1",
-    title: "SPF record allows any sender (+all)",
-    severity: "critical",
-    capability: "Email Security",
-    target: "example.com",
-    time: "2m ago",
-  },
-  {
-    id: "2",
-    title: "Credentials found on dark web forum",
-    severity: "critical",
-    capability: "Dark Web Intel",
-    target: "admin@example.com",
-    time: "15m ago",
-  },
-  {
-    id: "3",
-    title: "Exposed admin panel discovered",
-    severity: "high",
-    capability: "Exposure Discovery",
-    target: "/wp-admin",
-    time: "1h ago",
-  },
-  {
-    id: "4",
-    title: "Nginx path traversal vulnerability",
-    severity: "high",
-    capability: "Infrastructure",
-    target: "api.example.com",
-    time: "2h ago",
-  },
-];
+export function CriticalFindings({ findings: propFindings, className }: CriticalFindingsProps) {
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export function CriticalFindings({ findings = defaultFindings, className }: CriticalFindingsProps) {
+  // Fetch findings if not provided
+  useEffect(() => {
+    if (propFindings) {
+      setFindings(propFindings);
+      setLoading(false);
+      return;
+    }
+
+    const fetchFindings = async () => {
+      try {
+        setLoading(true);
+        const response = await api.getDashboardCriticalFindings(10);
+        if (response.findings && response.findings.length > 0) {
+          const mappedFindings: Finding[] = response.findings.map((f: any) => ({
+            id: f.id,
+            title: f.title,
+            severity: f.severity as "critical" | "high" | "medium" | "low",
+            capability: f.capability || "Unknown",
+            target: f.target || "",
+            time: f.time_ago || "Unknown",
+          }));
+          setFindings(mappedFindings);
+        } else {
+          setFindings([]);
+        }
+      } catch (error) {
+        console.error("Error fetching critical findings:", error);
+        setFindings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFindings();
+
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchFindings, 30000);
+    return () => clearInterval(interval);
+  }, [propFindings]);
   const getSeverityStyles = (severity: string) => {
     switch (severity) {
       case "critical":
@@ -157,7 +165,14 @@ export function CriticalFindings({ findings = defaultFindings, className }: Crit
         })}
       </div>
 
-      {findings.length === 0 && (
+      {loading && findings.length === 0 && (
+        <div className="py-8 text-center">
+          <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-white/50 font-mono">Loading findings...</p>
+        </div>
+      )}
+
+      {!loading && findings.length === 0 && (
         <div className="py-8 text-center">
           <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-500/10 flex items-center justify-center">
             <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
