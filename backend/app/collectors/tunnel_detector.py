@@ -287,7 +287,7 @@ class TunnelDetector:
         
         # Store request
         self.requests.put(request_id, request)
-        self.request_buffer.add(request.to_dict())
+        self.request_buffer.push(request.to_dict())
         
         # Track connection
         conn_key = self._get_connection_key(source_ip, destination_ip, destination_port)

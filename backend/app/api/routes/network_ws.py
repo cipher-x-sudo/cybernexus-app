@@ -23,8 +23,9 @@ async def network_websocket(websocket: WebSocket):
     middleware = get_network_logger_middleware()
     if middleware:
         middleware.register_websocket_client(websocket)
-    
-    logger.info(f"Network WebSocket client connected. Total clients: {len(_websocket_clients)}")
+        logger.info(f"Network WebSocket client connected. Total clients: {len(middleware.websocket_clients)}")
+    else:
+        logger.warning("Network logger middleware not available")
     
     try:
         # Send initial connection message

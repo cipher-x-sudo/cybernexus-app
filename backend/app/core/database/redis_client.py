@@ -352,8 +352,22 @@ class RedisClient:
         Returns:
             List of members (or tuples if withscores=True)
         """
-        return self.client.zrangebyscore(name, min_score, max_score, 
-                                        withscores=withscores, limit=limit)
+        # Call underlying Redis client - handle limit parameter carefully
+        # Some redis-py versions don't support limit as keyword argument
+        if limit is not None:
+            try:
+                # Try with limit as keyword (newer redis-py)
+                return self.client.zrangebyscore(name, min_score, max_score, 
+                                                withscores=withscores, limit=limit)
+            except TypeError:
+                # Fallback: get all and slice manually
+                result = self.client.zrangebyscore(name, min_score, max_score, 
+                                                  withscores=withscores)
+                offset, count = limit
+                return result[offset:offset + count] if result else []
+        else:
+            return self.client.zrangebyscore(name, min_score, max_score, 
+                                           withscores=withscores)
     
     # ==================== List Operations ====================
     
