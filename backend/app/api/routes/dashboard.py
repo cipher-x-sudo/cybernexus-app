@@ -11,19 +11,8 @@ from loguru import logger
 
 from app.services.orchestrator import get_orchestrator, Capability, JobStatus
 from app.services.risk_engine import get_risk_engine
-from app.core.database.storage import Storage
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-
-# Global storage instance
-_storage_instance: Optional[Storage] = None
-
-def get_storage() -> Storage:
-    """Get or create global storage instance."""
-    global _storage_instance
-    if _storage_instance is None:
-        _storage_instance = Storage()
-    return _storage_instance
 
 
 def calculate_risk_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -113,7 +102,6 @@ async def get_dashboard_overview():
     try:
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
-        storage = get_storage()
         
         # Get all findings
         all_findings = orchestrator.get_findings(limit=1000)

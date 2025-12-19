@@ -1024,7 +1024,7 @@ async def quick_scan(
 async def get_stats():
     """
     Get overall capability and risk statistics.
-    Enhanced to include capability-specific stats from Redis.
+    Enhanced to include capability-specific stats from database.
     """
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()

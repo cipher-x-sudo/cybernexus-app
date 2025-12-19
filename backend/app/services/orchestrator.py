@@ -263,7 +263,7 @@ class Orchestrator:
         """Initialize the orchestrator"""
         # Redis removed - fully migrated to PostgreSQL
         
-        # Job storage (using custom DSA for in-memory, Redis for persistence)
+        # Job storage (using custom DSA for in-memory operations)
         self._jobs = HashMap()  # job_id -> Job
         self._job_queue = MinHeap()  # Priority queue for pending jobs (lower priority value = higher priority)
         self._findings_index = AVLTree()  # Indexed by risk_score for fast retrieval
@@ -2755,18 +2755,6 @@ class Orchestrator:
         """Update job status and indexes"""
         old_status = job.status
         
-        # Update Redis indices
-        if self._use_redis:
-            try:
-        # Remove from old status index
-                self.redis.srem(self.KEY_INDEX_JOBS_STATUS.format(old_status.value), job.id)
-                # Add to new status index
-                self.redis.sadd(self.KEY_INDEX_JOBS_STATUS.format(new_status.value), job.id)
-                # Update job in Redis
-                self.redis.set_json(self.KEY_JOB.format(job.id), job.to_dict())
-            except Exception as e:
-                logger.warning(f"Failed to update job status in Redis: {e}")
-        
         # Remove from old status index (in-memory)
         old_status_jobs = self._jobs_by_status.get(old_status.value) or []
         if job.id in old_status_jobs:
@@ -2788,16 +2776,6 @@ class Orchestrator:
             "timestamp": datetime.now().isoformat()
         }
         
-        # Store in Redis
-        if self._use_redis:
-            try:
-                # Push to left of list (most recent first)
-                self.redis.lpush(self.KEY_EVENTS, json.dumps(event, default=str))
-                # Trim list to max events
-                self.redis.ltrim(self.KEY_EVENTS, 0, self._max_events - 1)
-            except Exception as e:
-                logger.warning(f"Failed to store event in Redis: {e}")
-        
         # Store in-memory
         self._events.insert(0, event)
         
@@ -2807,38 +2785,10 @@ class Orchestrator:
     
     def get_job(self, job_id: str) -> Optional[Job]:
         """Get a job by ID"""
-        # Check in-memory first
+        # Check in-memory
         job = self._jobs.get(job_id)
         if job:
             return job
-        
-        # Check Redis if not in memory
-        if self._use_redis:
-            try:
-                job_data = self.redis.get_json(self.KEY_JOB.format(job_id))
-                if job_data:
-                    # Reconstruct Job object from dict
-                    job = Job(
-                        id=job_data["id"],
-                        capability=Capability(job_data["capability"]),
-                        target=job_data["target"],
-                        status=JobStatus(job_data["status"]),
-                        priority=JobPriority(job_data["priority"]),
-                        config=job_data.get("config", {}),
-                        progress=job_data.get("progress", 0),
-                        created_at=datetime.fromisoformat(job_data["created_at"])
-                    )
-                    if "started_at" in job_data:
-                        job.started_at = datetime.fromisoformat(job_data["started_at"])
-                    if "completed_at" in job_data:
-                        job.completed_at = datetime.fromisoformat(job_data["completed_at"])
-                    if "error" in job_data:
-                        job.error = job_data["error"]
-                    # Store in memory for future access
-                    self._jobs.put(job_id, job)
-                    return job
-            except Exception as e:
-                logger.warning(f"Failed to get job from Redis: {e}")
         
         return None
     
@@ -2967,22 +2917,6 @@ class Orchestrator:
     
     def get_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent events for live feed"""
-        # Try Redis first
-        if self._use_redis:
-            try:
-                events_json = self.redis.lrange(self.KEY_EVENTS, 0, limit - 1)
-                if events_json:
-                    events = []
-                    for event_str in events_json:
-                        try:
-                            events.append(json.loads(event_str))
-                        except json.JSONDecodeError:
-                            continue
-                    return events
-            except Exception as e:
-                logger.warning(f"Failed to get events from Redis: {e}")
-        
-        # Fallback to in-memory
         return self._events[:limit]
 
 

@@ -2,7 +2,7 @@
 CyberNexus Worker
 
 Background worker for processing capability jobs.
-Connects to Redis for job queue and executes tool wrappers.
+Executes tool wrappers and stores results in PostgreSQL.
 """
 
 import asyncio

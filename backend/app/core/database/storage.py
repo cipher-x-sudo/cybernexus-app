@@ -1,7 +1,8 @@
 """
 Custom Storage Layer
 
-Redis-based storage with custom DSA structures for in-memory operations.
+In-memory and file-based storage with custom DSA structures for operations.
+Redis removed - fully migrated to PostgreSQL.
 """
 
 import os
@@ -14,45 +15,36 @@ from loguru import logger
 
 from app.config import settings
 from app.core.dsa import Graph, AVLTree, HashMap, Trie, BloomFilter
-from app.core.database.redis_client import get_redis_client, RedisClient
 
 
 class Storage:
     """
-    Redis-based storage with custom DSA structures for in-memory operations.
+    In-memory and file-based storage with custom DSA structures for operations.
     
     Features:
-    - Persistent storage in Redis
+    - Persistent storage in files
     - In-memory caching with DSA
     - Thread-safe operations
     - Automatic indexing
+    
+    Note: This is a legacy storage class. New code should use DBStorage for PostgreSQL.
     """
     
-    # Redis key prefixes
+    # File storage keys
     KEY_ENTITY = "entity:{}"
     KEY_GRAPH = "graph:entity_graph"
     KEY_INDEX_TIMESTAMP = "index:timestamp"
     KEY_INDEX_TYPE = "index:type:{}"
     KEY_INDEX_VALUE = "index:value"
     
-    def __init__(self, data_dir: Path = None, redis_client: Optional[RedisClient] = None):
+    def __init__(self, data_dir: Path = None):
         """Initialize storage.
         
         Args:
-            data_dir: Base directory for data storage (for fallback/migration)
-            redis_client: Optional Redis client instance
+            data_dir: Base directory for data storage
         """
         self.data_dir = data_dir or settings.DATA_DIR
         self._ensure_directories()
-        
-        # Redis client
-        try:
-            self.redis = redis_client or get_redis_client()
-            self._use_redis = self.redis.is_connected()
-        except Exception as e:
-            logger.warning(f"Redis not available, falling back to file storage: {e}")
-            self.redis = None
-            self._use_redis = False
         
         # In-memory structures (for fast operations)
         self._entity_graph = Graph(directed=True)
@@ -80,33 +72,8 @@ class Storage:
             d.mkdir(parents=True, exist_ok=True)
     
     def _load_data(self):
-        """Load existing data from Redis or files (fallback)."""
-        if self._use_redis:
-            # Load from Redis
-            try:
-                # Load graph
-                graph_data = self.redis.get_json(self.KEY_GRAPH)
-                if graph_data:
-                    self._entity_graph = Graph.from_dict(graph_data)
-                
-                # Load entities and rebuild indices
-                entity_keys = self.redis.keys(self.KEY_ENTITY.format("*"))
-                for key in entity_keys:
-                    try:
-                        entity_id = key.replace("entity:", "")
-                        entity = self.redis.get_json(key)
-                        if entity:
-                            self._index_entity(entity)
-                    except Exception as e:
-                        logger.warning(f"Failed to load entity {key}: {e}")
-                        continue
-            except Exception as e:
-                logger.error(f"Failed to load data from Redis: {e}")
-                # Fallback to file loading
-                self._load_data_from_files()
-        else:
-            # Fallback to file loading
-            self._load_data_from_files()
+        """Load existing data from files."""
+        self._load_data_from_files()
     
     def _load_data_from_files(self):
         """Load existing data from files (fallback)."""
@@ -132,18 +99,9 @@ class Storage:
                     pass
     
     def _save_graph(self):
-        """Save graph to Redis or file (fallback)."""
+        """Save graph to file."""
         graph_data = self._entity_graph.to_dict()
-        
-        if self._use_redis:
-            try:
-                self.redis.set_json(self.KEY_GRAPH, graph_data)
-            except Exception as e:
-                logger.error(f"Failed to save graph to Redis: {e}")
-                # Fallback to file
-                self._save_graph_to_file(graph_data)
-        else:
-            self._save_graph_to_file(graph_data)
+        self._save_graph_to_file(graph_data)
     
     def _save_graph_to_file(self, graph_data: dict):
         """Save graph to file (fallback)."""
@@ -152,51 +110,30 @@ class Storage:
             json.dump(graph_data, f, default=str)
     
     def _index_entity(self, entity: dict):
-        """Add entity to in-memory and Redis indices."""
+        """Add entity to in-memory indices."""
         entity_id = entity.get("id")
         entity_type = entity.get("type")
         value = entity.get("value", "")
         timestamp = entity.get("created_at", datetime.utcnow().isoformat())
         
-        # Parse timestamp for Redis sorted set (use timestamp as score)
-        try:
-            timestamp_score = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).timestamp()
-        except:
-            timestamp_score = datetime.utcnow().timestamp()
-        
-        # Add to type index (in-memory and Redis)
+        # Add to type index (in-memory)
         if entity_type:
-            # In-memory
             entities = self._type_index.get(entity_type, [])
             if entity_id not in entities:
                 entities.append(entity_id)
             self._type_index.put(entity_type, entities)
         
-            # Redis
-            if self._use_redis:
-                try:
-                    self.redis.sadd(self.KEY_INDEX_TYPE.format(entity_type), entity_id)
-                except Exception as e:
-                    logger.warning(f"Failed to add to Redis type index: {e}")
-        
-        # Add to trie for prefix search (in-memory only - Redis doesn't have trie)
+        # Add to trie for prefix search (in-memory)
         if value:
             self._value_trie.insert(value.lower(), entity_id)
         
-        # Add to bloom filter (in-memory only)
+        # Add to bloom filter (in-memory)
         self._seen_filter.add(entity_id)
         if value:
             self._seen_filter.add(value)
         
         # Add to AVL tree by timestamp (in-memory)
         self._entity_index.insert(timestamp, entity_id)
-        
-        # Add to Redis timestamp index (sorted set)
-        if self._use_redis:
-            try:
-                self.redis.zadd(self.KEY_INDEX_TIMESTAMP, {entity_id: timestamp_score})
-            except Exception as e:
-                logger.warning(f"Failed to add to Redis timestamp index: {e}")
         
         # Add to graph
         self._entity_graph.add_node(
@@ -222,16 +159,8 @@ class Storage:
             if not entity_id:
                 raise ValueError("Entity must have an 'id' field")
             
-            # Save to Redis or file (fallback)
-            if self._use_redis:
-                try:
-                    self.redis.set_json(self.KEY_ENTITY.format(entity_id), entity)
-                except Exception as e:
-                    logger.error(f"Failed to save entity to Redis: {e}")
-                    # Fallback to file
-                    self._save_entity_to_file(entity_id, entity)
-            else:
-                self._save_entity_to_file(entity_id, entity)
+            # Save to file
+            self._save_entity_to_file(entity_id, entity)
             
             # Update indices
             self._index_entity(entity)
@@ -257,16 +186,7 @@ class Storage:
         if not self._seen_filter.contains(entity_id):
             return None
         
-        # Get from Redis or file (fallback)
-        if self._use_redis:
-            try:
-                entity = self.redis.get_json(self.KEY_ENTITY.format(entity_id))
-                if entity:
-                    return entity
-            except Exception as e:
-                logger.warning(f"Failed to get entity from Redis: {e}")
-        
-        # Fallback to file
+        # Get from file
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         if entity_file.exists():
             try:
@@ -289,27 +209,7 @@ class Storage:
         with self._lock:
             deleted = False
             
-            # Delete from Redis
-            if self._use_redis:
-                try:
-                    # Get entity first to know its type for index cleanup
-                    entity = self.redis.get_json(self.KEY_ENTITY.format(entity_id))
-                    if entity:
-                        entity_type = entity.get("type")
-                        
-                        # Delete from Redis
-                        self.redis.delete(self.KEY_ENTITY.format(entity_id))
-                        
-                        # Remove from indices
-                        if entity_type:
-                            self.redis.srem(self.KEY_INDEX_TYPE.format(entity_type), entity_id)
-                        self.redis.zrem(self.KEY_INDEX_TIMESTAMP, entity_id)
-                        
-                        deleted = True
-                except Exception as e:
-                    logger.warning(f"Failed to delete entity from Redis: {e}")
-            
-            # Delete from file (fallback or cleanup)
+            # Delete from file
             entity_file = self.data_dir / "entities" / f"{entity_id}.json"
             if entity_file.exists():
                 try:
@@ -346,16 +246,7 @@ class Storage:
         Returns:
             List of entity IDs
         """
-        if self._use_redis:
-            try:
-                # Get from Redis set
-                return list(self.redis.smembers(self.KEY_INDEX_TYPE.format(entity_type)))
-            except Exception as e:
-                logger.warning(f"Failed to get entities by type from Redis: {e}")
-                # Fallback to in-memory
-                return self._type_index.get(entity_type, [])
-        else:
-            return self._type_index.get(entity_type, [])
+        return self._type_index.get(entity_type, [])
     
     def exists(self, value: str) -> bool:
         """Quick check if a value exists (may have false positives).
@@ -426,16 +317,7 @@ class Storage:
     
     def stats(self) -> dict:
         """Get storage statistics."""
-        entity_count = 0
-        if self._use_redis:
-            try:
-                entity_keys = self.redis.keys(self.KEY_ENTITY.format("*"))
-                entity_count = len(entity_keys)
-            except Exception:
-                # Fallback to file count
-                entity_count = len(list((self.data_dir / "entities").glob("*.json")))
-        else:
-            entity_count = len(list((self.data_dir / "entities").glob("*.json")))
+        entity_count = len(list((self.data_dir / "entities").glob("*.json")))
         
         return {
             "entities": entity_count,
@@ -443,7 +325,7 @@ class Storage:
             "graph_edges": self._entity_graph.edge_count,
             "index_size": len(self._entity_index),
             "bloom_filter": self._seen_filter.stats(),
-            "storage_backend": "redis" if self._use_redis else "file"
+            "storage_backend": "file"
         }
 
 
