@@ -355,7 +355,7 @@ class Storage:
                 # Fallback to in-memory
                 return self._type_index.get(entity_type, [])
         else:
-        return self._type_index.get(entity_type, [])
+            return self._type_index.get(entity_type, [])
     
     def exists(self, value: str) -> bool:
         """Quick check if a value exists (may have false positives).
