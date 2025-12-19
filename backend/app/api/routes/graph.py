@@ -320,7 +320,7 @@ async def get_graph_for_finding(
                 # If parsing fails, assume it's already a domain/IP
                 return value
         
-        def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
+        async def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
             """Find entity by value or create it if not found. Returns entity ID."""
             if not value:
                 return None
@@ -379,7 +379,7 @@ async def get_graph_for_finding(
             entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
             
             # Find or create entity
-            entity_id = find_or_create_entity(domain_or_ip, entity_type)
+            entity_id = await find_or_create_entity(domain_or_ip, entity_type)
             if entity_id and entity_id not in node_ids:
                 node_ids.append(entity_id)
         
@@ -389,7 +389,7 @@ async def get_graph_for_finding(
             if target_domain_or_ip:
                 ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
                 entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
-                entity_id = find_or_create_entity(target_domain_or_ip, entity_type)
+                entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
                 if entity_id and entity_id not in node_ids:
                     node_ids.append(entity_id)
         
