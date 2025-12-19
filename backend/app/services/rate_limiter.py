@@ -1,23 +1,25 @@
 """
 Rate Limiter Service
 
-Implements sliding window rate limiting using Redis.
+Implements in-memory rate limiting (Redis removed - fully migrated to PostgreSQL).
 """
 
 import time
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from collections import defaultdict
 from loguru import logger
 
 from app.config import settings
-from app.core.database.redis_client import get_redis_client
 
 
 class RateLimiter:
-    """Rate limiting service with sliding window algorithm."""
+    """Rate limiting service with in-memory sliding window algorithm."""
     
     def __init__(self):
-        self.redis = get_redis_client()
+        # In-memory storage for rate limiting (Redis removed)
+        self._ip_counts: Dict[str, list] = defaultdict(list)
+        self._endpoint_counts: Dict[str, list] = defaultdict(list)
         self.ip_limit = settings.NETWORK_RATE_LIMIT_IP
         self.endpoint_limit = settings.NETWORK_RATE_LIMIT_ENDPOINT
         self.window_seconds = 60  # 1 minute window
@@ -38,10 +40,6 @@ class RateLimiter:
             - reason: str - Reason if blocked
             - retry_after: int - Seconds to wait before retry
         """
-        # If Redis is not available, allow all requests (fail open)
-        if not self.redis or not self.redis.is_connected():
-            return {"allowed": True}
-        
         try:
             # Check IP-based rate limit
             ip_result = await self._check_ip_limit(ip)
@@ -114,18 +112,23 @@ class RateLimiter:
         """
         Get count of requests in sliding window.
         
-        Uses sorted set to track timestamps of requests.
+        Uses in-memory list to track timestamps of requests.
         """
         try:
             now = time.time()
             window_start = now - self.window_seconds
             
+            # Determine which storage to use
+            if key.startswith("network:ratelimit:ip:"):
+                timestamps = self._ip_counts[key]
+            else:
+                timestamps = self._endpoint_counts[key]
+            
             # Remove old entries (outside window)
-            self.redis.client.zremrangebyscore(key, 0, window_start)
+            timestamps[:] = [ts for ts in timestamps if ts > window_start]
             
             # Count entries in window
-            count = self.redis.client.zcard(key)
-            return count
+            return len(timestamps)
         except Exception as e:
             logger.error(f"Error getting sliding window count: {e}")
             return 0
@@ -134,10 +137,11 @@ class RateLimiter:
         """Increment sliding window counter."""
         try:
             now = time.time()
-            # Add current timestamp to sorted set
-            self.redis.client.zadd(key, {str(now): now})
-            # Set expiration to window size + buffer
-            self.redis.client.expire(key, self.window_seconds + 10)
+            # Add current timestamp to list
+            if key.startswith("network:ratelimit:ip:"):
+                self._ip_counts[key].append(now)
+            else:
+                self._endpoint_counts[key].append(now)
         except Exception as e:
             logger.error(f"Error incrementing sliding window: {e}")
     

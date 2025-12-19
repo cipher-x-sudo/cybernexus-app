@@ -12,7 +12,6 @@ from starlette.responses import JSONResponse
 from loguru import logger
 
 from app.config import settings
-from app.core.database.redis_client import get_redis_client
 from app.services.block_manager import get_block_manager
 from app.services.rate_limiter import get_rate_limiter
 
@@ -22,15 +21,7 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app):
         super().__init__(app)
-        # Initialize Redis client lazily (don't connect until needed)
-        try:
-            self.redis = get_redis_client()
-            # Don't check connection here - let it connect lazily when needed
-        except Exception as e:
-            logger.warning(f"Failed to initialize Redis client: {e}. Network blocking features will be limited.")
-            self.redis = None
-        
-        # Initialize block manager and rate limiter (they handle Redis failures gracefully)
+        # Initialize block manager and rate limiter (they work without Redis)
         try:
             self.block_manager = get_block_manager()
             self.rate_limiter = get_rate_limiter()

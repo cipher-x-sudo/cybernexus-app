@@ -2,22 +2,26 @@
 Block Manager Service
 
 Manages blocking rules for IPs, endpoints, and patterns.
+Uses in-memory storage (Redis removed - fully migrated to PostgreSQL).
 """
 
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from collections import defaultdict
 from loguru import logger
 
 from app.config import settings
-from app.core.database.redis_client import get_redis_client
 
 
 class BlockManager:
     """Service for managing network blocking rules."""
     
     def __init__(self):
-        self.redis = get_redis_client()
+        # In-memory storage for blocks (Redis removed)
+        self._ip_blocks: Dict[str, Dict[str, Any]] = {}
+        self._endpoint_blocks: Dict[str, Dict[str, Any]] = {}
+        self._pattern_blocks: Dict[str, Dict[str, Any]] = {}
     
     # ==================== IP Blocking ====================
     
@@ -31,8 +35,7 @@ class BlockManager:
                 "created_by": created_by
             }
             
-            key = f"network:blocks:ip:{ip}"
-            self.redis.set_json(key, block_data)
+            self._ip_blocks[ip] = block_data
             
             logger.info(f"IP blocked: {ip} - {reason}")
             return True
@@ -43,23 +46,19 @@ class BlockManager:
     async def unblock_ip(self, ip: str) -> bool:
         """Unblock an IP address."""
         try:
-            key = f"network:blocks:ip:{ip}"
-            deleted = self.redis.delete(key)
-            
-            if deleted:
+            if ip in self._ip_blocks:
+                del self._ip_blocks[ip]
                 logger.info(f"IP unblocked: {ip}")
-            return bool(deleted)
+                return True
+            return False
         except Exception as e:
             logger.error(f"Failed to unblock IP {ip}: {e}")
             return False
     
     async def is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is blocked."""
-        if not self.redis or not self.redis.is_connected():
-            return False
         try:
-            key = f"network:blocks:ip:{ip}"
-            return bool(self.redis.exists(key))
+            return ip in self._ip_blocks
         except Exception as e:
             logger.error(f"Error checking IP block: {e}")
             return False
@@ -67,16 +66,7 @@ class BlockManager:
     async def get_blocked_ips(self) -> List[Dict[str, Any]]:
         """Get all blocked IPs."""
         try:
-            pattern = "network:blocks:ip:*"
-            keys = self.redis.keys(pattern)
-            
-            blocked = []
-            for key in keys:
-                block_data = self.redis.get_json(key)
-                if block_data:
-                    blocked.append(block_data)
-            
-            return blocked
+            return list(self._ip_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked IPs: {e}")
             return []
@@ -100,10 +90,9 @@ class BlockManager:
                 "created_by": created_by
             }
             
-            # Use pattern as part of key (sanitize for Redis key)
+            # Store endpoint block
             pattern_key = pattern.replace("/", "_").replace("*", "star")
-            key = f"network:blocks:endpoint:{pattern_key}"
-            self.redis.set_json(key, block_data)
+            self._endpoint_blocks[pattern_key] = block_data
             
             logger.info(f"Endpoint blocked: {method} {pattern} - {reason}")
             return True
@@ -115,30 +104,20 @@ class BlockManager:
         """Unblock an endpoint pattern."""
         try:
             pattern_key = pattern.replace("/", "_").replace("*", "star")
-            key = f"network:blocks:endpoint:{pattern_key}"
-            deleted = self.redis.delete(key)
-            
-            if deleted:
+            if pattern_key in self._endpoint_blocks:
+                del self._endpoint_blocks[pattern_key]
                 logger.info(f"Endpoint unblocked: {pattern}")
-            return bool(deleted)
+                return True
+            return False
         except Exception as e:
             logger.error(f"Failed to unblock endpoint {pattern}: {e}")
             return False
     
     async def is_endpoint_blocked(self, path: str, method: str) -> bool:
         """Check if endpoint is blocked."""
-        if not self.redis or not self.redis.is_connected():
-            return False
         try:
-            # Get all endpoint blocks
-            pattern = "network:blocks:endpoint:*"
-            keys = self.redis.keys(pattern)
-            
-            for key in keys:
-                block_data = self.redis.get_json(key)
-                if not block_data:
-                    continue
-                
+            # Check all endpoint blocks
+            for block_data in self._endpoint_blocks.values():
                 block_pattern = block_data.get("pattern", "")
                 block_method = block_data.get("method", "ALL")
                 
@@ -158,16 +137,7 @@ class BlockManager:
     async def get_blocked_endpoints(self) -> List[Dict[str, Any]]:
         """Get all blocked endpoints."""
         try:
-            pattern = "network:blocks:endpoint:*"
-            keys = self.redis.keys(pattern)
-            
-            blocked = []
-            for key in keys:
-                block_data = self.redis.get_json(key)
-                if block_data:
-                    blocked.append(block_data)
-            
-            return blocked
+            return list(self._endpoint_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked endpoints: {e}")
             return []
@@ -200,8 +170,7 @@ class BlockManager:
                 "created_by": created_by
             }
             
-            key = f"network:blocks:pattern:{block_id}"
-            self.redis.set_json(key, block_data)
+            self._pattern_blocks[block_id] = block_data
             
             logger.info(f"Pattern blocked: {pattern_type} - {pattern} - {reason}")
             return block_id
@@ -212,30 +181,20 @@ class BlockManager:
     async def unblock_pattern(self, block_id: str) -> bool:
         """Unblock a pattern by ID."""
         try:
-            key = f"network:blocks:pattern:{block_id}"
-            deleted = self.redis.delete(key)
-            
-            if deleted:
+            if block_id in self._pattern_blocks:
+                del self._pattern_blocks[block_id]
                 logger.info(f"Pattern unblocked: {block_id}")
-            return bool(deleted)
+                return True
+            return False
         except Exception as e:
             logger.error(f"Failed to unblock pattern {block_id}: {e}")
             return False
     
     async def is_pattern_blocked(self, request) -> bool:
         """Check if request matches blocked pattern."""
-        if not self.redis or not self.redis.is_connected():
-            return False
         try:
-            # Get all pattern blocks
-            pattern = "network:blocks:pattern:*"
-            keys = self.redis.keys(pattern)
-            
-            for key in keys:
-                block_data = self.redis.get_json(key)
-                if not block_data:
-                    continue
-                
+            # Check all pattern blocks
+            for block_data in self._pattern_blocks.values():
                 pattern_type = block_data.get("type", "")
                 pattern_str = block_data.get("pattern", "")
                 
@@ -250,16 +209,7 @@ class BlockManager:
     async def get_blocked_patterns(self) -> List[Dict[str, Any]]:
         """Get all blocked patterns."""
         try:
-            pattern = "network:blocks:pattern:*"
-            keys = self.redis.keys(pattern)
-            
-            blocked = []
-            for key in keys:
-                block_data = self.redis.get_json(key)
-                if block_data:
-                    blocked.append(block_data)
-            
-            return blocked
+            return list(self._pattern_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked patterns: {e}")
             return []
