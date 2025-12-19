@@ -425,7 +425,7 @@ async def get_user_activity(
             resource_id=log.resource_id,
             ip_address=log.ip_address,
             user_agent=log.user_agent,
-            metadata=log.metadata or {},
+            metadata=log.meta_data or {},  # Map meta_data to metadata for API response
             timestamp=log.timestamp
         )
         for log in logs
@@ -466,7 +466,7 @@ async def get_user_activity_by_id(
             resource_id=log.resource_id,
             ip_address=log.ip_address,
             user_agent=log.user_agent,
-            metadata=log.metadata or {},
+            metadata=log.meta_data or {},  # Map meta_data to metadata for API response
             timestamp=log.timestamp
         )
         for log in logs

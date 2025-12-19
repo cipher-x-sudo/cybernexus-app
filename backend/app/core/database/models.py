@@ -89,7 +89,7 @@ class Entity(Base):
     type = Column(String(50), nullable=False, index=True)
     value = Column(String(500), nullable=False, index=True)
     severity = Column(String(20), default="info", nullable=False)
-    metadata = Column(JSONB, default=dict, nullable=True)
+    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
@@ -136,7 +136,7 @@ class GraphEdge(Base):
     target_id = Column(String(255), ForeignKey("graph_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     relation = Column(String(50), nullable=False, index=True)
     weight = Column(Float, default=1.0, nullable=False)
-    metadata = Column(JSONB, default=dict, nullable=True)
+    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
@@ -162,7 +162,7 @@ class UserActivityLog(Base):
     resource_id = Column(String(255), nullable=True, index=True)
     ip_address = Column(String(45), nullable=True)  # IPv6 max length
     user_agent = Column(Text, nullable=True)
-    metadata = Column(JSONB, default=dict, nullable=True)
+    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
     # Relationships

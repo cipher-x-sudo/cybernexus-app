@@ -80,7 +80,7 @@ class DBStorage:
             existing.type = entity.get("type", existing.type)
             existing.value = entity.get("value", existing.value)
             existing.severity = entity.get("severity", existing.severity)
-            existing.metadata = entity.get("metadata", existing.metadata) or {}
+            existing.meta_data = entity.get("metadata", existing.meta_data) or {}
         else:
             # Create new entity
             db_entity = Entity(
@@ -89,7 +89,7 @@ class DBStorage:
                 type=entity.get("type", "unknown"),
                 value=entity.get("value", ""),
                 severity=entity.get("severity", "info"),
-                metadata=entity.get("metadata", {}) or {}
+                meta_data=entity.get("metadata", {}) or {}
             )
             self.db.add(db_entity)
         
@@ -123,7 +123,7 @@ class DBStorage:
             "type": entity.type,
             "value": entity.value,
             "severity": entity.severity,
-            "metadata": entity.metadata or {},
+            "metadata": entity.meta_data or {},  # Map meta_data back to metadata in API response
             "created_at": entity.created_at.isoformat() if entity.created_at else None
         }
     
@@ -227,7 +227,7 @@ class DBStorage:
                 "type": e.type,
                 "value": e.value,
                 "severity": e.severity,
-                "metadata": e.metadata or {},
+                "metadata": e.meta_data or {},  # Map meta_data back to metadata in API response
                 "created_at": e.created_at.isoformat() if e.created_at else None
             }
             for e in entities
@@ -290,7 +290,7 @@ class DBStorage:
         if existing_edge:
             # Update existing edge
             existing_edge.weight = weight
-            existing_edge.metadata = metadata or {}
+            existing_edge.meta_data = metadata or {}
         else:
             # Create new edge
             edge = GraphEdge(
@@ -300,7 +300,7 @@ class DBStorage:
                 target_id=target_node.id,
                 relation=relation,
                 weight=weight,
-                metadata=metadata or {}
+                meta_data=metadata or {}
             )
             self.db.add(edge)
         
@@ -499,7 +499,7 @@ class DBStorage:
                 "target": edge.target_id,
                 "relation": edge.relation,
                 "weight": edge.weight,
-                "metadata": edge.metadata or {}
+                "metadata": edge.meta_data or {}  # Map meta_data back to metadata in API response
             }
         
         return {

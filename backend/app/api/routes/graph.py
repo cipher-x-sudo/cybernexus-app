@@ -641,7 +641,7 @@ async def create_edge(
         target_id=edge.target,
         relation=edge.relation.value if isinstance(edge.relation, RelationType) else edge.relation,
         weight=edge.weight,
-        metadata=edge.metadata
+        metadata=edge.metadata  # Pydantic model uses 'metadata', storage maps to 'meta_data' in DB
     )
     return edge
 
