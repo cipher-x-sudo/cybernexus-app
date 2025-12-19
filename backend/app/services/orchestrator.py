@@ -393,7 +393,8 @@ class Orchestrator:
         capability: Capability,
         target: str,
         config: Optional[Dict[str, Any]] = None,
-        priority: JobPriority = JobPriority.NORMAL
+        priority: JobPriority = JobPriority.NORMAL,
+        user_id: Optional[str] = None
     ) -> Job:
         """Create a new job"""
         job_id = f"job-{uuid.uuid4().hex[:12]}"
@@ -401,6 +402,9 @@ class Orchestrator:
         # Merge with default config
         default_config = CAPABILITY_METADATA[capability].get("default_config", {})
         merged_config = {**default_config, **(config or {})}
+        
+        # Store user_id in metadata
+        metadata = {"user_id": user_id} if user_id else {}
         
         job = Job(
             id=job_id,
@@ -410,7 +414,8 @@ class Orchestrator:
             priority=priority,
             config=merged_config,
             progress=0,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            metadata=metadata
         )
         
         # Store job (in-memory and Redis)
@@ -494,13 +499,43 @@ class Orchestrator:
             # Simulate capability execution
             findings = await self._execute_capability(job)
             
+            # Get user_id from job metadata
+            user_id = job.metadata.get("user_id") if job.metadata else None
+            
             # Store findings
             for finding in findings:
                 finding.target = job.target
+                
+                # Add job_id to finding evidence for tracking
+                if not finding.evidence:
+                    finding.evidence = {}
+                finding.evidence["job_id"] = job.id
+                
                 self._all_findings.append(finding)
                 self._findings_index.insert(finding.risk_score, finding)
                 
-                # Store in Redis
+                # Store in database if user_id is available
+                if user_id:
+                    try:
+                        from app.core.database.database import init_db, _async_session_maker
+                        from app.core.database.finding_storage import DBFindingStorage
+                        
+                        # Ensure database is initialized
+                        init_db()
+                        
+                        if _async_session_maker:
+                            async with _async_session_maker() as db:
+                                try:
+                                    storage = DBFindingStorage(db, user_id=user_id, is_admin=False)
+                                    await storage.save_finding(finding, user_id=user_id)
+                                    await db.commit()
+                                except Exception as e:
+                                    await db.rollback()
+                                    logger.warning(f"Failed to store finding in database: {e}")
+                    except Exception as e:
+                        logger.warning(f"Failed to initialize database storage for finding: {e}")
+                
+                # Store in Redis (legacy support)
                 if self._use_redis:
                     try:
                         self.redis.set_json(self.KEY_FINDING.format(finding.id), finding.to_dict())

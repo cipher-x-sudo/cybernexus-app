@@ -3,6 +3,7 @@ Network Logging Middleware
 
 Captures all API requests and responses for real-time monitoring.
 Integrates with TunnelDetector for tunnel pattern detection.
+Uses database storage with user scoping.
 """
 
 import uuid
@@ -16,9 +17,11 @@ from starlette.responses import Response
 from starlette.types import Message
 from loguru import logger
 import asyncio
+from jose import JWTError, jwt
 
 from app.config import settings
-from app.core.database.redis_client import get_redis_client
+from app.core.database.database import get_db
+from app.core.database.network_log_storage import DBNetworkLogStorage
 
 
 # Global reference to middleware instance for WebSocket handler
@@ -32,7 +35,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         global _global_middleware_instance
         _global_middleware_instance = self
-        self.redis = get_redis_client()
         self.tunnel_analyzer = tunnel_analyzer
         self.websocket_clients = set()  # Will be set by WebSocket handler
         
@@ -49,6 +51,9 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         request_id = str(uuid.uuid4())
         start_time = time.time()
         
+        # Extract user_id from JWT token if available
+        user_id = await self._extract_user_id(request)
+        
         # Capture request data
         client_ip = self._get_client_ip(request)
         request_data = await self._capture_request(request, request_id, client_ip)
@@ -63,12 +68,50 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         )
         
         # Store log entry asynchronously (don't block response)
-        asyncio.create_task(self._store_log(log_entry))
+        asyncio.create_task(self._store_log(log_entry, user_id))
         
         # Broadcast to WebSocket clients
         asyncio.create_task(self._broadcast_log(log_entry))
         
         return response
+    
+    async def _extract_user_id(self, request: Request) -> Optional[str]:
+        """Extract user_id from JWT token in Authorization header."""
+        try:
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return None
+            
+            token = auth_header.split(" ")[1]
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            username = payload.get("sub")
+            
+            if username:
+                # Get user_id from database
+                from app.core.database.database import init_db, _async_session_maker
+                from app.core.database.models import User as UserModel
+                from sqlalchemy import select
+                
+                # Ensure database is initialized
+                init_db()
+                
+                # Access session maker directly (it's needed for middleware context)
+                if _async_session_maker:
+                    async with _async_session_maker() as db:
+                        try:
+                            result = await db.execute(
+                                select(UserModel).where(UserModel.username == username)
+                            )
+                            user = result.scalar_one_or_none()
+                            if user:
+                                return user.id
+                        except Exception as e:
+                            logger.debug(f"Error querying user: {e}")
+        except (JWTError, Exception) as e:
+            # Token invalid or user not found - log as unauthenticated
+            logger.debug(f"Could not extract user_id from request: {e}")
+        
+        return None
     
     def _get_client_ip(self, request: Request) -> str:
         """Extract client IP from request."""
@@ -204,44 +247,27 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         
         return sanitized
     
-    async def _store_log(self, log_entry: Dict[str, Any]):
-        """Store log entry in Redis."""
+    async def _store_log(self, log_entry: Dict[str, Any], user_id: Optional[str] = None):
+        """Store log entry in database."""
         try:
-            request_id = log_entry["id"]
-            timestamp = log_entry["timestamp"]
+            from app.core.database.database import init_db, _async_session_maker
+            from app.core.database.network_log_storage import DBNetworkLogStorage
             
-            # Calculate TTL in seconds
-            ttl_seconds = settings.NETWORK_LOG_TTL_DAYS * 24 * 60 * 60
+            # Ensure database is initialized
+            init_db()
             
-            # Store log entry
-            log_key = f"network:logs:{request_id}"
-            self.redis.set_json(log_key, log_entry, ex=ttl_seconds)
-            
-            # Add to index (sorted set by timestamp)
-            timestamp_float = datetime.fromisoformat(timestamp).timestamp()
-            self.redis.zadd("network:logs:index", {request_id: timestamp_float})
-            
-            # Add to IP index
-            ip = log_entry["ip"]
-            self.redis.sadd(f"network:logs:ip:{ip}", request_id)
-            
-            # Add to endpoint index
-            path = log_entry["path"]
-            self.redis.sadd(f"network:logs:endpoint:{path}", request_id)
-            
-            # If tunnel detected, add to tunnel index
-            if "tunnel_detection" in log_entry:
-                detection = log_entry["tunnel_detection"]
-                risk_score = detection.get("risk_score", 0.0)
-                self.redis.zadd("network:logs:tunnels", {request_id: risk_score})
-                
-                # Store full tunnel detection
-                detection_id = detection.get("detection_id", request_id)
-                tunnel_key = f"network:tunnels:{detection_id}"
-                self.redis.set_json(tunnel_key, detection, ex=ttl_seconds)
-            
+            # Access session maker directly (needed for middleware context)
+            if _async_session_maker:
+                async with _async_session_maker() as db:
+                    try:
+                        storage = DBNetworkLogStorage(db, user_id=user_id, is_admin=False)
+                        await storage.save_log(log_entry, user_id=user_id)
+                        await db.commit()
+                    except Exception as e:
+                        await db.rollback()
+                        logger.error(f"Failed to save log in database: {e}")
         except Exception as e:
-            logger.error(f"Failed to store network log: {e}")
+            logger.error(f"Failed to store network log: {e}", exc_info=True)
     
     async def _broadcast_log(self, log_entry: Dict[str, Any]):
         """Broadcast log entry to WebSocket clients."""

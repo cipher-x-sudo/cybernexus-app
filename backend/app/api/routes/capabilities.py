@@ -31,6 +31,11 @@ from app.services.orchestrator import (
     JobPriority
 )
 from app.services.risk_engine import get_risk_engine
+from app.api.routes.auth import get_current_active_user, User, is_admin
+from app.core.database.database import get_db
+from app.core.database.finding_storage import DBFindingStorage
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
 
 
 router = APIRouter()
@@ -182,7 +187,10 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
 
 
 @router.post("/jobs", response_model=JobResponse)
-async def create_job(request: JobCreateRequest):
+async def create_job(
+    request: JobCreateRequest,
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Create and start a capability job.
     
@@ -239,7 +247,8 @@ async def create_job(request: JobCreateRequest):
                 capability=capability,
                 target=request.target,
                 config=request.config,
-                priority=priority
+                priority=priority,
+                user_id=current_user.id
             )
             job_creation_time = time.time() - job_creation_start
             logger.info(
@@ -405,10 +414,12 @@ async def get_job_findings(
     job_id: str,
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return"),
     offset: int = Query(default=0, ge=0, description="Number of findings to skip"),
-    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling")
+    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Get findings from a job with pagination and incremental polling support.
+    Get findings from a job with pagination and incremental polling support (user-scoped).
     
     Supports two modes:
     1. Full pagination: Use offset/limit to paginate through all findings
@@ -427,20 +438,33 @@ async def get_job_findings(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Get findings based on 'since' parameter for incremental polling
+    # Verify job belongs to user (check metadata for user_id)
+    job_user_id = job.metadata.get("user_id") if job.metadata else None
+    if not is_admin(current_user) and job_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this job")
+    
+    # Get findings from database
+    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    all_findings = await storage.get_findings_for_job(job_id)
+    
+    # Apply 'since' filter if provided
     if since:
         try:
             # Try parsing as ISO timestamp first
             try:
                 since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
-                filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
+                filtered_findings = [f for f in all_findings if f.discovered_at > since_timestamp]
                 logger.debug(
                     f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
                     f"since={since}, found={len(filtered_findings)} new findings"
                 )
             except (ValueError, AttributeError):
                 # If not a timestamp, treat as finding ID
-                filtered_findings = job.get_findings_since(since_id=since)
+                try:
+                    since_index = next(i for i, f in enumerate(all_findings) if f.id == since)
+                    filtered_findings = all_findings[since_index + 1:]
+                except StopIteration:
+                    filtered_findings = all_findings
                 logger.debug(
                     f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
                     f"since={since}, found={len(filtered_findings)} new findings"
@@ -450,10 +474,10 @@ async def get_job_findings(
                 f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
                 f"Falling back to all findings."
             )
-            filtered_findings = job.findings
+            filtered_findings = all_findings
     else:
         # No 'since' parameter, return all findings (backward compatible)
-        filtered_findings = job.findings
+        filtered_findings = all_findings
     
     # Apply pagination to filtered results
     total_findings = len(filtered_findings)
@@ -713,13 +737,13 @@ async def list_findings(
     severity: Optional[str] = None,
     target: Optional[str] = None,
     min_risk_score: float = Query(default=0, ge=0, le=100),
-    limit: int = Query(default=100, le=500)
+    limit: int = Query(default=100, le=500),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    List all findings with optional filtering.
+    List all findings with optional filtering (user-scoped).
     """
-    orchestrator = get_orchestrator()
-    
     # Parse capability filter
     cap_filter = None
     if capability:
@@ -728,7 +752,9 @@ async def list_findings(
         except ValueError:
             pass
     
-    findings = orchestrator.get_findings(
+    # Use database storage
+    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    findings = await storage.get_findings(
         capability=cap_filter,
         severity=severity,
         target=target,
@@ -754,12 +780,16 @@ async def list_findings(
 
 
 @router.get("/findings/critical", response_model=List[FindingResponse])
-async def get_critical_findings(limit: int = Query(default=10, le=50)):
+async def get_critical_findings(
+    limit: int = Query(default=10, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get critical and high severity findings that need immediate attention.
+    Get critical and high severity findings that need immediate attention (user-scoped).
     """
-    orchestrator = get_orchestrator()
-    findings = orchestrator.get_critical_findings(limit=limit)
+    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    findings = await storage.get_critical_findings(limit=limit)
     
     return [
         FindingResponse(
@@ -779,26 +809,31 @@ async def get_critical_findings(limit: int = Query(default=10, le=50)):
 
 
 @router.get("/findings/{finding_id}", response_model=FindingResponse)
-async def get_finding(finding_id: str):
-    """Get a specific finding by ID"""
+async def get_finding(
+    finding_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a specific finding by ID (user-scoped)"""
     try:
-        orchestrator = get_orchestrator()
+        storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        finding = await storage.get_finding(finding_id)
         
-        # Try to get from Redis first
-        if orchestrator._use_redis and orchestrator.redis:
-            try:
-                finding_data = orchestrator.redis.get_json(orchestrator.KEY_FINDING.format(finding_id))
-                if finding_data:
-                    return FindingResponse(**finding_data)
-            except Exception as e:
-                logger.debug(f"Finding not found in Redis: {e}")
+        if not finding:
+            raise HTTPException(status_code=404, detail="Finding not found")
         
-        # Fallback to in-memory search
-        for finding in orchestrator._all_findings:
-            if finding.id == finding_id:
-                return FindingResponse(**finding.to_dict())
-        
-        raise HTTPException(status_code=404, detail="Finding not found")
+        return FindingResponse(
+            id=finding.id,
+            capability=finding.capability.value,
+            severity=finding.severity,
+            title=finding.title,
+            description=finding.description,
+            evidence=finding.evidence,
+            affected_assets=finding.affected_assets,
+            recommendations=finding.recommendations,
+            discovered_at=finding.discovered_at.isoformat(),
+            risk_score=finding.risk_score
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -811,15 +846,19 @@ async def get_finding(finding_id: str):
 # ============================================================================
 
 @router.get("/risk/{target}", response_model=RiskScoreResponse)
-async def get_risk_score(target: str):
+async def get_risk_score(
+    target: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get the current risk score for a target.
+    Get the current risk score for a target (user-scoped).
     """
     risk_engine = get_risk_engine()
-    orchestrator = get_orchestrator()
     
-    # Get findings for target
-    findings = orchestrator.get_findings_for_target(target)
+    # Get findings for target from database
+    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    findings = await storage.get_findings_for_target(target)
     
     if not findings:
         raise HTTPException(
@@ -891,7 +930,11 @@ async def get_top_risks(
 # ============================================================================
 
 @router.post("/quick-scan", response_model=QuickScanResponse)
-async def quick_scan(request: QuickScanRequest):
+async def quick_scan(
+    request: QuickScanRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Perform a quick security assessment of a domain.
     
@@ -904,12 +947,45 @@ async def quick_scan(request: QuickScanRequest):
     logger.info(f"Starting quick scan for {request.domain}")
     
     try:
-        # Run quick scan
-        results = await orchestrator.quick_scan(request.domain)
+        # Run quick scan (pass user_id to create_job)
+        # Note: quick_scan creates jobs internally, so we need to update it to accept user_id
+        # For now, we'll create jobs manually with user_id
+        capabilities = [
+            Capability.EMAIL_SECURITY,
+            Capability.EXPOSURE_DISCOVERY,
+            Capability.INFRASTRUCTURE_TESTING
+        ]
         
-        # Get risk score
-        findings = orchestrator.get_findings_for_target(request.domain)
-        findings_dicts = [f.to_dict() for f in findings]
+        jobs = []
+        started_at = datetime.now()
+        for cap in capabilities:
+            job = await orchestrator.create_job(
+                cap, 
+                request.domain, 
+                priority=JobPriority.HIGH,
+                user_id=current_user.id
+            )
+            await orchestrator.execute_job(job.id)
+            jobs.append(job.to_dict())
+        
+        completed_at = datetime.now()
+        total_findings = sum(j["findings_count"] for j in jobs)
+        
+        results = {
+            "started_at": started_at.isoformat(),
+            "completed_at": completed_at.isoformat(),
+            "jobs": jobs,
+            "summary": {
+                "capabilities_run": len(jobs),
+                "total_findings": total_findings,
+                "duration_seconds": (completed_at - started_at).total_seconds()
+            }
+        }
+        
+        # Get risk score from database
+        storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        findings_dataclass = await storage.get_findings_for_target(request.domain)
+        findings_dicts = [f.to_dict() for f in findings_dataclass]
         risk_score = risk_engine.calculate_risk_score(request.domain, findings_dicts)
         
         return QuickScanResponse(
@@ -1067,30 +1143,35 @@ async def get_findings(
     capability: Optional[Capability] = None,
     severity: Optional[str] = None,
     limit: int = Query(default=100, ge=1, le=1000),
-    min_risk_score: float = Query(default=0, ge=0, le=100)
+    min_risk_score: float = Query(default=0, ge=0, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Get findings with optional filtering.
+    Get findings with optional filtering (user-scoped).
     
     Returns findings formatted for frontend display.
     """
-    orchestrator = get_orchestrator()
+    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
     
     # Parse severity filter
     severity_list = None
     if severity:
         severity_list = [s.strip() for s in severity.split(",")]
     
-    findings = orchestrator.get_findings(
+    findings = await storage.get_findings(
         capability=capability,
         severity=severity_list[0] if severity_list and len(severity_list) == 1 else None,
-        limit=limit,
+        limit=limit * 2 if severity_list and len(severity_list) > 1 else limit,  # Fetch more if filtering
         min_risk_score=min_risk_score
     )
     
     # Filter by multiple severities if provided
     if severity_list and len(severity_list) > 1:
         findings = [f for f in findings if f.severity in severity_list]
+    
+    # Apply limit after filtering
+    findings = findings[:limit]
     
     findings_data = []
     for finding in findings:

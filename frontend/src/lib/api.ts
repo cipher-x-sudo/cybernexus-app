@@ -154,23 +154,83 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      // Handle 401 Unauthorized - clear token and redirect to login
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_user");
+          // Only redirect if not already on login/signup page
+          if (!window.location.pathname.includes("/login") && !window.location.pathname.includes("/signup")) {
+            window.location.href = "/login";
+          }
+        }
+      }
+      
+      const error = await response.json().catch(() => ({ 
+        message: response.status === 401 ? "Unauthorized. Please log in again." : "Request failed" 
+      }));
+      throw new Error(error.detail || error.message || `HTTP ${response.status}`);
     }
 
     return response.json();
   }
 
   // Auth
-  async login(email: string, password: string) {
-    return this.request<{ token: string; user: any }>("/auth/login", {
+  async login(username: string, password: string) {
+    const formData = new URLSearchParams();
+    formData.append("username", username);
+    formData.append("password", password);
+    
+    const response = await this.request<{ access_token: string; token_type: string; expires_in: number }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
+    });
+    
+    return {
+      token: response.access_token,
+      expiresIn: response.expires_in,
+    };
+  }
+
+  async register(username: string, email: string, password: string, fullName?: string) {
+    return this.request<{
+      id: string;
+      username: string;
+      email: string;
+      full_name: string | null;
+      disabled: boolean;
+      role: string;
+      created_at: string;
+      updated_at: string;
+    }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, email, password, full_name: fullName }),
     });
   }
 
+  async getCurrentUser() {
+    return this.request<{
+      id: string;
+      username: string;
+      email: string;
+      full_name: string | null;
+      disabled: boolean;
+      role: string;
+      created_at: string;
+      updated_at: string;
+    }>("/auth/me");
+  }
+
   async logout() {
-    return this.request("/auth/logout", { method: "POST" });
+    this.clearToken();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+    }
   }
 
   // Dashboard

@@ -2,15 +2,19 @@
 Network Monitoring API Routes
 
 Provides endpoints for network logs, statistics, blocking, and export.
+Uses database storage with user scoping.
 """
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Response, Depends
 from pydantic import BaseModel
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.network_logger import get_network_log_storage
+from app.core.database.database import get_db
+from app.core.database.network_log_storage import DBNetworkLogStorage
+from app.api.routes.auth import get_current_active_user, User, is_admin
 from app.services.block_manager import get_block_manager
 from app.services.rate_limiter import get_rate_limiter
 from app.services.tunnel_analyzer import get_tunnel_analyzer
@@ -64,11 +68,13 @@ async def get_logs(
     endpoint: Optional[str] = Query(default=None),
     method: Optional[str] = Query(default=None),
     status: Optional[int] = Query(default=None),
-    has_tunnel: Optional[bool] = Query(default=None)
+    has_tunnel: Optional[bool] = Query(default=None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get network logs with filtering."""
+    """Get network logs with filtering (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
         start_dt = None
         end_dt = None
@@ -96,10 +102,14 @@ async def get_logs(
 
 
 @router.get("/logs/{request_id}")
-async def get_log(request_id: str):
-    """Get a single log entry by ID."""
+async def get_log(
+    request_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a single log entry by ID (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         log = await storage.get_log(request_id)
         
         if not log:
@@ -116,11 +126,13 @@ async def get_log(request_id: str):
 @router.get("/logs/search")
 async def search_logs(
     q: str = Query(..., description="Search query"),
-    limit: int = Query(default=100, ge=1, le=1000)
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Search logs by query string."""
+    """Search logs by query string (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         logs = await storage.search_logs(q, limit=limit)
         return {"logs": logs, "count": len(logs)}
     except Exception as e:
@@ -135,11 +147,13 @@ async def search_logs(
 @router.get("/stats")
 async def get_stats(
     start_time: Optional[str] = Query(default=None),
-    end_time: Optional[str] = Query(default=None)
+    end_time: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get network statistics."""
+    """Get network statistics (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
         start_dt = None
         end_dt = None
@@ -148,7 +162,7 @@ async def get_stats(
         if end_time:
             end_dt = datetime.fromisoformat(end_time)
         
-        stats = await storage.get_statistics(start_dt, end_dt)
+        stats = await storage.get_stats(start_dt, end_dt)
         
         # Add tunnel analyzer stats
         analyzer = get_tunnel_analyzer()
@@ -168,11 +182,13 @@ async def get_stats(
 @router.get("/tunnels")
 async def get_tunnels(
     limit: int = Query(default=100, ge=1, le=1000),
-    min_confidence: str = Query(default="medium", regex="^(low|medium|high|confirmed)$")
+    min_confidence: str = Query(default="medium", regex="^(low|medium|high|confirmed)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get tunnel detections."""
+    """Get tunnel detections (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         detections = await storage.get_tunnel_detections(limit=limit, min_confidence=min_confidence)
         return {"detections": detections, "count": len(detections)}
     except Exception as e:
@@ -387,10 +403,14 @@ async def get_rate_limit_status(
 # ============================================================================
 
 @router.post("/export")
-async def export_logs(request: ExportRequest):
-    """Export logs in specified format."""
+async def export_logs(
+    request: ExportRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Export logs in specified format (user-scoped)."""
     try:
-        storage = get_network_log_storage()
+        storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
         start_dt = None
         end_dt = None

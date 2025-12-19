@@ -2,29 +2,22 @@
 Graph Routes
 
 Handles graph queries, traversals, and relationship management.
-Uses custom Graph DSA implementation with Redis storage.
+Uses database-backed storage with user scoping.
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from enum import Enum
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database.storage import Storage
+from app.core.database.database import get_db
+from app.core.database.db_storage import DBStorage
+from app.api.routes.auth import get_current_active_user, User, is_admin
 from app.services.orchestrator import get_orchestrator
 
 router = APIRouter()
-
-# Global storage instance
-_storage_instance: Optional[Storage] = None
-
-def get_storage() -> Storage:
-    """Get or create global storage instance."""
-    global _storage_instance
-    if _storage_instance is None:
-        _storage_instance = Storage()
-    return _storage_instance
 
 
 class RelationType(str, Enum):
@@ -93,13 +86,15 @@ sample_edges = []
 async def get_full_graph(
     limit: int = Query(default=1000, le=10000),
     entity_types: Optional[List[str]] = Query(default=None),
-    min_severity: Optional[str] = None
+    min_severity: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get the full graph data for visualization from Redis storage."""
+    """Get the full graph data for visualization from database storage."""
     try:
-        # Get graph data from Storage (which uses Redis)
-        storage = get_storage()
-        graph_data = storage.get_graph_data()
+        # Get graph data from database storage
+        storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        graph_data = await storage.get_graph_data()
         
         nodes = []
         edges = []
@@ -107,8 +102,11 @@ async def get_full_graph(
         # Convert graph nodes to GraphNode format
         if "nodes" in graph_data:
             for node_id, node_data in graph_data["nodes"].items():
-                # Get entity data if available
-                entity = storage.get_entity(node_id)
+                # Get entity data if available (try to get from entity_id in node data)
+                entity_id = node_data.get("data", {}).get("id") if isinstance(node_data.get("data"), dict) else None
+                entity = None
+                if entity_id:
+                    entity = await storage.get_entity(entity_id)
                 if entity:
                     severity = entity.get("severity", "info")
                     node_type = entity.get("type", node_data.get("node_type", "unknown"))
@@ -169,17 +167,21 @@ async def get_full_graph(
 
 
 @router.get("/node/{node_id}", response_model=GraphNode)
-async def get_node(node_id: str):
-    """Get a specific node by ID from Redis storage."""
+async def get_node(
+    node_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a specific node by ID from database storage."""
     try:
         # Get entity from storage
-        storage = get_storage()
-        entity = storage.get_entity(node_id)
+        storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        entity = await storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
         
         # Get graph data to check node metadata
-        graph_data = storage.get_graph_data()
+        graph_data = await storage.get_graph_data()
         node_data = graph_data.get("nodes", {}).get(node_id, {})
         
         return GraphNode(
@@ -200,18 +202,20 @@ async def get_node(node_id: str):
 async def get_neighbors(
     node_id: str,
     depth: int = Query(default=1, ge=1, le=5),
-    direction: str = Query(default="both", regex="^(in|out|both)$")
+    direction: str = Query(default="both", regex="^(in|out|both)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get neighbors of a node up to specified depth from Redis storage."""
+    """Get neighbors of a node up to specified depth from database storage."""
     try:
         # Check if node exists
-        storage = get_storage()
-        entity = storage.get_entity(node_id)
+        storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        entity = await storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
     
         # Use Storage's get_neighbors method
-        neighbor_ids = storage.get_neighbors(node_id, depth=depth)
+        neighbor_ids = await storage.get_neighbors(node_id, depth=depth)
         
         # Get all neighbor entities
         nodes = []
@@ -219,7 +223,7 @@ async def get_neighbors(
         visited = {node_id}
         
         # Get starting node
-        graph_data = storage.get_graph_data()
+        graph_data = await storage.get_graph_data()
         node_data = graph_data.get("nodes", {}).get(node_id, {})
         nodes.append(GraphNode(
             id=node_id,
@@ -235,7 +239,7 @@ async def get_neighbors(
                 continue
             visited.add(neighbor_id)
             
-            neighbor_entity = storage.get_entity(neighbor_id)
+            neighbor_entity = await storage.get_entity(neighbor_id)
             if neighbor_entity:
                 neighbor_node_data = graph_data.get("nodes", {}).get(neighbor_id, {})
                 nodes.append(GraphNode(
@@ -274,54 +278,27 @@ async def get_neighbors(
 @router.get("/finding/{finding_id}", response_model=GraphData)
 async def get_graph_for_finding(
     finding_id: str,
-    depth: int = Query(default=2, ge=1, le=5)
+    depth: int = Query(default=2, ge=1, le=5),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get focused graph data for a specific finding, showing relationships of affected assets."""
     try:
         from urllib.parse import urlparse
         import re
         
-        # Get finding from orchestrator
-        orchestrator = get_orchestrator()
-        finding = None
-        
-        # Try to get from Redis first
-        if orchestrator._use_redis and orchestrator.redis:
-            try:
-                finding_data = orchestrator.redis.get_json(orchestrator.KEY_FINDING.format(finding_id))
-                if finding_data:
-                    from app.services.orchestrator import Finding, Capability
-                    from datetime import datetime
-                    finding = Finding(
-                        id=finding_data["id"],
-                        capability=Capability(finding_data["capability"]),
-                        severity=finding_data["severity"],
-                        title=finding_data["title"],
-                        description=finding_data["description"],
-                        evidence=finding_data["evidence"],
-                        affected_assets=finding_data["affected_assets"],
-                        recommendations=finding_data["recommendations"],
-                        discovered_at=datetime.fromisoformat(finding_data["discovered_at"]),
-                        risk_score=finding_data["risk_score"],
-                        target=finding_data.get("target", "")
-                    )
-            except Exception as e:
-                logger.debug(f"Finding not found in Redis: {e}")
-        
-        # Fallback to in-memory search
-        if not finding:
-            for f in orchestrator._all_findings:
-                if f.id == finding_id:
-                    finding = f
-                    break
+        # Get finding from database
+        from app.core.database.finding_storage import DBFindingStorage
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        finding = await finding_storage.get_finding(finding_id)
         
         if not finding:
             # Fallback to full graph if finding not found
             logger.warning(f"Finding {finding_id} not found, returning empty graph")
             return GraphData(nodes=[], edges=[])
         
-        storage = get_storage()
-        graph_data = storage.get_graph_data()
+        storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        graph_data = await storage.get_graph_data()
         node_ids = []
         
         def extract_domain_or_ip(value: str) -> str:
@@ -349,16 +326,18 @@ async def get_graph_for_finding(
                 return None
             
             # First, try to find existing entity by value
-            entities_by_type = storage.get_by_type(entity_type)
+            entities_by_type = await storage.get_by_type(entity_type)
             for entity in entities_by_type:
                 if entity.get("value") == value:
                     return entity.get("id")
             
             # Also check all entities in graph
             for node_id, node_data in graph_data.get("nodes", {}).items():
-                entity = storage.get_entity(node_id)
-                if entity and entity.get("value") == value:
-                    return node_id
+                entity_id = node_data.get("data", {}).get("id") if isinstance(node_data.get("data"), dict) else None
+                if entity_id:
+                    entity = await storage.get_entity(entity_id)
+                    if entity and entity.get("value") == value:
+                        return entity_id
             
             # If not found, create a new entity
             try:
@@ -372,7 +351,7 @@ async def get_graph_for_finding(
                     "discovered_at": finding.discovered_at.isoformat() if finding else None,
                     "source": "finding_graph"
                 }
-                storage.save_entity(entity_data)
+                await storage.save_entity(entity_data)
                 logger.debug(f"Created entity {entity_id} for value {value}")
                 return entity_id
             except Exception as e:
@@ -385,7 +364,7 @@ async def get_graph_for_finding(
                 continue
             
             # Try as entity ID first
-            entity = storage.get_entity(asset)
+            entity = await storage.get_entity(asset)
             if entity:
                 node_ids.append(asset)
                 continue
@@ -420,7 +399,7 @@ async def get_graph_for_finding(
             return GraphData(nodes=[], edges=[])
         
         # Refresh graph data after creating entities
-        graph_data = storage.get_graph_data()
+        graph_data = await storage.get_graph_data()
         
         # Add finding as a node and create relationships to affected assets
         finding_node_id = f"finding-{finding_id}"
@@ -428,7 +407,7 @@ async def get_graph_for_finding(
         all_node_ids.add(finding_node_id)
         
         # Create finding entity if it doesn't exist
-        finding_entity = storage.get_entity(finding_node_id)
+        finding_entity = await storage.get_entity(finding_node_id)
         if not finding_entity:
             finding_entity = {
                 "id": finding_node_id,
@@ -442,7 +421,7 @@ async def get_graph_for_finding(
                 "discovered_at": finding.discovered_at.isoformat(),
                 "source": "orchestrator"
             }
-            storage.save_entity(finding_entity)
+            await storage.save_entity(finding_entity)
             logger.debug(f"Created finding entity {finding_node_id}")
         
         # Create relationships from finding to affected assets
@@ -458,19 +437,18 @@ async def get_graph_for_finding(
                             break
                 
                 if not edge_exists:
-                    storage._entity_graph.add_edge(
+                    await storage.add_relationship(
                         finding_node_id,
                         asset_node_id,
-                        weight=1.0,
-                        relation="targets"
+                        relation="targets",
+                        weight=1.0
                     )
                     logger.debug(f"Created edge from finding {finding_node_id} to asset {asset_node_id}")
             except Exception as e:
                 logger.debug(f"Failed to create edge from finding to asset {asset_node_id}: {e}")
         
-        # Save graph after adding edges
-        storage._save_graph()
-        graph_data = storage.get_graph_data()
+        # Refresh graph data after adding edges
+        graph_data = await storage.get_graph_data()
         
         # Get neighbors for all affected nodes
         visited = set()
@@ -494,7 +472,7 @@ async def get_graph_for_finding(
                 continue
             
             # Get the node itself
-            entity = storage.get_entity(node_id)
+            entity = await storage.get_entity(node_id)
             if entity:
                 node_data = graph_data.get("nodes", {}).get(node_id, {})
                 nodes.append(GraphNode(
@@ -507,13 +485,13 @@ async def get_graph_for_finding(
                 visited.add(node_id)
             
             # Get neighbors
-            neighbor_ids = storage.get_neighbors(node_id, depth=depth)
+            neighbor_ids = await storage.get_neighbors(node_id, depth=depth)
             for neighbor_id in neighbor_ids:
                 if neighbor_id not in visited:
                     all_node_ids.add(neighbor_id)
                     visited.add(neighbor_id)
                     
-                    neighbor_entity = storage.get_entity(neighbor_id)
+                    neighbor_entity = await storage.get_entity(neighbor_id)
                     if neighbor_entity:
                         neighbor_node_data = graph_data.get("nodes", {}).get(neighbor_id, {})
                         nodes.append(GraphNode(
@@ -554,22 +532,24 @@ async def get_graph_for_finding(
 async def find_path(
     source: str,
     target: str,
-    algorithm: str = Query(default="bfs", regex="^(bfs|dijkstra)$")
+    algorithm: str = Query(default="bfs", regex="^(bfs|dijkstra)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Find path between two nodes using Redis storage."""
+    """Find path between two nodes using database storage."""
     try:
         if source == target:
             return PathResult(path=[source], total_weight=0, edges=[])
     
         # Use Storage's find_path method
-        storage = get_storage()
-        path = storage.find_path(source, target)
+        storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        path = await storage.find_path(source, target)
         
         if not path:
             raise HTTPException(status_code=404, detail="No path found between nodes")
         
         # Get edges for the path
-        graph_data = storage.get_graph_data()
+        graph_data = await storage.get_graph_data()
         edges_list = []
         total_weight = 0
         
@@ -649,19 +629,46 @@ async def find_clusters(min_size: int = Query(default=2, ge=2)):
 
 
 @router.post("/edge", response_model=GraphEdge)
-async def create_edge(edge: GraphEdge):
+async def create_edge(
+    edge: GraphEdge,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Create a new edge between nodes."""
-    sample_edges.append(edge)
+    storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    await storage.add_relationship(
+        source_id=edge.source,
+        target_id=edge.target,
+        relation=edge.relation.value if isinstance(edge.relation, RelationType) else edge.relation,
+        weight=edge.weight,
+        metadata=edge.metadata
+    )
     return edge
 
 
 @router.delete("/edge/{edge_id}")
-async def delete_edge(edge_id: str):
+async def delete_edge(
+    edge_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete an edge."""
-    for i, edge in enumerate(sample_edges):
-        if edge.id == edge_id:
-            sample_edges.pop(i)
-            return {"message": "Edge deleted successfully"}
-    raise HTTPException(status_code=404, detail="Edge not found")
+    from app.core.database.models import GraphEdge as GraphEdgeModel
+    
+    # Find edge
+    query = select(GraphEdgeModel).where(GraphEdgeModel.id == edge_id)
+    if not is_admin(current_user):
+        query = query.where(GraphEdgeModel.user_id == current_user.id)
+    
+    result = await db.execute(query)
+    edge = result.scalar_one_or_none()
+    
+    if not edge:
+        raise HTTPException(status_code=404, detail="Edge not found")
+    
+    await db.delete(edge)
+    await db.commit()
+    
+    return {"message": "Edge deleted successfully"}
 
 

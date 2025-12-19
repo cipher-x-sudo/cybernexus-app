@@ -18,6 +18,7 @@ from app.utils import check_tor_connectivity
 from app.middleware.network_blocker import NetworkBlockerMiddleware
 from app.middleware.network_logger import NetworkLoggerMiddleware
 from app.services.tunnel_analyzer import get_tunnel_analyzer
+from app.core.database.database import init_db, close_db
 
 
 @asynccontextmanager
@@ -38,6 +39,24 @@ async def lifespan(app: FastAPI):
     # Initialize directories
     init_directories()
     logger.info("Data directories initialized")
+    
+    # Initialize database
+    logger.info("Initializing database connection...")
+    init_db()
+    logger.info("Database connection initialized")
+    
+    # Run database migrations automatically
+    logger.info("Running database migrations...")
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("migrations/alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations completed successfully")
+    except Exception as e:
+        logger.error(f"Failed to run migrations: {e}")
+        # Don't fail startup if migrations fail - might be first run or connection issue
+        logger.warning("Continuing startup despite migration errors")
     
     # Check Tor connectivity
     logger.info("Checking Tor proxy connectivity...")
@@ -68,6 +87,10 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
+    
+    # Close database connections
+    await close_db()
+    logger.info("Database connections closed")
 
 
 # Create FastAPI application

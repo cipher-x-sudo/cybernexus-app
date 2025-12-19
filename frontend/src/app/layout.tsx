@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "CyberNexus - Unified Threat Intelligence Platform",
@@ -30,7 +31,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-[#0a0e1a] text-white antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

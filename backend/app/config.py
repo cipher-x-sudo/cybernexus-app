@@ -159,6 +159,28 @@ class Settings(BaseSettings):
         description="Redis connection timeout in seconds"
     )
     
+    # Database Configuration
+    DATABASE_URL: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/cybernexus",
+        env="DATABASE_URL",
+        description="PostgreSQL database connection URL. Railway provides this automatically."
+    )
+    DATABASE_POOL_SIZE: int = Field(
+        default=5,
+        env="DATABASE_POOL_SIZE",
+        description="Database connection pool size"
+    )
+    DATABASE_MAX_OVERFLOW: int = Field(
+        default=10,
+        env="DATABASE_MAX_OVERFLOW",
+        description="Maximum overflow connections in pool"
+    )
+    DATABASE_POOL_TIMEOUT: int = Field(
+        default=30,
+        env="DATABASE_POOL_TIMEOUT",
+        description="Database pool timeout in seconds"
+    )
+    
     # Network Monitoring Configuration
     NETWORK_LOG_TTL_DAYS: int = Field(
         default=7,

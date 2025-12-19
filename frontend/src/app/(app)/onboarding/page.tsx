@@ -18,7 +18,7 @@ export default function OnboardingPage() {
       try {
         await api.getCompanyProfile();
         setProfileExists(true);
-        // If profile exists, redirect to dashboard
+        // If profile exists, redirect to dashboard (ProtectedRoute will handle this too)
         router.push("/dashboard");
       } catch (error) {
         // Profile doesn't exist, show onboarding
