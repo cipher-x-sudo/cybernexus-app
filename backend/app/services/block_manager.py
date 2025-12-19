@@ -55,6 +55,8 @@ class BlockManager:
     
     async def is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is blocked."""
+        if not self.redis or not self.redis.is_connected():
+            return False
         try:
             key = f"network:blocks:ip:{ip}"
             return bool(self.redis.exists(key))
@@ -125,6 +127,8 @@ class BlockManager:
     
     async def is_endpoint_blocked(self, path: str, method: str) -> bool:
         """Check if endpoint is blocked."""
+        if not self.redis or not self.redis.is_connected():
+            return False
         try:
             # Get all endpoint blocks
             pattern = "network:blocks:endpoint:*"
@@ -220,6 +224,8 @@ class BlockManager:
     
     async def is_pattern_blocked(self, request) -> bool:
         """Check if request matches blocked pattern."""
+        if not self.redis or not self.redis.is_connected():
+            return False
         try:
             # Get all pattern blocks
             pattern = "network:blocks:pattern:*"

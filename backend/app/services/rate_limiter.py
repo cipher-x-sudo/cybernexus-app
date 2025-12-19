@@ -38,6 +38,10 @@ class RateLimiter:
             - reason: str - Reason if blocked
             - retry_after: int - Seconds to wait before retry
         """
+        # If Redis is not available, allow all requests (fail open)
+        if not self.redis or not self.redis.is_connected():
+            return {"allowed": True}
+        
         try:
             # Check IP-based rate limit
             ip_result = await self._check_ip_limit(ip)

@@ -43,11 +43,22 @@ class RedisClient:
         self.db = settings.REDIS_DB
         self.password = parsed.password
         
-        # Initialize connection (non-blocking - don't raise on failure)
-        self._connect()
+        # Don't connect immediately - use lazy connection when needed
+        # This allows the app to start even if Redis is not available
     
     def _connect(self):
         """Establish Redis connection with connection pooling."""
+        # Skip if already connected
+        if self._connected and self._client is not None:
+            try:
+                self._client.ping()
+                return
+            except Exception:
+                # Connection lost, reconnect
+                self._connected = False
+                self._pool = None
+                self._client = None
+        
         try:
             # Create connection pool
             self._pool = ConnectionPool.from_url(
@@ -62,7 +73,7 @@ class RedisClient:
             # Create client from pool
             self._client = redis.Redis(connection_pool=self._pool)
             
-            # Test connection
+            # Test connection (this may raise ConnectionError)
             self._client.ping()
             self._connected = True
             logger.info(f"Redis connected: {self.host}:{self.port}/{self.db}")

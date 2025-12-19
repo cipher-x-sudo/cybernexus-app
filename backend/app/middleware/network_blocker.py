@@ -22,16 +22,15 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app):
         super().__init__(app)
+        # Initialize Redis client lazily (don't connect until needed)
         try:
             self.redis = get_redis_client()
-            # Check if Redis is actually connected
-            if not self.redis.is_connected():
-                logger.warning("Redis not available - network blocking features will be limited")
-                self.redis = None
+            # Don't check connection here - let it connect lazily when needed
         except Exception as e:
             logger.warning(f"Failed to initialize Redis client: {e}. Network blocking features will be limited.")
             self.redis = None
         
+        # Initialize block manager and rate limiter (they handle Redis failures gracefully)
         try:
             self.block_manager = get_block_manager()
             self.rate_limiter = get_rate_limiter()
