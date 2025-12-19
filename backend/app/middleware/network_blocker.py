@@ -72,21 +72,21 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
             try:
                 rate_limit_result = await self.rate_limiter.check_rate_limit(client_ip, path)
                 if not rate_limit_result["allowed"]:
-            logger.warning(
-                f"Rate limit exceeded: {client_ip} -> {path} "
-                f"({rate_limit_result.get('current', 0)}/{rate_limit_result.get('limit', 0)})"
-            )
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Rate limit exceeded",
-                    "reason": rate_limit_result.get("reason", "Too many requests"),
-                    "retry_after": rate_limit_result.get("retry_after", 60)
-                },
-                headers={
-                    "Retry-After": str(rate_limit_result.get("retry_after", 60))
-                }
-            )
+                    logger.warning(
+                        f"Rate limit exceeded: {client_ip} -> {path} "
+                        f"({rate_limit_result.get('current', 0)}/{rate_limit_result.get('limit', 0)})"
+                    )
+                    return JSONResponse(
+                        status_code=429,
+                        content={
+                            "error": "Rate limit exceeded",
+                            "reason": rate_limit_result.get("reason", "Too many requests"),
+                            "retry_after": rate_limit_result.get("retry_after", 60)
+                        },
+                        headers={
+                            "Retry-After": str(rate_limit_result.get("retry_after", 60))
+                        }
+                    )
             except Exception as e:
                 logger.error(f"Error checking rate limit: {e}")
         
