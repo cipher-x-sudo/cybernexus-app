@@ -123,13 +123,13 @@ class Storage:
         # Load entities and rebuild indices
         entities_dir = self.data_dir / "entities"
         if entities_dir.exists():
-        for entity_file in entities_dir.glob("*.json"):
-            try:
-                with open(entity_file, 'r') as f:
-                    entity = json.load(f)
-                    self._index_entity(entity)
-            except Exception:
-                pass
+            for entity_file in entities_dir.glob("*.json"):
+                try:
+                    with open(entity_file, 'r') as f:
+                        entity = json.load(f)
+                        self._index_entity(entity)
+                except Exception:
+                    pass
     
     def _save_graph(self):
         """Save graph to Redis or file (fallback)."""
