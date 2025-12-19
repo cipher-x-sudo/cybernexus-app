@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -20,8 +21,14 @@ interface CriticalFindingsProps {
 }
 
 export function CriticalFindings({ findings: propFindings, className }: CriticalFindingsProps) {
+  const router = useRouter();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const handleViewInGraph = (findingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/graph?findingId=${findingId}&depth=2`);
+  };
 
   // Fetch findings if not provided
   useEffect(() => {
@@ -154,11 +161,22 @@ export function CriticalFindings({ findings: propFindings, className }: Critical
                     </span>
                   </div>
                 </div>
-                <button className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors">
-                  <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => handleViewInGraph(finding.id, e)}
+                    className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors group"
+                    title="View in Graph"
+                  >
+                    <svg className="w-4 h-4 text-white/40 group-hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                  </button>
+                  <button className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors">
+                    <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           );

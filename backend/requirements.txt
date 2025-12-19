@@ -56,10 +56,6 @@ loguru==0.7.2
 # Scheduling
 apscheduler==3.10.4
 
-# Redis
-redis==5.0.1
-hiredis==2.2.3
-
 # Browser Automation & Investigation
 playwright==1.40.0
 pillow==10.1.0

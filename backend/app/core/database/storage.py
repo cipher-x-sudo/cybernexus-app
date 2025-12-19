@@ -123,13 +123,13 @@ class Storage:
         # Load entities and rebuild indices
         entities_dir = self.data_dir / "entities"
         if entities_dir.exists():
-            for entity_file in entities_dir.glob("*.json"):
-                try:
-                    with open(entity_file, 'r') as f:
-                        entity = json.load(f)
-                        self._index_entity(entity)
-                except Exception:
-                    pass
+        for entity_file in entities_dir.glob("*.json"):
+            try:
+                with open(entity_file, 'r') as f:
+                    entity = json.load(f)
+                    self._index_entity(entity)
+            except Exception:
+                pass
     
     def _save_graph(self):
         """Save graph to Redis or file (fallback)."""
@@ -171,7 +171,7 @@ class Storage:
             if entity_id not in entities:
                 entities.append(entity_id)
             self._type_index.put(entity_type, entities)
-            
+        
             # Redis
             if self._use_redis:
                 try:
@@ -270,8 +270,8 @@ class Storage:
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         if entity_file.exists():
             try:
-                with open(entity_file, 'r') as f:
-                    return json.load(f)
+            with open(entity_file, 'r') as f:
+                return json.load(f)
             except Exception:
                 pass
         
@@ -313,14 +313,14 @@ class Storage:
             entity_file = self.data_dir / "entities" / f"{entity_id}.json"
             if entity_file.exists():
                 try:
-                    os.remove(entity_file)
+                os.remove(entity_file)
                     deleted = True
                 except Exception:
                     pass
             
             # Remove from in-memory structures
             # Note: Can't remove from bloom filter (it's probabilistic)
-            self._entity_graph.remove_node(entity_id)
+                self._entity_graph.remove_node(entity_id)
             
             return deleted
     
@@ -355,7 +355,7 @@ class Storage:
                 # Fallback to in-memory
                 return self._type_index.get(entity_type, [])
         else:
-            return self._type_index.get(entity_type, [])
+        return self._type_index.get(entity_type, [])
     
     def exists(self, value: str) -> bool:
         """Quick check if a value exists (may have false positives).

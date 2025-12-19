@@ -424,8 +424,8 @@ class Orchestrator:
                 # Add to job queue (sorted set with priority as score)
                 queue_score = priority.value * 1000000 + datetime.now().timestamp()  # Lower priority = lower score
                 self.redis.zadd(self.KEY_JOB_QUEUE, {job_id: queue_score})
-                
-                # Index by capability
+        
+        # Index by capability
                 self.redis.sadd(self.KEY_INDEX_JOBS_CAPABILITY.format(capability.value), job_id)
                 
                 # Index by target
@@ -2807,7 +2807,7 @@ class Orchestrator:
         # Update Redis indices
         if self._use_redis:
             try:
-                # Remove from old status index
+        # Remove from old status index
                 self.redis.srem(self.KEY_INDEX_JOBS_STATUS.format(old_status.value), job.id)
                 # Add to new status index
                 self.redis.sadd(self.KEY_INDEX_JOBS_STATUS.format(new_status.value), job.id)

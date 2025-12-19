@@ -12,6 +12,7 @@ from enum import Enum
 from loguru import logger
 
 from app.core.database.storage import Storage
+from app.services.orchestrator import get_orchestrator
 
 router = APIRouter()
 
@@ -268,6 +269,150 @@ async def get_neighbors(
     except Exception as e:
         logger.error(f"Error getting neighbors for {node_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving neighbors: {str(e)}")
+
+
+@router.get("/finding/{finding_id}", response_model=GraphData)
+async def get_graph_for_finding(
+    finding_id: str,
+    depth: int = Query(default=2, ge=1, le=5)
+):
+    """Get focused graph data for a specific finding, showing relationships of affected assets."""
+    try:
+        # Get finding from orchestrator
+        orchestrator = get_orchestrator()
+        finding = None
+        
+        # Try to get from Redis first
+        if orchestrator._use_redis and orchestrator.redis:
+            try:
+                finding_data = orchestrator.redis.get_json(orchestrator.KEY_FINDING.format(finding_id))
+                if finding_data:
+                    from app.services.orchestrator import Finding, Capability
+                    from datetime import datetime
+                    finding = Finding(
+                        id=finding_data["id"],
+                        capability=Capability(finding_data["capability"]),
+                        severity=finding_data["severity"],
+                        title=finding_data["title"],
+                        description=finding_data["description"],
+                        evidence=finding_data["evidence"],
+                        affected_assets=finding_data["affected_assets"],
+                        recommendations=finding_data["recommendations"],
+                        discovered_at=datetime.fromisoformat(finding_data["discovered_at"]),
+                        risk_score=finding_data["risk_score"],
+                        target=finding_data.get("target", "")
+                    )
+            except Exception as e:
+                logger.debug(f"Finding not found in Redis: {e}")
+        
+        # Fallback to in-memory search
+        if not finding:
+            for f in orchestrator._all_findings:
+                if f.id == finding_id:
+                    finding = f
+                    break
+        
+        if not finding:
+            # Fallback to full graph if finding not found
+            logger.warning(f"Finding {finding_id} not found, returning empty graph")
+            return GraphData(nodes=[], edges=[])
+        
+        # Extract node IDs from finding
+        node_ids = []
+        
+        # Add affected assets (these are entity IDs)
+        node_ids.extend(finding.affected_assets)
+        
+        # Try to map target to entity ID
+        if finding.target:
+            storage = get_storage()
+            # Try to find entity by value (target might be domain/IP)
+            graph_data = storage.get_graph_data()
+            for node_id, node_data in graph_data.get("nodes", {}).items():
+                entity = storage.get_entity(node_id)
+                if entity and entity.get("value") == finding.target:
+                    if node_id not in node_ids:
+                        node_ids.append(node_id)
+                    break
+            # If not found, try using target as node ID directly
+            if finding.target not in node_ids:
+                entity = storage.get_entity(finding.target)
+                if entity:
+                    node_ids.append(finding.target)
+        
+        if not node_ids:
+            # No nodes to show, return empty graph
+            logger.warning(f"Finding {finding_id} has no associated nodes")
+            return GraphData(nodes=[], edges=[])
+        
+        # Get neighbors for all affected nodes
+        storage = get_storage()
+        graph_data = storage.get_graph_data()
+        all_node_ids = set(node_ids)
+        visited = set()
+        nodes = []
+        edges = []
+        
+        # Get all nodes (affected assets + their neighbors)
+        for node_id in node_ids:
+            if node_id in visited:
+                continue
+            
+            # Get the node itself
+            entity = storage.get_entity(node_id)
+            if entity:
+                node_data = graph_data.get("nodes", {}).get(node_id, {})
+                nodes.append(GraphNode(
+                    id=node_id,
+                    label=entity.get("value", node_data.get("label", node_id)),
+                    type=entity.get("type", node_data.get("node_type", "unknown")),
+                    severity=entity.get("severity", "info"),
+                    metadata={**entity, "is_finding_asset": True}
+                ))
+                visited.add(node_id)
+            
+            # Get neighbors
+            neighbor_ids = storage.get_neighbors(node_id, depth=depth)
+            for neighbor_id in neighbor_ids:
+                if neighbor_id not in visited:
+                    all_node_ids.add(neighbor_id)
+                    visited.add(neighbor_id)
+                    
+                    neighbor_entity = storage.get_entity(neighbor_id)
+                    if neighbor_entity:
+                        neighbor_node_data = graph_data.get("nodes", {}).get(neighbor_id, {})
+                        nodes.append(GraphNode(
+                            id=neighbor_id,
+                            label=neighbor_entity.get("value", neighbor_node_data.get("label", neighbor_id)),
+                            type=neighbor_entity.get("type", neighbor_node_data.get("node_type", "unknown")),
+                            severity=neighbor_entity.get("severity", "info"),
+                            metadata=neighbor_entity
+                        ))
+        
+        # Get edges between all nodes
+        if "edges" in graph_data:
+            for edge_key, edge_data in graph_data["edges"].items():
+                source = edge_data.get("source")
+                target = edge_data.get("target")
+                if source in all_node_ids and target in all_node_ids:
+                    relation = edge_data.get("relation", "associated_with")
+                    edges.append(GraphEdge(
+                        id=edge_key,
+                        source=source,
+                        target=target,
+                        relation=RelationType(relation) if hasattr(RelationType, relation.upper().replace("-", "_")) else RelationType.ASSOCIATED_WITH,
+                        weight=edge_data.get("weight", 1.0),
+                        metadata=edge_data.get("metadata", {})
+                    ))
+        
+        return GraphData(nodes=nodes, edges=edges)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting graph for finding {finding_id}: {e}", exc_info=True)
+        # Fallback to empty graph
+        return GraphData(nodes=[], edges=[])
 
 
 @router.get("/path", response_model=PathResult)

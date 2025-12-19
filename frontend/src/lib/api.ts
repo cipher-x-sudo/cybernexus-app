@@ -338,6 +338,71 @@ class ApiClient {
     }> }>(`/graph?${query}`);
   }
 
+  /**
+   * Get graph data focused on a specific finding
+   */
+  async getGraphDataForFinding(findingId: string, depth: number = 2) {
+    return this.request<{ nodes: Array<{
+      id: string;
+      label: string;
+      type: string;
+      severity: string;
+      metadata: Record<string, any>;
+      x?: number;
+      y?: number;
+      z?: number;
+    }>; edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      relation: string;
+      weight: number;
+      metadata: Record<string, any>;
+    }> }>(`/graph/finding/${findingId}?depth=${depth}`);
+  }
+
+  /**
+   * Get graph data focused on a specific node
+   */
+  async getGraphDataForNode(nodeId: string, depth: number = 2) {
+    return this.request<{ nodes: Array<{
+      id: string;
+      label: string;
+      type: string;
+      severity: string;
+      metadata: Record<string, any>;
+      x?: number;
+      y?: number;
+      z?: number;
+    }>; edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      relation: string;
+      weight: number;
+      metadata: Record<string, any>;
+    }> }>(`/graph/node/${nodeId}/neighbors?depth=${depth}`);
+  }
+
+  /**
+   * Get a specific finding by ID
+   */
+  async getFinding(findingId: string) {
+    return this.request<{
+      id: string;
+      capability: string;
+      severity: string;
+      title: string;
+      description: string;
+      evidence: Record<string, any>;
+      affected_assets: string[];
+      recommendations: string[];
+      discovered_at: string;
+      risk_score: number;
+      target?: string;
+    }>(`/capabilities/findings/${findingId}`);
+  }
+
   // Timeline
   async getTimelineEvents(params?: { from?: string; to?: string; type?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();

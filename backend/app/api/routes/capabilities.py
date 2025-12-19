@@ -778,6 +778,34 @@ async def get_critical_findings(limit: int = Query(default=10, le=50)):
     ]
 
 
+@router.get("/findings/{finding_id}", response_model=FindingResponse)
+async def get_finding(finding_id: str):
+    """Get a specific finding by ID"""
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Try to get from Redis first
+        if orchestrator._use_redis and orchestrator.redis:
+            try:
+                finding_data = orchestrator.redis.get_json(orchestrator.KEY_FINDING.format(finding_id))
+                if finding_data:
+                    return FindingResponse(**finding_data)
+            except Exception as e:
+                logger.debug(f"Finding not found in Redis: {e}")
+        
+        # Fallback to in-memory search
+        for finding in orchestrator._all_findings:
+            if finding.id == finding_id:
+                return FindingResponse(**finding.to_dict())
+        
+        raise HTTPException(status_code=404, detail="Finding not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting finding {finding_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # Risk Score Endpoints
 # ============================================================================

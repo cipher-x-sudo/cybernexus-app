@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo, useCallback, useEffect } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
@@ -151,11 +151,44 @@ function Edge3D({ source, target, highlighted }: { source: THREE.Vector3; target
   );
 }
 
-function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
+function CameraController({ targetPosition }: { targetPosition: THREE.Vector3 | null }) {
+  const { camera } = useThree();
+  const targetRef = useRef<THREE.Vector3 | null>(null);
+  
+  useEffect(() => {
+    if (targetPosition) {
+      targetRef.current = targetPosition.clone();
+    }
+  }, [targetPosition]);
+  
+  useFrame(() => {
+    if (targetRef.current) {
+      // Smoothly move camera to focus on target
+      const currentPos = camera.position.clone();
+      const targetPos = targetRef.current.clone();
+      targetPos.add(new THREE.Vector3(5, 5, 5)); // Offset camera position
+      
+      camera.position.lerp(targetPos, 0.05);
+      
+      // Look at the target
+      camera.lookAt(targetRef.current);
+      
+      // Stop when close enough
+      if (currentPos.distanceTo(targetPos) < 0.1) {
+        targetRef.current = null;
+      }
+    }
+  });
+  
+  return null;
+}
+
+function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover, onClick }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   hoveredNode: string | null;
   selectedNode: string | null;
+  focusedNodeId?: string;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
 }) {
@@ -166,6 +199,13 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
     });
     return positions;
   }, [nodes]);
+  
+  const focusedPosition = useMemo(() => {
+    if (focusedNodeId && nodePositions[focusedNodeId]) {
+      return nodePositions[focusedNodeId];
+    }
+    return null;
+  }, [focusedNodeId, nodePositions]);
 
   return (
     <>
@@ -198,11 +238,14 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
           key={node.id}
           node={node}
           isHovered={hoveredNode === node.id}
-          isSelected={selectedNode === node.id}
+          isSelected={selectedNode === node.id || focusedNodeId === node.id}
           onHover={onHover}
           onClick={onClick}
         />
       ))}
+      
+      {/* Camera controller for focusing */}
+      <CameraController targetPosition={focusedPosition} />
 
       {/* Controls */}
       <OrbitControls
@@ -217,9 +260,10 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, onHover, onClick }: {
 
 interface Graph3DProps {
   graphData?: { nodes: GraphNode[]; edges: GraphEdge[] };
+  focusedNodeId?: string;
 }
 
-export function Graph3D({ graphData: propGraphData }: Graph3DProps = {}) {
+export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProps = {}) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -250,14 +294,14 @@ export function Graph3D({ graphData: propGraphData }: Graph3DProps = {}) {
     } else {
       fetchGraphData()
         .then((data) => {
-          setNodes(data.nodes);
-          setEdges(data.edges);
+      setNodes(data.nodes);
+      setEdges(data.edges);
         })
         .catch((error) => {
           console.error('Failed to fetch graph data:', error);
           setNodes([]);
           setEdges([]);
-        });
+    });
     }
   }, [propGraphData]);
 
@@ -331,6 +375,7 @@ export function Graph3D({ graphData: propGraphData }: Graph3DProps = {}) {
           edges={filteredEdges}
           hoveredNode={hoveredNode}
           selectedNode={selectedNode}
+          focusedNodeId={focusedNodeId}
           onHover={setHoveredNode}
           onClick={setSelectedNode}
         />
