@@ -159,6 +159,48 @@ class Settings(BaseSettings):
         description="Redis connection timeout in seconds"
     )
     
+    # Network Monitoring Configuration
+    NETWORK_LOG_TTL_DAYS: int = Field(
+        default=7,
+        env="NETWORK_LOG_TTL_DAYS",
+        description="Network log retention period in days"
+    )
+    NETWORK_RATE_LIMIT_IP: int = Field(
+        default=100,
+        env="NETWORK_RATE_LIMIT_IP",
+        description="Requests per minute per IP"
+    )
+    NETWORK_RATE_LIMIT_ENDPOINT: int = Field(
+        default=60,
+        env="NETWORK_RATE_LIMIT_ENDPOINT",
+        description="Requests per minute per endpoint per IP"
+    )
+    NETWORK_ENABLE_LOGGING: bool = Field(
+        default=True,
+        env="NETWORK_ENABLE_LOGGING",
+        description="Enable/disable network logging"
+    )
+    NETWORK_ENABLE_BLOCKING: bool = Field(
+        default=True,
+        env="NETWORK_ENABLE_BLOCKING",
+        description="Enable/disable network blocking"
+    )
+    NETWORK_ENABLE_TUNNEL_DETECTION: bool = Field(
+        default=True,
+        env="NETWORK_ENABLE_TUNNEL_DETECTION",
+        description="Enable/disable real-time tunnel detection"
+    )
+    NETWORK_TUNNEL_CONFIDENCE_THRESHOLD: str = Field(
+        default="medium",
+        env="NETWORK_TUNNEL_CONFIDENCE_THRESHOLD",
+        description="Minimum confidence to alert (low/medium/high/confirmed)"
+    )
+    NETWORK_MAX_BODY_SIZE: int = Field(
+        default=1048576,
+        env="NETWORK_MAX_BODY_SIZE",
+        description="Maximum body size to log in bytes (1MB default)"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

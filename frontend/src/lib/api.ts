@@ -862,6 +862,158 @@ class ApiClient {
       return { success: true };
     }
   }
+
+  // Network Monitoring
+  async getNetworkLogs(params?: {
+    limit?: number;
+    offset?: number;
+    start_time?: string;
+    end_time?: string;
+    ip?: string;
+    endpoint?: string;
+    method?: string;
+    status?: number;
+    has_tunnel?: boolean;
+  }) {
+    const query = new URLSearchParams(
+      Object.entries(params || {}).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null) {
+          acc[key] = String(value);
+        }
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+    return this.request<{ logs: any[]; count: number }>(`/network/logs?${query}`);
+  }
+
+  async getNetworkLog(requestId: string) {
+    return this.request<any>(`/network/logs/${requestId}`);
+  }
+
+  async searchNetworkLogs(query: string, limit: number = 100) {
+    return this.request<{ logs: any[]; count: number }>(
+      `/network/logs/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+  }
+
+  async getNetworkStats(params?: { start_time?: string; end_time?: string }) {
+    const query = new URLSearchParams(
+      Object.entries(params || {}).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null) {
+          acc[key] = String(value);
+        }
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+    return this.request<any>(`/network/stats?${query}`);
+  }
+
+  async getTunnelDetections(params?: { limit?: number; min_confidence?: string }) {
+    const query = new URLSearchParams(
+      Object.entries(params || {}).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null) {
+          acc[key] = String(value);
+        }
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+    return this.request<{ detections: any[]; count: number }>(`/network/tunnels?${query}`);
+  }
+
+  // Blocking
+  async blockIP(ip: string, reason: string = "", created_by: string = "") {
+    return this.request<{ message: string; ip: string }>("/network/blocks/ip", {
+      method: "POST",
+      body: JSON.stringify({ ip, reason, created_by }),
+    });
+  }
+
+  async unblockIP(ip: string) {
+    return this.request<{ message: string; ip: string }>(`/network/blocks/ip/${ip}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getBlockedIPs() {
+    return this.request<{ blocked_ips: any[]; count: number }>("/network/blocks/ip");
+  }
+
+  async blockEndpoint(pattern: string, method: string = "ALL", reason: string = "", created_by: string = "") {
+    return this.request<{ message: string; pattern: string; method: string }>("/network/blocks/endpoint", {
+      method: "POST",
+      body: JSON.stringify({ pattern, method, reason, created_by }),
+    });
+  }
+
+  async unblockEndpoint(pattern: string) {
+    return this.request<{ message: string; pattern: string }>(`/network/blocks/endpoint/${encodeURIComponent(pattern)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getBlockedEndpoints() {
+    return this.request<{ blocked_endpoints: any[]; count: number }>("/network/blocks/endpoint");
+  }
+
+  async blockPattern(pattern_type: string, pattern: string, reason: string = "", created_by: string = "") {
+    return this.request<{ message: string; block_id: string; pattern_type: string; pattern: string }>(
+      "/network/blocks/pattern",
+      {
+        method: "POST",
+        body: JSON.stringify({ pattern_type, pattern, reason, created_by }),
+      }
+    );
+  }
+
+  async unblockPattern(block_id: string) {
+    return this.request<{ message: string; block_id: string }>(`/network/blocks/pattern/${block_id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getBlockedPatterns() {
+    return this.request<{ blocked_patterns: any[]; count: number }>("/network/blocks/pattern");
+  }
+
+  async getAllBlocks() {
+    return this.request<{ ips: any[]; endpoints: any[]; patterns: any[] }>("/network/blocks");
+  }
+
+  async getRateLimitStatus(ip: string, endpoint?: string) {
+    const query = endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : "";
+    return this.request<any>(`/network/rate-limit/${ip}${query}`);
+  }
+
+  async exportNetworkLogs(format: "json" | "csv" | "har", params?: {
+    start_time?: string;
+    end_time?: string;
+    filters?: Record<string, any>;
+  }) {
+    const response = await fetch(`${this.baseUrl}/network/export`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+      },
+      body: JSON.stringify({ format, ...params }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `network_logs.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    return { success: true };
+  }
 }
 
 // Export singleton instance

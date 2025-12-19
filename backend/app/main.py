@@ -13,8 +13,11 @@ from loguru import logger
 import sys
 
 from app.config import settings, init_directories
-from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard
+from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws
 from app.utils import check_tor_connectivity
+from app.middleware.network_blocker import NetworkBlockerMiddleware
+from app.middleware.network_logger import NetworkLoggerMiddleware
+from app.services.tunnel_analyzer import get_tunnel_analyzer
 
 
 @asynccontextmanager
@@ -287,6 +290,30 @@ logger.info("[CORS] CORSEnforcementMiddleware added - will enforce CORS headers 
 app.add_middleware(CORSDebugMiddleware)
 logger.info("[CORS] CORSDebugMiddleware added - will log CORS request/response details")
 
+# Network Monitoring Middleware
+# IMPORTANT: Middleware order - LAST added runs FIRST on request
+# We want: Blocker -> Logger (blocker checks first, then logger captures)
+# So we add in REVERSE order: Logger first, then Blocker
+
+if settings.NETWORK_ENABLE_LOGGING or settings.NETWORK_ENABLE_BLOCKING:
+    # Initialize tunnel analyzer if tunnel detection is enabled
+    tunnel_analyzer = None
+    if settings.NETWORK_ENABLE_TUNNEL_DETECTION:
+        tunnel_analyzer = get_tunnel_analyzer()
+    
+    # Network Logger (added first, runs second on request)
+    # We'll create instance after app is created to set WebSocket reference
+    logger.info("[Network] NetworkLoggerMiddleware will be added")
+    
+    # Network Blocker (added second, runs first on request - checks blocks before logging)
+    if settings.NETWORK_ENABLE_BLOCKING:
+        app.add_middleware(NetworkBlockerMiddleware)
+        logger.info("[Network] NetworkBlockerMiddleware added")
+    
+    # Network Logger (added after blocker, so it runs after blocker checks)
+    app.add_middleware(NetworkLoggerMiddleware, tunnel_analyzer=tunnel_analyzer)
+    logger.info("[Network] NetworkLoggerMiddleware added")
+
 # Explicit OPTIONS handler as fallback for Railway/proxy issues
 # This ensures preflight requests always get proper CORS headers
 @app.options("/{full_path:path}")
@@ -361,6 +388,8 @@ app.include_router(capabilities.router, prefix="/api/v1/capabilities", tags=["Ca
 app.include_router(company.router, prefix="/api/v1/company", tags=["Company"])
 app.include_router(darkweb.router, prefix="/api/v1/darkweb", tags=["Dark Web"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
+app.include_router(network.router, prefix="/api/v1/network", tags=["Network Monitoring"])
+app.include_router(network_ws.router, prefix="/api/v1/network", tags=["Network WebSocket"])
 
 
 @app.get("/", tags=["Health"])
