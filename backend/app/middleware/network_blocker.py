@@ -22,9 +22,23 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app):
         super().__init__(app)
-        self.redis = get_redis_client()
-        self.block_manager = get_block_manager()
-        self.rate_limiter = get_rate_limiter()
+        try:
+            self.redis = get_redis_client()
+            # Check if Redis is actually connected
+            if not self.redis.is_connected():
+                logger.warning("Redis not available - network blocking features will be limited")
+                self.redis = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize Redis client: {e}. Network blocking features will be limited.")
+            self.redis = None
+        
+        try:
+            self.block_manager = get_block_manager()
+            self.rate_limiter = get_rate_limiter()
+        except Exception as e:
+            logger.warning(f"Failed to initialize block manager or rate limiter: {e}")
+            self.block_manager = None
+            self.rate_limiter = None
     
     async def dispatch(self, request: Request, call_next):
         """Check if request should be blocked."""
@@ -63,9 +77,11 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                 content={"error": "Access denied", "reason": "Request pattern blocked"}
             )
         
-        # Check rate limits
-        rate_limit_result = await self.rate_limiter.check_rate_limit(client_ip, path)
-        if not rate_limit_result["allowed"]:
+        # Check rate limits (skip if rate limiter not available)
+        if self.rate_limiter:
+            try:
+                rate_limit_result = await self.rate_limiter.check_rate_limit(client_ip, path)
+                if not rate_limit_result["allowed"]:
             logger.warning(
                 f"Rate limit exceeded: {client_ip} -> {path} "
                 f"({rate_limit_result.get('current', 0)}/{rate_limit_result.get('limit', 0)})"
@@ -81,6 +97,8 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                     "Retry-After": str(rate_limit_result.get("retry_after", 60))
                 }
             )
+            except Exception as e:
+                logger.error(f"Error checking rate limit: {e}")
         
         # Request is allowed
         return await call_next(request)
@@ -102,6 +120,8 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     async def _is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is blocked."""
+        if not self.block_manager:
+            return False
         try:
             return await self.block_manager.is_ip_blocked(ip)
         except Exception as e:
@@ -110,6 +130,8 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     async def _is_endpoint_blocked(self, path: str, method: str) -> bool:
         """Check if endpoint is blocked."""
+        if not self.block_manager:
+            return False
         try:
             return await self.block_manager.is_endpoint_blocked(path, method)
         except Exception as e:
@@ -118,6 +140,8 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
     
     async def _is_pattern_blocked(self, request: Request) -> bool:
         """Check if request matches blocked pattern."""
+        if not self.block_manager:
+            return False
         try:
             return await self.block_manager.is_pattern_blocked(request)
         except Exception as e:

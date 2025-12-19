@@ -43,7 +43,7 @@ class RedisClient:
         self.db = settings.REDIS_DB
         self.password = parsed.password
         
-        # Initialize connection
+        # Initialize connection (non-blocking - don't raise on failure)
         self._connect()
     
     def _connect(self):
@@ -68,15 +68,20 @@ class RedisClient:
             logger.info(f"Redis connected: {self.host}:{self.port}/{self.db}")
             
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.warning(f"Failed to connect to Redis: {e}. Redis features will be disabled.")
             self._connected = False
-            raise
+            # Don't raise - allow app to start without Redis
+            self._pool = None
+            self._client = None
     
     @property
-    def client(self) -> redis.Redis:
+    def client(self) -> Optional[redis.Redis]:
         """Get Redis client instance."""
         if not self._connected or self._client is None:
-            self._connect()
+            try:
+                self._connect()
+            except Exception:
+                return None
         return self._client
     
     def is_connected(self) -> bool:
