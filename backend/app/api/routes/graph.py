@@ -88,7 +88,7 @@ sample_nodes = []
 sample_edges = []
 
 
-@router.get("/", response_model=GraphData)
+@router.get("", response_model=GraphData)
 async def get_full_graph(
     limit: int = Query(default=1000, le=10000),
     entity_types: Optional[List[str]] = Query(default=None),
@@ -116,7 +116,7 @@ async def get_full_graph(
                     severity = node_data.get("severity", "info")
                     node_type = node_data.get("node_type", "unknown")
                     label = node_data.get("label", node_id)
-                
+    
                 # Apply filters
                 if entity_types and node_type not in entity_types:
                     continue
@@ -158,7 +158,7 @@ async def get_full_graph(
         # Filter edges to only include those connecting our limited nodes
         node_ids = {n.id for n in nodes}
         edges = [e for e in edges if e.source in node_ids and e.target in node_ids]
-        
+    
         return GraphData(nodes=nodes, edges=edges)
         
     except Exception as e:
@@ -208,7 +208,7 @@ async def get_neighbors(
         entity = storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
-        
+    
         # Use Storage's get_neighbors method
         neighbor_ids = storage.get_neighbors(node_id, depth=depth)
         
@@ -260,7 +260,7 @@ async def get_neighbors(
                         weight=edge_data.get("weight", 1.0),
                         metadata=edge_data.get("metadata", {})
                     ))
-        
+    
         return GraphData(nodes=nodes, edges=edges)
         
     except HTTPException:
@@ -280,7 +280,7 @@ async def find_path(
     try:
         if source == target:
             return PathResult(path=[source], total_weight=0, edges=[])
-        
+    
         # Use Storage's find_path method
         storage = get_storage()
         path = storage.find_path(source, target)
