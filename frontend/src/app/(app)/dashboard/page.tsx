@@ -7,7 +7,6 @@ import {
   CriticalFindings,
   CapabilityCards,
   LiveActivity,
-  QuickStart,
   MiniWorldMap,
   LineChart,
 } from "@/components/dashboard";
@@ -131,11 +130,6 @@ export default function DashboardPage() {
         />
         <CriticalFindings findings={findingsData} />
       </div>
-
-      {/* Quick Start */}
-      <QuickStart 
-        onScan={(domain) => console.log("Scanning:", domain)}
-      />
 
       {/* Capability Cards */}
       <CapabilityCards stats={capabilityStats} />
