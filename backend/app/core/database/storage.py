@@ -270,8 +270,8 @@ class Storage:
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         if entity_file.exists():
             try:
-            with open(entity_file, 'r') as f:
-                return json.load(f)
+                with open(entity_file, 'r') as f:
+                    return json.load(f)
             except Exception:
                 pass
         
@@ -313,14 +313,14 @@ class Storage:
             entity_file = self.data_dir / "entities" / f"{entity_id}.json"
             if entity_file.exists():
                 try:
-                os.remove(entity_file)
+                    os.remove(entity_file)
                     deleted = True
                 except Exception:
                     pass
             
             # Remove from in-memory structures
             # Note: Can't remove from bloom filter (it's probabilistic)
-                self._entity_graph.remove_node(entity_id)
+            self._entity_graph.remove_node(entity_id)
             
             return deleted
     
