@@ -204,6 +204,7 @@ class ApiClient {
       full_name: string | null;
       disabled: boolean;
       role: string;
+      onboarding_completed: boolean;
       created_at: string;
       updated_at: string;
     }>("/auth/register", {
@@ -220,6 +221,7 @@ class ApiClient {
       full_name: string | null;
       disabled: boolean;
       role: string;
+      onboarding_completed: boolean;
       created_at: string;
       updated_at: string;
     }>("/auth/me");
