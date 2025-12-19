@@ -278,6 +278,9 @@ async def get_graph_for_finding(
 ):
     """Get focused graph data for a specific finding, showing relationships of affected assets."""
     try:
+        from urllib.parse import urlparse
+        import re
+        
         # Get finding from orchestrator
         orchestrator = get_orchestrator()
         finding = None
@@ -317,41 +320,173 @@ async def get_graph_for_finding(
             logger.warning(f"Finding {finding_id} not found, returning empty graph")
             return GraphData(nodes=[], edges=[])
         
-        # Extract node IDs from finding
+        storage = get_storage()
+        graph_data = storage.get_graph_data()
         node_ids = []
         
-        # Add affected assets (these are entity IDs)
-        node_ids.extend(finding.affected_assets)
+        def extract_domain_or_ip(value: str) -> str:
+            """Extract domain or IP from URL or return as-is."""
+            if not value:
+                return ""
+            # Check if it's already an IP
+            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+            if re.match(ip_pattern, value):
+                return value
+            # Try to parse as URL
+            try:
+                parsed = urlparse(value)
+                domain = parsed.netloc or parsed.path.split('/')[0]
+                # Remove port if present
+                domain = domain.split(':')[0]
+                return domain
+            except:
+                # If parsing fails, assume it's already a domain/IP
+                return value
         
-        # Try to map target to entity ID
-        if finding.target:
-            storage = get_storage()
-            # Try to find entity by value (target might be domain/IP)
-            graph_data = storage.get_graph_data()
+        def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
+            """Find entity by value or create it if not found. Returns entity ID."""
+            if not value:
+                return None
+            
+            # First, try to find existing entity by value
+            entities_by_type = storage.get_by_type(entity_type)
+            for entity in entities_by_type:
+                if entity.get("value") == value:
+                    return entity.get("id")
+            
+            # Also check all entities in graph
             for node_id, node_data in graph_data.get("nodes", {}).items():
                 entity = storage.get_entity(node_id)
-                if entity and entity.get("value") == finding.target:
-                    if node_id not in node_ids:
-                        node_ids.append(node_id)
-                    break
-            # If not found, try using target as node ID directly
-            if finding.target not in node_ids:
-                entity = storage.get_entity(finding.target)
-                if entity:
-                    node_ids.append(finding.target)
+                if entity and entity.get("value") == value:
+                    return node_id
+            
+            # If not found, create a new entity
+            try:
+                from uuid import uuid4
+                entity_id = f"{entity_type}-{uuid4().hex[:8]}"
+                entity_data = {
+                    "id": entity_id,
+                    "type": entity_type,
+                    "value": value,
+                    "severity": finding.severity if finding else "info",
+                    "discovered_at": finding.discovered_at.isoformat() if finding else None,
+                    "source": "finding_graph"
+                }
+                storage.save_entity(entity_data)
+                logger.debug(f"Created entity {entity_id} for value {value}")
+                return entity_id
+            except Exception as e:
+                logger.warning(f"Failed to create entity for {value}: {e}")
+                return None
+        
+        # Process affected_assets - they might be URLs, domains, or entity IDs
+        for asset in finding.affected_assets:
+            if not asset:
+                continue
+            
+            # Try as entity ID first
+            entity = storage.get_entity(asset)
+            if entity:
+                node_ids.append(asset)
+                continue
+            
+            # Extract domain/IP from URL
+            domain_or_ip = extract_domain_or_ip(asset)
+            if not domain_or_ip:
+                continue
+            
+            # Determine entity type
+            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+            entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+            
+            # Find or create entity
+            entity_id = find_or_create_entity(domain_or_ip, entity_type)
+            if entity_id and entity_id not in node_ids:
+                node_ids.append(entity_id)
+        
+        # Process target
+        if finding.target:
+            target_domain_or_ip = extract_domain_or_ip(finding.target)
+            if target_domain_or_ip:
+                ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
+                entity_id = find_or_create_entity(target_domain_or_ip, entity_type)
+                if entity_id and entity_id not in node_ids:
+                    node_ids.append(entity_id)
         
         if not node_ids:
             # No nodes to show, return empty graph
-            logger.warning(f"Finding {finding_id} has no associated nodes")
+            logger.warning(f"Finding {finding_id} has no associated nodes after processing")
             return GraphData(nodes=[], edges=[])
         
-        # Get neighbors for all affected nodes
-        storage = get_storage()
+        # Refresh graph data after creating entities
         graph_data = storage.get_graph_data()
+        
+        # Add finding as a node and create relationships to affected assets
+        finding_node_id = f"finding-{finding_id}"
         all_node_ids = set(node_ids)
+        all_node_ids.add(finding_node_id)
+        
+        # Create finding entity if it doesn't exist
+        finding_entity = storage.get_entity(finding_node_id)
+        if not finding_entity:
+            finding_entity = {
+                "id": finding_node_id,
+                "type": "finding",
+                "value": finding.title,
+                "severity": finding.severity,
+                "title": finding.title,
+                "description": finding.description,
+                "capability": finding.capability.value,
+                "risk_score": finding.risk_score,
+                "discovered_at": finding.discovered_at.isoformat(),
+                "source": "orchestrator"
+            }
+            storage.save_entity(finding_entity)
+            logger.debug(f"Created finding entity {finding_node_id}")
+        
+        # Create relationships from finding to affected assets
+        for asset_node_id in node_ids:
+            try:
+                # Check if edge already exists
+                edge_exists = False
+                if "edges" in graph_data:
+                    for edge_key, edge_data in graph_data["edges"].items():
+                        if (edge_data.get("source") == finding_node_id and edge_data.get("target") == asset_node_id) or \
+                           (edge_data.get("source") == asset_node_id and edge_data.get("target") == finding_node_id):
+                            edge_exists = True
+                            break
+                
+                if not edge_exists:
+                    storage._entity_graph.add_edge(
+                        finding_node_id,
+                        asset_node_id,
+                        weight=1.0,
+                        relation="targets"
+                    )
+                    logger.debug(f"Created edge from finding {finding_node_id} to asset {asset_node_id}")
+            except Exception as e:
+                logger.debug(f"Failed to create edge from finding to asset {asset_node_id}: {e}")
+        
+        # Save graph after adding edges
+        storage._save_graph()
+        graph_data = storage.get_graph_data()
+        
+        # Get neighbors for all affected nodes
         visited = set()
         nodes = []
         edges = []
+        
+        # Add finding node
+        finding_node_data = graph_data.get("nodes", {}).get(finding_node_id, {})
+        nodes.append(GraphNode(
+            id=finding_node_id,
+            label=finding.title,
+            type="finding",
+            severity=finding.severity,
+            metadata={**finding_entity, "is_finding": True}
+        ))
+        visited.add(finding_node_id)
         
         # Get all nodes (affected assets + their neighbors)
         for node_id in node_ids:
