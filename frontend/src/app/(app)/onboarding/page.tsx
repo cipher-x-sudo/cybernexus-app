@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/ui";
 import { CompanyProfileWizard } from "@/components/company";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [showWelcome, setShowWelcome] = useState(true);
   const [profileExists, setProfileExists] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,9 @@ export default function OnboardingPage() {
     checkProfile();
   }, [router]);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    // Refresh user data to get updated onboarding_completed status
+    await refreshUser();
     // Redirect to dashboard on completion
     router.push("/dashboard");
   };

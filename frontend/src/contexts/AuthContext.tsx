@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string, fullName?: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }
@@ -118,6 +119,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const currentUser = await api.getCurrentUser();
+      setUser(currentUser);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth_user", JSON.stringify(currentUser));
+      }
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     token,
@@ -125,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user && !!token,
     isAdmin: user?.role === "admin",
   };
