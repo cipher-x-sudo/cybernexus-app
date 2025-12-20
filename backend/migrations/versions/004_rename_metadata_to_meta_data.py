@@ -64,3 +64,4 @@ def downgrade() -> None:
         if 'meta_data' in columns and 'metadata' not in columns:
             op.alter_column('user_activity_logs', 'meta_data', new_column_name='metadata')
 
+

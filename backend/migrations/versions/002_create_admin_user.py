@@ -45,3 +45,4 @@ def downgrade() -> None:
         sa.text("DELETE FROM users WHERE username = 'admin'")
     )
 
+

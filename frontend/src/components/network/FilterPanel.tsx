@@ -112,3 +112,4 @@ export function FilterPanel({ onFilterChange, className }: FilterPanelProps) {
   );
 }
 
+

@@ -91,3 +91,4 @@ async def get_user_activities(
     result = await db.execute(query)
     return list(result.scalars().all())
 
+
