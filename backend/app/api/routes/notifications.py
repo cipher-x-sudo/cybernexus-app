@@ -58,60 +58,69 @@ async def get_notifications(
     db: AsyncSession = Depends(get_db)
 ):
     """Get notifications for the current user."""
-    # Build query
-    query = select(NotificationModel).where(
-        NotificationModel.user_id == current_user.id
-    )
-    
-    # Apply filters
-    if unread_only:
-        query = query.where(NotificationModel.read == False)
-    
-    if channel:
-        query = query.where(NotificationModel.channel == channel)
-    
-    # Order by created_at descending (newest first)
-    query = query.order_by(NotificationModel.created_at.desc())
-    
-    # Apply limit
-    query = query.limit(limit)
-    
-    # Execute query
-    result = await db.execute(query)
-    notifications = result.scalars().all()
-    
-    # Get unread count
-    unread_count_query = select(func.count(NotificationModel.id)).where(
-        and_(
-            NotificationModel.user_id == current_user.id,
-            NotificationModel.read == False
+    try:
+        # Build query
+        query = select(NotificationModel).where(
+            NotificationModel.user_id == current_user.id
         )
-    )
-    unread_count_result = await db.execute(unread_count_query)
-    unread_count = unread_count_result.scalar() or 0
-    
-    # Convert to response models
-    notification_list = []
-    for notif in notifications:
-        notification_list.append(Notification(
-            id=notif.id,
-            user_id=notif.user_id,
-            channel=notif.channel,
-            priority=notif.priority,
-            title=notif.title,
-            message=notif.message,
-            severity=notif.severity,
-            read=notif.read,
-            read_at=notif.read_at.isoformat() if notif.read_at else None,
-            metadata=notif.meta_data or {},
-            timestamp=notif.timestamp.isoformat(),
-            created_at=notif.created_at.isoformat()
-        ))
-    
-    return NotificationListResponse(
-        notifications=notification_list,
-        unread_count=unread_count
-    )
+        
+        # Apply filters
+        if unread_only:
+            query = query.where(NotificationModel.read == False)
+        
+        if channel:
+            query = query.where(NotificationModel.channel == channel)
+        
+        # Order by created_at descending (newest first)
+        query = query.order_by(NotificationModel.created_at.desc())
+        
+        # Apply limit
+        query = query.limit(limit)
+        
+        # Execute query
+        result = await db.execute(query)
+        notifications = result.scalars().all()
+        
+        # Get unread count
+        unread_count_query = select(func.count(NotificationModel.id)).where(
+            and_(
+                NotificationModel.user_id == current_user.id,
+                NotificationModel.read == False
+            )
+        )
+        unread_count_result = await db.execute(unread_count_query)
+        unread_count = unread_count_result.scalar() or 0
+        
+        # Convert to response models
+        notification_list = []
+        for notif in notifications:
+            notification_list.append(Notification(
+                id=notif.id,
+                user_id=notif.user_id,
+                channel=notif.channel,
+                priority=notif.priority,
+                title=notif.title,
+                message=notif.message,
+                severity=notif.severity,
+                read=notif.read,
+                read_at=notif.read_at.isoformat() if notif.read_at else None,
+                metadata=notif.meta_data or {},
+                timestamp=notif.timestamp.isoformat(),
+                created_at=notif.created_at.isoformat()
+            ))
+        
+        return NotificationListResponse(
+            notifications=notification_list,
+            unread_count=unread_count
+        )
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Error fetching notifications: {e}", exc_info=True)
+        # Return empty list on error instead of crashing
+        return NotificationListResponse(
+            notifications=[],
+            unread_count=0
+        )
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
