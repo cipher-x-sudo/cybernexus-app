@@ -48,6 +48,7 @@ class UnreadCountResponse(BaseModel):
     unread_count: int
 
 
+@router.get("", response_model=NotificationListResponse)
 @router.get("/", response_model=NotificationListResponse)
 async def get_notifications(
     limit: int = Query(default=50, ge=1, le=500),
