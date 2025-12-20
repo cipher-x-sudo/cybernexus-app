@@ -42,6 +42,14 @@ export interface CapabilityStat {
   lastRun: string;
 }
 
+export interface ReportData {
+  id: string;
+  name: string;
+  type: string;
+  status: "completed" | "generating" | "pending" | "failed";
+  createdAt: Date;
+}
+
 /**
  * Map dashboard overview to risk score props
  */
@@ -111,6 +119,49 @@ export function mapToCapabilityStats(
   }
   
   return mapped;
+}
+
+/**
+ * Map backend reports to frontend report format
+ */
+export function mapToReports(reports: any[]): ReportData[] {
+  return reports.map((report) => ({
+    id: report.id,
+    name: report.title || report.name || "Untitled Report",
+    type: mapReportType(report.type),
+    status: mapReportStatus(report.status),
+    createdAt: report.created_at ? new Date(report.created_at) : new Date(),
+  }));
+}
+
+/**
+ * Map backend report type to frontend report type
+ */
+function mapReportType(backendType: string): string {
+  const typeMap: Record<string, string> = {
+    executive_summary: "executive",
+    threat_assessment: "technical",
+    vulnerability_report: "technical",
+    credential_exposure: "incident",
+    dark_web_intelligence: "trend",
+    attack_surface: "technical",
+    compliance: "compliance",
+    custom: "custom",
+  };
+  return typeMap[backendType] || backendType;
+}
+
+/**
+ * Map backend report status to frontend report status
+ */
+function mapReportStatus(backendStatus: string): "completed" | "generating" | "pending" | "failed" {
+  const statusMap: Record<string, "completed" | "generating" | "pending" | "failed"> = {
+    completed: "completed",
+    generating: "generating",
+    pending: "generating", // Show pending as generating in UI
+    failed: "failed",
+  };
+  return statusMap[backendStatus] || "pending";
 }
 
 /**

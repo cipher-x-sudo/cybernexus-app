@@ -476,10 +476,26 @@ class ApiClient {
     return this.request<any[]>("/reports");
   }
 
-  async generateReport(templateId: string, params: Record<string, any>) {
-    return this.request<{ reportId: string; status: string }>("/reports/generate", {
+  async generateReport(params: {
+    title: string;
+    type: string;
+    format?: "pdf" | "html" | "json" | "markdown";
+    date_range_start?: string;
+    date_range_end?: string;
+    include_sections?: string[];
+    filters?: Record<string, any>;
+  }) {
+    return this.request<any>("/reports/generate", {
       method: "POST",
-      body: JSON.stringify({ templateId, ...params }),
+      body: JSON.stringify({
+        title: params.title,
+        type: params.type,
+        format: params.format || "pdf",
+        date_range_start: params.date_range_start || null,
+        date_range_end: params.date_range_end || null,
+        include_sections: params.include_sections || [],
+        filters: params.filters || {},
+      }),
     });
   }
 
@@ -489,6 +505,9 @@ class ApiClient {
         Authorization: `Bearer ${this.token}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Failed to download report: ${response.statusText}`);
+    }
     return response.blob();
   }
 
