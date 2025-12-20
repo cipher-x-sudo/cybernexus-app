@@ -187,7 +187,7 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
 
             {/* Profile dropdown menu */}
             {profileMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 glass rounded-xl border border-white/[0.08] shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 mt-2 w-56 bg-[#0a0e1a] rounded-xl border border-white/[0.08] shadow-xl overflow-hidden z-50 backdrop-blur-xl">
                 <div className="p-4 border-b border-white/[0.05]">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-mono text-sm font-bold">
