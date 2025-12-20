@@ -13,14 +13,30 @@ from starlette.types import Message
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from loguru import logger
 import sys
+import time
 
 from app.config import settings, init_directories
 from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws, notifications
 from app.utils import check_tor_connectivity
+from app.utils.tor_status_cache import get_tor_status_cache
 from app.middleware.network_blocker import NetworkBlockerMiddleware
 from app.middleware.network_logger import NetworkLoggerMiddleware
 from app.services.tunnel_analyzer import get_tunnel_analyzer
 from app.core.database.database import init_db, close_db
+from concurrent.futures import ThreadPoolExecutor
+from fastapi import BackgroundTasks
+import asyncio
+
+# Shared thread pool executor for Tor status checks
+_tor_check_executor: ThreadPoolExecutor = None
+
+
+def get_tor_check_executor() -> ThreadPoolExecutor:
+    """Get or create the shared thread pool executor for Tor checks."""
+    global _tor_check_executor
+    if _tor_check_executor is None:
+        _tor_check_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tor-status-check")
+    return _tor_check_executor
 
 
 @asynccontextmanager
@@ -60,9 +76,14 @@ async def lifespan(app: FastAPI):
         # Don't fail startup if migrations fail - might be first run or connection issue
         logger.warning("Continuing startup despite migration errors")
     
-    # Check Tor connectivity
+    # Initialize Tor status cache and perform initial check
+    logger.info("Initializing Tor status cache...")
+    tor_cache = get_tor_status_cache()
+    
+    # Perform initial Tor connectivity check and cache it
     logger.info("Checking Tor proxy connectivity...")
     tor_status = check_tor_connectivity()
+    tor_cache.update_status(tor_status)
     
     if tor_status["status"] == "connected" and tor_status["is_tor"]:
         logger.info(
@@ -79,6 +100,30 @@ async def lifespan(app: FastAPI):
             f"Error: {tor_status.get('error', 'Unknown')}"
         )
     
+    # Start background task to periodically update Tor status cache
+    async def update_tor_status_periodically():
+        """Background task to periodically update Tor status cache."""
+        update_interval = 60  # Update every 60 seconds
+        while True:
+            try:
+                await asyncio.sleep(update_interval)
+                if not tor_cache.is_checking():
+                    logger.debug("Periodic Tor status cache update triggered")
+                    # Run in thread pool to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, tor_cache.update_status_async)
+            except asyncio.CancelledError:
+                logger.info("Tor status cache background task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in Tor status cache background task: {e}", exc_info=True)
+                # Continue even if there's an error
+                await asyncio.sleep(update_interval)
+    
+    # Start the background task
+    tor_status_task = asyncio.create_task(update_tor_status_periodically())
+    logger.info("Tor status cache background update task started")
+    
     # Initialize DSA structures
     logger.info("Initializing custom DSA structures...")
     # TODO: Initialize graph, indices, etc.
@@ -86,6 +131,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"{settings.APP_NAME} is ready!")
     
     yield
+    
+    # Shutdown: Cancel background task
+    tor_status_task.cancel()
+    try:
+        await tor_status_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Tor status cache background task stopped")
     
     # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
@@ -442,10 +495,25 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
-async def health_check():
-    """Detailed health check endpoint."""
-    # Check Tor connectivity
-    tor_status = check_tor_connectivity()
+async def health_check(background_tasks: BackgroundTasks):
+    """
+    Detailed health check endpoint.
+    
+    Returns immediately with cached Tor status to avoid blocking.
+    Triggers background update if cache is stale.
+    """
+    # Get cached Tor status (returns immediately, non-blocking)
+    tor_cache = get_tor_status_cache()
+    tor_status = tor_cache.get_status()
+    
+    # Trigger background update if cache is stale or never updated
+    # This runs in a thread pool executor to avoid blocking
+    if tor_cache.is_stale(max_age_seconds=60) and not tor_cache.is_checking():
+        logger.debug("Tor status cache is stale, triggering background update")
+        # Use shared thread pool executor to run check in background thread
+        executor = get_tor_check_executor()
+        executor.submit(tor_cache.update_status_async)
+        # Note: We don't wait for completion, executor will handle it
     
     # Determine overall health status
     # If Tor is unavailable but not required, mark as "degraded" not "unhealthy"
@@ -471,7 +539,11 @@ async def health_check():
             "port": tor_status["port"],
             "response_time_ms": tor_status.get("response_time_ms"),
             "ip": tor_status.get("ip"),
-            "error": tor_status.get("error")
+            "error": tor_status.get("error"),
+            "cache_age_seconds": (
+                None if tor_status.get("last_updated") is None
+                else round(time.time() - tor_status["last_updated"], 1)
+            )
         }
     }
 
