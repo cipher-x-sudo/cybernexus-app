@@ -485,6 +485,46 @@ class Orchestrator:
                     self._stats["critical_findings"] += 1
                 elif finding.severity == "high":
                     self._stats["high_findings"] += 1
+                
+                # Create notification for critical/high findings
+                if user_id and finding.severity in ["critical", "high"]:
+                    try:
+                        from app.services.notification import NotificationService, NotificationPriority
+                        from app.core.database.database import init_db, _async_session_maker
+                        
+                        init_db()
+                        if _async_session_maker:
+                            async with _async_session_maker() as db:
+                                try:
+                                    notification_service = NotificationService()
+                                    priority_map = {
+                                        "critical": NotificationPriority.CRITICAL,
+                                        "high": NotificationPriority.HIGH,
+                                    }
+                                    priority = priority_map.get(finding.severity, NotificationPriority.MEDIUM)
+                                    
+                                    await notification_service.create_notification(
+                                        db=db,
+                                        user_id=user_id,
+                                        channel="findings",
+                                        priority=priority,
+                                        title=f"New {finding.severity.upper()} Finding: {finding.title}",
+                                        message=finding.description,
+                                        severity=finding.severity,
+                                        metadata={
+                                            "finding_id": finding.id,
+                                            "capability": finding.capability.value,
+                                            "job_id": job.id,
+                                            "target": job.target,
+                                            "risk_score": finding.risk_score,
+                                        }
+                                    )
+                                    await db.commit()
+                                except Exception as e:
+                                    await db.rollback()
+                                    logger.warning(f"Failed to create notification for finding {finding.id}: {e}")
+                    except Exception as e:
+                        logger.warning(f"Failed to initialize notification service for finding: {e}")
             
             job.findings = findings
             self._stats["total_findings"] += len(findings)
@@ -493,6 +533,56 @@ class Orchestrator:
             self._update_job_status(job, JobStatus.COMPLETED)
             job.completed_at = datetime.now()
             job.progress = 100
+            
+            # Create notification for job completion
+            if user_id:
+                try:
+                    from app.services.notification import NotificationService, NotificationPriority
+                    from app.core.database.database import init_db, _async_session_maker
+                    
+                    init_db()
+                    if _async_session_maker:
+                        async with _async_session_maker() as db:
+                            try:
+                                notification_service = NotificationService()
+                                
+                                # Determine priority based on findings
+                                has_critical = any(f.severity == "critical" for f in findings)
+                                has_high = any(f.severity == "high" for f in findings)
+                                
+                                if has_critical:
+                                    priority = NotificationPriority.HIGH
+                                    severity = "high"
+                                elif has_high:
+                                    priority = NotificationPriority.MEDIUM
+                                    severity = "medium"
+                                else:
+                                    priority = NotificationPriority.LOW
+                                    severity = "low"
+                                
+                                await notification_service.create_notification(
+                                    db=db,
+                                    user_id=user_id,
+                                    channel="scans",
+                                    priority=priority,
+                                    title=f"Scan Completed: {job.capability.value} on {job.target}",
+                                    message=f"Scan completed with {len(findings)} finding(s).",
+                                    severity=severity,
+                                    metadata={
+                                        "job_id": job.id,
+                                        "capability": job.capability.value,
+                                        "target": job.target,
+                                        "findings_count": len(findings),
+                                        "critical_count": sum(1 for f in findings if f.severity == "critical"),
+                                        "high_count": sum(1 for f in findings if f.severity == "high"),
+                                    }
+                                )
+                                await db.commit()
+                            except Exception as e:
+                                await db.rollback()
+                                logger.warning(f"Failed to create notification for job completion {job.id}: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize notification service for job completion: {e}")
             
             self._stats["completed_jobs"] += 1
             

@@ -1095,6 +1095,75 @@ class ApiClient {
 
     return { success: true };
   }
+
+  // ============================================================================
+  // Notifications API
+  // ============================================================================
+
+  /**
+   * Get notifications for the current user
+   */
+  async getNotifications(params?: {
+    limit?: number;
+    unread_only?: boolean;
+    channel?: string;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.unread_only) queryParams.append("unread_only", "true");
+    if (params?.channel) queryParams.append("channel", params.channel);
+    
+    const query = queryParams.toString();
+    const url = `/notifications${query ? `?${query}` : ""}`;
+    return this.request<{
+      notifications: Array<{
+        id: string;
+        user_id: string;
+        channel: string;
+        priority: string;
+        title: string;
+        message: string;
+        severity: string;
+        read: boolean;
+        read_at: string | null;
+        metadata: Record<string, any>;
+        timestamp: string;
+        created_at: string;
+      }>;
+      unread_count: number;
+    }>(url);
+  }
+
+  /**
+   * Get unread notification count
+   */
+  async getUnreadCount() {
+    return this.request<{ unread_count: number }>("/notifications/unread-count");
+  }
+
+  /**
+   * Mark a notification as read
+   */
+  async markNotificationRead(notificationId: string) {
+    return this.request<{ message: string; id: string }>(
+      `/notifications/${notificationId}/read`,
+      {
+        method: "PATCH",
+      }
+    );
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  async markAllNotificationsRead() {
+    return this.request<{ message: string; count: number }>(
+      "/notifications/mark-all-read",
+      {
+        method: "POST",
+      }
+    );
+  }
 }
 
 // Export singleton instance

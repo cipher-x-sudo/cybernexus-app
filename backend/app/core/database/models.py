@@ -41,6 +41,7 @@ class User(Base):
     network_logs = relationship("NetworkLog", back_populates="user", cascade="all, delete-orphan")
     findings = relationship("Finding", back_populates="user", cascade="all, delete-orphan")
     company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index('idx_user_username', 'username'),
@@ -229,4 +230,31 @@ class Finding(Base):
         Index('idx_finding_user_severity', 'user_id', 'severity'),
         Index('idx_finding_user_capability', 'user_id', 'capability'),
         Index('idx_finding_discovered', 'discovered_at'),
+    )
+
+
+class Notification(Base):
+    """Notification model for user alerts and messages."""
+    __tablename__ = "notifications"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel = Column(String(50), nullable=False, index=True)  # threats, findings, scans, system, etc.
+    priority = Column(String(20), nullable=False, index=True)  # CRITICAL, HIGH, MEDIUM, LOW, INFO
+    title = Column(String(500), nullable=False)
+    message = Column(Text, nullable=False)
+    severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
+    read = Column(Boolean, default=False, nullable=False, index=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    metadata = Column(JSONB, default=dict, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="notifications")
+    
+    __table_args__ = (
+        Index('idx_notification_user_read', 'user_id', 'read'),
+        Index('idx_notification_user_created', 'user_id', 'created_at'),
+        Index('idx_notification_channel', 'channel', 'created_at'),
     )

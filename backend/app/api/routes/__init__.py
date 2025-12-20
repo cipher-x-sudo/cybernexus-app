@@ -1,6 +1,6 @@
 """CyberNexus API Routes"""
 
-from . import auth, entities, graph, threats, timeline, reports, websocket, capabilities, darkweb, dashboard, network, network_ws
+from . import auth, entities, graph, threats, timeline, reports, websocket, capabilities, darkweb, dashboard, network, network_ws, notifications
 
 __all__ = [
     "auth", 
@@ -14,5 +14,6 @@ __all__ = [
     "darkweb",
     "dashboard",
     "network",
-    "network_ws"
+    "network_ws",
+    "notifications"
 ]

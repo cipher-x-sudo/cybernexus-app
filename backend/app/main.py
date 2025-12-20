@@ -13,7 +13,7 @@ from loguru import logger
 import sys
 
 from app.config import settings, init_directories
-from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws
+from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws, notifications
 from app.utils import check_tor_connectivity
 from app.middleware.network_blocker import NetworkBlockerMiddleware
 from app.middleware.network_logger import NetworkLoggerMiddleware
@@ -413,6 +413,7 @@ app.include_router(darkweb.router, prefix="/api/v1/darkweb", tags=["Dark Web"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
 app.include_router(network.router, prefix="/api/v1/network", tags=["Network Monitoring"])
 app.include_router(network_ws.router, prefix="/api/v1/network", tags=["Network WebSocket"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 
 
 @app.get("/", tags=["Health"])

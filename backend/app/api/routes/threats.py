@@ -8,10 +8,56 @@ Uses custom Heap DSA for priority-based ranking.
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database.database import get_db
+from app.api.routes.auth import get_current_user, User as UserModel
+from app.services.notification import NotificationService, NotificationPriority
+from fastapi.security import OAuth2PasswordBearer
+from app.config import settings
+from jose import JWTError, jwt
 
 router = APIRouter()
+
+# Global notification service instance
+_notification_service = NotificationService()
+
+# Optional authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+async def get_optional_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[UserModel]:
+    """Get current user if authenticated, otherwise None."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        
+        from app.api.routes.auth import get_user_by_username
+        user = await get_user_by_username(db, username=username)
+        if user is None or user.disabled:
+            return None
+        
+        return UserModel(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            disabled=user.disabled,
+            role=user.role,
+            onboarding_completed=user.onboarding_completed,
+            created_at=user.created_at,
+            updated_at=user.updated_at
+        )
+    except (JWTError, Exception):
+        return None
 
 
 class ThreatSeverity(str, Enum):
@@ -227,7 +273,11 @@ async def get_threat(threat_id: str):
 
 
 @router.post("/", response_model=Threat)
-async def create_threat(threat: ThreatCreate):
+async def create_threat(
+    threat: ThreatCreate,
+    current_user: Optional[UserModel] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Create a new threat."""
     now = datetime.utcnow()
     threat_id = generate_threat_id()
@@ -250,6 +300,40 @@ async def create_threat(threat: ThreatCreate):
     }
     
     threats_db[threat_id] = threat_dict
+    
+    # Create notification if user is authenticated
+    if current_user:
+        try:
+            # Map threat severity to notification priority and severity
+            severity_map = {
+                ThreatSeverity.CRITICAL: (NotificationPriority.CRITICAL, "critical"),
+                ThreatSeverity.HIGH: (NotificationPriority.HIGH, "high"),
+                ThreatSeverity.MEDIUM: (NotificationPriority.MEDIUM, "medium"),
+                ThreatSeverity.LOW: (NotificationPriority.LOW, "low"),
+                ThreatSeverity.INFO: (NotificationPriority.INFO, "info"),
+            }
+            priority, severity = severity_map.get(threat.severity, (NotificationPriority.MEDIUM, "medium"))
+            
+            await _notification_service.create_notification(
+                db=db,
+                user_id=current_user.id,
+                channel="threats",
+                priority=priority,
+                title=f"New Threat: {threat.title}",
+                message=threat.description,
+                severity=severity,
+                metadata={
+                    "threat_id": threat_id,
+                    "category": threat.category.value,
+                    "source": threat.source,
+                    "score": threat.score,
+                }
+            )
+        except Exception as e:
+            # Log error but don't fail threat creation
+            from loguru import logger
+            logger.error(f"Failed to create notification for threat {threat_id}: {e}")
+    
     return Threat(**threat_dict)
 
 

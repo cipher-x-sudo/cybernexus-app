@@ -9,8 +9,10 @@ from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime
 from enum import Enum
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dsa import MinHeap, HashMap, CircularBuffer
+from app.core.database.models import Notification as NotificationModel
 
 
 class NotificationPriority(Enum):
@@ -185,5 +187,69 @@ class NotificationService:
             "history_size": len(self._history),
             "history_capacity": self._history.capacity
         }
+    
+    async def create_notification(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        channel: str,
+        priority: NotificationPriority,
+        title: str,
+        message: str,
+        severity: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> NotificationModel:
+        """
+        Create a notification in the database.
+        
+        Args:
+            db: Database session
+            user_id: User ID to send notification to
+            channel: Notification channel (threats, findings, scans, system, etc.)
+            priority: Notification priority level
+            title: Notification title
+            message: Notification message
+            severity: Severity level (critical, high, medium, low, info)
+            metadata: Optional metadata dictionary
+            
+        Returns:
+            Created Notification model instance
+        """
+        notification = NotificationModel(
+            user_id=user_id,
+            channel=channel,
+            priority=priority.name,
+            title=title,
+            message=message,
+            severity=severity,
+            read=False,
+            read_at=None,
+            metadata=metadata or {},
+            timestamp=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(notification)
+        await db.commit()
+        await db.refresh(notification)
+        
+        logger.info(f"Created notification for user {user_id}: {channel} - {priority.name}")
+        
+        # Also add to in-memory queue for immediate processing
+        notification_dict = {
+            "id": notification.id,
+            "channel": channel,
+            "message": {"title": title, "message": message},
+            "priority": priority.name,
+            "timestamp": notification.timestamp.isoformat()
+        }
+        self._notification_queue.push(priority.value, notification_dict)
+        self._history.push(notification_dict)
+        
+        # Process immediately if high priority
+        if priority.value <= NotificationPriority.HIGH.value:
+            await self._process_notification(notification_dict)
+        
+        return notification
 
 
