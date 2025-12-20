@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { GlassButton } from "@/components/ui";
 import { Badge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/lib/notifications";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -18,6 +19,12 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { logout, user } = useAuth();
+  
+  // Get real notifications
+  const { notifications, unreadCount, markAsRead, loading } = useNotifications({
+    limit: 10,
+    autoPoll: true,
+  });
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -103,8 +110,10 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              {/* Notification dot */}
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              {/* Notification dot - only show if there are unread notifications */}
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              )}
             </button>
 
             {/* Notification dropdown */}
@@ -113,57 +122,70 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
                 <div className="p-4 border-b border-white/[0.05]">
                   <div className="flex items-center justify-between">
                     <h3 className="font-mono font-semibold text-white">Notifications</h3>
-                    <Badge variant="critical" size="sm">3 New</Badge>
+                    {unreadCount > 0 && (
+                      <Badge 
+                        variant={unreadCount > 5 ? "critical" : "high"} 
+                        size="sm"
+                      >
+                        {unreadCount} New
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
-                  {[
-                    {
-                      title: "Critical threat detected",
-                      message: "New APT activity targeting your domain",
-                      time: "2 min ago",
-                      severity: "critical",
-                    },
-                    {
-                      title: "Credential leak found",
-                      message: "5 employee credentials found on dark web",
-                      time: "15 min ago",
-                      severity: "high",
-                    },
-                    {
-                      title: "Scan completed",
-                      message: "Weekly threat scan finished",
-                      time: "1 hour ago",
-                      severity: "info",
-                    },
-                  ].map((notification, i) => (
-                    <div
-                      key={i}
-                      className="p-4 border-b border-white/[0.05] hover:bg-white/[0.02] cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={cn(
-                            "w-2 h-2 rounded-full mt-2 flex-shrink-0",
-                            notification.severity === "critical" && "bg-red-500",
-                            notification.severity === "high" && "bg-orange-500",
-                            notification.severity === "info" && "bg-blue-500"
-                          )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-mono text-sm text-white">
-                            {notification.title}
-                          </p>
-                          <p className="text-xs text-white/50 mt-0.5 truncate">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-white/30 mt-1">
-                            {notification.time}
-                          </p>
+                  {loading && notifications.length === 0 ? (
+                    <div className="p-4 text-center text-white/50 text-sm">
+                      Loading notifications...
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="p-4 text-center text-white/50 text-sm">
+                      No notifications
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        onClick={() => {
+                          if (!notification.read) {
+                            markAsRead(notification.id);
+                          }
+                        }}
+                        className={cn(
+                          "p-4 border-b border-white/[0.05] hover:bg-white/[0.02] cursor-pointer transition-colors",
+                          !notification.read && "bg-white/[0.01]"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "w-2 h-2 rounded-full mt-2 flex-shrink-0",
+                              notification.severity === "critical" && "bg-red-500",
+                              notification.severity === "high" && "bg-orange-500",
+                              notification.severity === "medium" && "bg-yellow-500",
+                              notification.severity === "low" && "bg-blue-500",
+                              notification.severity === "info" && "bg-blue-400"
+                            )}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-sm text-white">
+                                {notification.title}
+                              </p>
+                              {!notification.read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-white/50 mt-0.5 truncate">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-white/30 mt-1">
+                              {formatRelativeTime(notification.timestamp)}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
                 <div className="p-3 border-t border-white/[0.05]">
                   <button className="w-full text-center text-sm font-mono text-amber-400 hover:text-amber-300 transition-colors">
