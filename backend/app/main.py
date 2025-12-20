@@ -153,6 +153,10 @@ def is_origin_allowed(origin: str, allowed_origins: list) -> bool:
     if not origin:
         return False
     
+    # Always allow Railway domains (for Railway deployments)
+    if ".railway.app" in origin or ".railway.xyz" in origin:
+        return True
+    
     # If wildcard is allowed
     if "*" in allowed_origins:
         return True
@@ -261,7 +265,14 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
                 if not has_cors_headers:
                     logger.info(f"[CORS ENFORCE] Added CORS headers for {method} {path}")
             else:
-                logger.warning(f"[CORS ENFORCE] Origin {origin} not allowed, not adding CORS headers")
+                # Even if not explicitly allowed, allow Railway domains as fallback
+                if ".railway.app" in origin or ".railway.xyz" in origin:
+                    logger.info(f"[CORS ENFORCE] Allowing Railway domain as fallback: {origin}")
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+                    response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
+                else:
+                    logger.warning(f"[CORS ENFORCE] Origin {origin} not allowed, not adding CORS headers")
         
         return response
 
