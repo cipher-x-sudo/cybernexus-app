@@ -17,6 +17,7 @@ from app.core.database.models import Base
 # Global engine and session factory
 _engine: AsyncEngine | None = None
 _async_session_maker: async_sessionmaker[AsyncSession] | None = None
+_already_initialized_logged: bool = False
 
 # Export session maker for middleware use
 __all__ = ["get_db", "init_db", "close_db", "create_tables", "drop_tables", "_async_session_maker"]
@@ -37,10 +38,12 @@ def get_database_url() -> str:
 
 def init_db() -> None:
     """Initialize database connection pool."""
-    global _engine, _async_session_maker
+    global _engine, _async_session_maker, _already_initialized_logged
     
     if _engine is not None:
-        logger.warning("Database already initialized")
+        if not _already_initialized_logged:
+            logger.debug("Database already initialized")
+            _already_initialized_logged = True
         return
     
     db_url = get_database_url()
