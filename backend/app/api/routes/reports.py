@@ -126,7 +126,7 @@ async def list_templates():
     return templates
 
 
-@router.get("/", response_model=List[Report])
+@router.get("", response_model=List[Report])
 async def list_reports(
     report_type: Optional[ReportType] = None,
     status: Optional[ReportStatus] = None,
