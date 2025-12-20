@@ -317,6 +317,11 @@ export function CapabilityPage({
           });
         }, 600000); // 10 minutes
       } else {
+        // Immediate poll to get initial progress
+        pollJobStatus(job.id).catch(err => {
+          console.error("[Initial Poll] Error:", err);
+        });
+
         // Poll for job completion - slower interval to prevent request backlog
         pollIntervalRef.current = setInterval(async () => {
           // Skip if previous request is still in flight

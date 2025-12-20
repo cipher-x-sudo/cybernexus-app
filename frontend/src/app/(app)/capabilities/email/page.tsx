@@ -178,6 +178,11 @@ export default function EmailSecurityPage() {
       
       setCurrentJob(job);
       
+      // Immediate poll to get initial progress
+      pollJobStatus(job.id).catch(err => {
+        console.error("[Initial Poll] Error:", err);
+      });
+      
       // Poll for completion
       pollIntervalRef.current = setInterval(async () => {
         const done = await pollJobStatus(job.id);

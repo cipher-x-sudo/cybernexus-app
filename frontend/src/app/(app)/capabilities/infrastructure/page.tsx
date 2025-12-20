@@ -202,6 +202,11 @@ export default function InfrastructurePage() {
 
       setCurrentJob(job);
 
+      // Immediate poll to get initial progress
+      pollJobStatus(job.id).catch(err => {
+        console.error("[Initial Poll] Error:", err);
+      });
+
       // Poll for job completion
       pollIntervalRef.current = setInterval(async () => {
         if (isPollingRef.current) {
