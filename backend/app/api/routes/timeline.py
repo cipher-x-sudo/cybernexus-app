@@ -84,6 +84,7 @@ def generate_event_id() -> str:
     return f"EVT-{event_counter:08d}"
 
 
+@router.get("", response_model=List[TimelineEvent])
 @router.get("/", response_model=List[TimelineEvent])
 async def get_timeline(
     event_type: Optional[EventType] = None,
@@ -93,10 +94,33 @@ async def get_timeline(
     end_time: Optional[datetime] = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
-    order: str = Query(default="desc", regex="^(asc|desc)$")
+    order: str = Query(default="desc", regex="^(asc|desc)$"),
+    # Support frontend parameter names
+    type: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to: Optional[str] = None
 ):
     """Get timeline events with optional filtering."""
     results = events_db.copy()
+    
+    # Map frontend parameters to backend parameters
+    if type and not event_type:
+        try:
+            event_type = EventType(type)
+        except ValueError:
+            pass  # Invalid type, ignore
+    
+    if from_date and not start_time:
+        try:
+            start_time = datetime.fromisoformat(from_date.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
+    
+    if to and not end_time:
+        try:
+            end_time = datetime.fromisoformat(to.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
     
     # Apply filters
     if event_type:
