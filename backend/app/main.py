@@ -476,3 +476,43 @@ async def health_check():
     }
 
 
+# Global exception handler to ensure CORS headers are set even on errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler that ensures CORS headers are set."""
+    origin = request.headers.get("origin")
+    
+    # Build error response
+    if isinstance(exc, StarletteHTTPException):
+        status_code = exc.status_code
+        detail = exc.detail
+    else:
+        status_code = 500
+        detail = "Internal server error"
+        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    response = JSONResponse(
+        status_code=status_code,
+        content={"detail": detail}
+    )
+    
+    # Add CORS headers if origin is present
+    if origin:
+        if is_origin_allowed(origin, cors_origins):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            if allow_creds:
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+            if allow_creds:
+                response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
+            else:
+                response.headers["Access-Control-Allow-Headers"] = "*"
+        elif ".railway.app" in origin or ".railway.xyz" in origin:
+            # Fallback for Railway domains
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+            response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
+    
+    return response
+
+
