@@ -16,8 +16,62 @@ import { mapToRiskScore, mapToFindings, mapToJobs, mapToEvents, mapToCapabilityS
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [criticalFindings, setCriticalFindings] = useState<any[]>([]);
+  const [threatsOverTime, setThreatsOverTime] = useState<{ data: number[]; labels: string[] }>({ data: [], labels: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Aggregate findings/events by month for chart
+  const aggregateThreatsByTime = (items: any[]) => {
+    if (!items || items.length === 0) {
+      return { data: [], labels: [] };
+    }
+
+    // Get last 12 months
+    const months: { [key: string]: number } = {};
+    const monthLabels: string[] = [];
+    const now = new Date();
+    
+    // Initialize last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      months[monthKey] = 0;
+      monthLabels.push(monthLabel);
+    }
+
+    // Count items by month (handle both findings and timeline events)
+    items.forEach((item) => {
+      let timestamp: string | null = null;
+      
+      // Check for different timestamp fields
+      if (item.discovered_at) {
+        timestamp = item.discovered_at;
+      } else if (item.timestamp) {
+        timestamp = item.timestamp;
+      } else if (item.created_at) {
+        timestamp = item.created_at;
+      }
+
+      if (timestamp) {
+        try {
+          const date = new Date(timestamp);
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (months.hasOwnProperty(monthKey)) {
+            months[monthKey]++;
+          }
+        } catch (e) {
+          // Skip invalid dates
+        }
+      }
+    });
+
+    // Convert to arrays
+    const data = Object.values(months);
+    const labels = monthLabels;
+
+    return { data, labels };
+  };
 
   // Fetch dashboard data
   useEffect(() => {
@@ -33,6 +87,37 @@ export default function DashboardPage() {
         // Fetch critical findings
         const findingsResponse = await api.getDashboardCriticalFindings(10);
         setCriticalFindings(findingsResponse.findings || []);
+
+        // Fetch timeline events or all findings for chart
+        try {
+          // Try to get timeline events first
+          const timelineEvents = await api.getTimelineEvents({});
+          
+          // If we have timeline events, use them; otherwise use findings from overview
+          let dataForChart: any[] = [];
+          if (timelineEvents && timelineEvents.length > 0) {
+            dataForChart = timelineEvents;
+          } else if (overview.recent_events && overview.recent_events.length > 0) {
+            dataForChart = overview.recent_events;
+          } else {
+            // Fallback: try to get all findings
+            // We'll use the threat_map_data which contains findings
+            if (overview.threat_map_data && overview.threat_map_data.length > 0) {
+              dataForChart = overview.threat_map_data;
+            }
+          }
+
+          // Aggregate the data
+          const aggregated = aggregateThreatsByTime(dataForChart);
+          setThreatsOverTime(aggregated);
+        } catch (chartErr) {
+          console.error("Error fetching chart data:", chartErr);
+          // Use findings from overview as fallback
+          if (overview.threat_map_data) {
+            const aggregated = aggregateThreatsByTime(overview.threat_map_data);
+            setThreatsOverTime(aggregated);
+          }
+        }
 
       } catch (err: any) {
         console.error("Error fetching dashboard data:", err);
@@ -163,7 +248,7 @@ export default function DashboardPage() {
 
       {/* Trends row */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <LineChart />
+        <LineChart data={threatsOverTime.data} labels={threatsOverTime.labels} />
         
         {/* Recent Scans Summary */}
         <GlassCard className="p-6" hover={false}>

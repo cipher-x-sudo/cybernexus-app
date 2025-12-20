@@ -71,7 +71,13 @@ export function DonutChart({ className }: { className?: string }) {
 }
 
 // Line chart using canvas
-export function LineChart({ className }: { className?: string }) {
+interface LineChartProps {
+  className?: string;
+  data?: number[];
+  labels?: string[];
+}
+
+export function LineChart({ className, data = [], labels = [] }: LineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -81,8 +87,32 @@ export function LineChart({ className }: { className?: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const data = [12, 19, 15, 25, 22, 30, 28, 35, 32, 40, 38, 45];
-    const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    // Use provided data or empty array
+    const chartData = data.length > 0 ? data : [];
+    const chartLabels = labels.length > 0 ? labels : [];
+
+    // If no data, show empty state
+    if (chartData.length === 0) {
+      const resize = () => {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        
+        const width = canvas.width / window.devicePixelRatio;
+        const height = canvas.height / window.devicePixelRatio;
+        ctx.clearRect(0, 0, width, height);
+        
+        // Draw empty state message
+        ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        ctx.font = "12px JetBrains Mono, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("No data available", width / 2, height / 2);
+      };
+      resize();
+      window.addEventListener("resize", resize);
+      return () => window.removeEventListener("resize", resize);
+    }
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -102,8 +132,8 @@ export function LineChart({ className }: { className?: string }) {
       const chartWidth = width - padding.left - padding.right;
       const chartHeight = height - padding.top - padding.bottom;
 
-      const maxValue = Math.max(...data) * 1.2;
-      const stepX = chartWidth / (data.length - 1);
+      const maxValue = Math.max(...chartData, 1) * 1.2;
+      const stepX = chartData.length > 1 ? chartWidth / (chartData.length - 1) : chartWidth;
 
       // Grid lines
       ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
@@ -118,7 +148,7 @@ export function LineChart({ className }: { className?: string }) {
 
       // Line path
       ctx.beginPath();
-      data.forEach((value, i) => {
+      chartData.forEach((value, i) => {
         const x = padding.left + i * stepX;
         const y = padding.top + chartHeight - (value / maxValue) * chartHeight;
         if (i === 0) {
@@ -132,17 +162,19 @@ export function LineChart({ className }: { className?: string }) {
       ctx.stroke();
 
       // Fill gradient
-      ctx.lineTo(padding.left + (data.length - 1) * stepX, height - padding.bottom);
-      ctx.lineTo(padding.left, height - padding.bottom);
-      ctx.closePath();
-      const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-      gradient.addColorStop(0, "rgba(245, 158, 11, 0.3)");
-      gradient.addColorStop(1, "rgba(245, 158, 11, 0)");
-      ctx.fillStyle = gradient;
-      ctx.fill();
+      if (chartData.length > 0) {
+        ctx.lineTo(padding.left + (chartData.length - 1) * stepX, height - padding.bottom);
+        ctx.lineTo(padding.left, height - padding.bottom);
+        ctx.closePath();
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+        gradient.addColorStop(0, "rgba(245, 158, 11, 0.3)");
+        gradient.addColorStop(1, "rgba(245, 158, 11, 0)");
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
 
       // Points
-      data.forEach((value, i) => {
+      chartData.forEach((value, i) => {
         const x = padding.left + i * stepX;
         const y = padding.top + chartHeight - (value / maxValue) * chartHeight;
 
@@ -159,16 +191,18 @@ export function LineChart({ className }: { className?: string }) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
       ctx.font = "10px JetBrains Mono, monospace";
       ctx.textAlign = "center";
-      labels.forEach((label, i) => {
-        const x = padding.left + i * stepX;
-        ctx.fillText(label, x, height - 8);
+      chartLabels.forEach((label, i) => {
+        if (i < chartData.length) {
+          const x = padding.left + i * stepX;
+          ctx.fillText(label, x, height - 8);
+        }
       });
     };
 
     resize();
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
-  }, []);
+  }, [data, labels]);
 
   return (
     <GlassCard className={cn("h-full", className)} padding="lg">
