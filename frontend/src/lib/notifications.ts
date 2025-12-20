@@ -68,7 +68,23 @@ export function useNotifications(
       });
 
       if (isMountedRef.current) {
-        setNotifications(response.notifications);
+        // Map API response to Notification type with proper type assertions
+        const mappedNotifications: Notification[] = response.notifications.map((n) => ({
+          id: n.id,
+          user_id: n.user_id,
+          channel: n.channel,
+          priority: n.priority as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO",
+          title: n.title,
+          message: n.message,
+          severity: n.severity as "critical" | "high" | "medium" | "low" | "info",
+          read: n.read,
+          read_at: n.read_at,
+          metadata: n.metadata,
+          timestamp: n.timestamp,
+          created_at: n.created_at,
+        }));
+        
+        setNotifications(mappedNotifications);
         setUnreadCount(response.unread_count);
         setError(null);
         // Reset backoff on success
