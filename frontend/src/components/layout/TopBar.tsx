@@ -109,7 +109,7 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
 
             {/* Notification dropdown */}
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 glass rounded-xl border border-white/[0.08] shadow-xl overflow-hidden">
+              <div className="absolute right-0 mt-2 w-80 bg-[#0a0e1a] rounded-xl border border-white/[0.08] shadow-xl overflow-hidden">
                 <div className="p-4 border-b border-white/[0.05]">
                   <div className="flex items-center justify-between">
                     <h3 className="font-mono font-semibold text-white">Notifications</h3>
