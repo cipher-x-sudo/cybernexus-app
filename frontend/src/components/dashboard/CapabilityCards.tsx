@@ -186,14 +186,8 @@ export function CapabilityCards({ className, compact = false, stats: propStats }
 
   return (
     <div className={className}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4">
         <h2 className="font-mono text-lg font-semibold text-white">What do you want to do?</h2>
-        <Link 
-          href="/capabilities"
-          className="text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors"
-        >
-          See All →
-        </Link>
       </div>
 
       <div className={cn(

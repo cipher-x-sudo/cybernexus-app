@@ -157,12 +157,6 @@ export function ActivityFeed() {
           </div>
         )}
       </div>
-
-      <div className="p-4 border-t border-white/[0.05]">
-        <button className="w-full text-center text-sm font-mono text-amber-400 hover:text-amber-300 transition-colors">
-          View all activity →
-        </button>
-      </div>
     </GlassCard>
   );
 }

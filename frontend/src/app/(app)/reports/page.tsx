@@ -361,9 +361,8 @@ export default function ReportsPage() {
 
       {/* Recent reports */}
       <GlassCard>
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6">
           <h2 className="font-mono text-lg text-white">Recent Reports</h2>
-          <GlassButton variant="ghost" size="sm">View All</GlassButton>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

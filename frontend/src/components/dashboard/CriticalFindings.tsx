@@ -108,16 +108,11 @@ export function CriticalFindings({ findings: propFindings, className }: Critical
 
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h2 className="font-mono text-lg font-semibold text-white">Critical Findings</h2>
-          <span className="px-2 py-0.5 text-xs font-mono bg-red-500/20 text-red-400 rounded-full">
-            {findings.filter(f => f.severity === "critical").length} critical
-          </span>
-        </div>
-        <button className="text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors">
-          View All →
-        </button>
+      <div className="flex items-center gap-2 mb-4">
+        <h2 className="font-mono text-lg font-semibold text-white">Critical Findings</h2>
+        <span className="px-2 py-0.5 text-xs font-mono bg-red-500/20 text-red-400 rounded-full">
+          {findings.filter(f => f.severity === "critical").length} critical
+        </span>
       </div>
 
       <div className="space-y-3">
