@@ -102,7 +102,7 @@ async def get_notifications(
             severity=notif.severity,
             read=notif.read,
             read_at=notif.read_at.isoformat() if notif.read_at else None,
-            metadata=notif.metadata or {},
+            metadata=notif.meta_data or {},
             timestamp=notif.timestamp.isoformat(),
             created_at=notif.created_at.isoformat()
         ))

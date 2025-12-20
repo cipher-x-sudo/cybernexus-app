@@ -246,7 +246,7 @@ class Notification(Base):
     severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
     read = Column(Boolean, default=False, nullable=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
-    metadata = Column(JSONB, default=dict, nullable=True)
+    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     

@@ -35,7 +35,7 @@ def upgrade() -> None:
             sa.Column('severity', sa.String(length=20), nullable=False),
             sa.Column('read', sa.Boolean(), nullable=False, server_default='false'),
             sa.Column('read_at', sa.DateTime(timezone=True), nullable=True),
-            sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+            sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
             sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
             sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
             sa.PrimaryKeyConstraint('id')

@@ -224,7 +224,7 @@ class NotificationService:
             severity=severity,
             read=False,
             read_at=None,
-            metadata=metadata or {},
+            meta_data=metadata or {},
             timestamp=datetime.utcnow(),
             created_at=datetime.utcnow()
         )
