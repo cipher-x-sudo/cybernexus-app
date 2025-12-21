@@ -225,9 +225,9 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
             required
           />
           <p className="text-xs text-white/40 mt-1 font-mono">
-            {capability === "dark_web_intelligence"
+            {selectedCapabilities.includes("dark_web_intelligence")
               ? "Enter keywords separated by commas"
-              : capability === "infrastructure_testing"
+              : selectedCapabilities.includes("infrastructure_testing")
               ? "Enter full URL (e.g., https://example.com)"
               : "Enter domain name"}
           </p>
