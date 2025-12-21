@@ -27,7 +27,7 @@ export default function JobDetailsPage() {
         // Fetch findings
         try {
           const findingsData = await api.getJobFindings(jobId);
-          setFindings(findingsData.findings || []);
+          setFindings(findingsData || []);
         } catch (err) {
           console.error("Error fetching findings:", err);
         }
