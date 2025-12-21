@@ -535,6 +535,10 @@ class ApiClient {
     return this.request<any[]>(`/timeline?${query}`);
   }
 
+  async getRecentTimelineEvents(n: number = 20) {
+    return this.request<any[]>(`/timeline/recent?n=${n}`);
+  }
+
   // Reports
   async getReports() {
     return this.request<any[]>("/reports");

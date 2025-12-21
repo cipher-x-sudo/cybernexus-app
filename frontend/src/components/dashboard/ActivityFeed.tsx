@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard, Badge } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 interface ActivityItem {
   id: string;
@@ -17,11 +18,7 @@ interface ActivityItem {
 // Fetch activities from timeline API
 async function fetchActivities(): Promise<ActivityItem[]> {
   try {
-    const response = await fetch('/api/timeline/recent?n=20');
-    if (!response.ok) {
-      throw new Error('Failed to fetch activities');
-    }
-    const data = await response.json();
+    const data = await api.getRecentTimelineEvents(20);
     // Map timeline events to ActivityItem format
     return data.map((event: any) => ({
       id: event.id,

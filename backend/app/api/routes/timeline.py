@@ -268,6 +268,7 @@ async def get_recent_events(
         except Exception as e:
             # Log error but don't fail - return empty or existing events
             import logging
+            import logging
             logging.getLogger(__name__).warning(f"Error generating timeline events from database: {e}")
     
     if severity_filter:
@@ -276,7 +277,24 @@ async def get_recent_events(
     # Sort by timestamp descending
     results.sort(key=lambda e: e.get("timestamp", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
     
-    return [TimelineEvent(**e) for e in results[:n]]
+    # Convert to TimelineEvent objects, handling any validation errors
+    events = []
+    for e in results[:n]:
+        try:
+            # Ensure all required fields are present
+            if "id" not in e:
+                e["id"] = generate_event_id()
+            if "related_entities" not in e:
+                e["related_entities"] = []
+            if "metadata" not in e:
+                e["metadata"] = {}
+            events.append(TimelineEvent(**e))
+        except Exception as ex:
+            import logging
+            logging.getLogger(__name__).warning(f"Error creating TimelineEvent from {e}: {ex}")
+            continue
+    
+    return events
 
 
 @router.get("/range")
