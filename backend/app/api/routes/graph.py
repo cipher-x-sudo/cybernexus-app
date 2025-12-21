@@ -410,69 +410,17 @@ async def get_graph_for_job(
                 logger.warning(f"Failed to create entity for {value}: {e}")
                 return None
         
-        # Extract entities from job target
-        if job.target:
-            target_domain_or_ip = extract_domain_or_ip(job.target)
-            if target_domain_or_ip:
-                entity_type = detect_entity_type(target_domain_or_ip)
-                entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
-                if entity_id and entity_id not in node_ids:
-                    node_ids.append(entity_id)
+        # Build hierarchical graph: keyword → websites → entities
+        # Structure based on job findings and evidence
         
-        # Extract entities from job meta_data
+        # Extract crawled URLs from job metadata (for website nodes)
+        crawled_urls = []
         if job.metadata:
-            # Check for common keys that might contain entities
-            entity_keys = ['discovered_entities', 'entities', 'assets', 'domains', 'ips', 'ip_addresses', 
-                          'discovered_domains', 'discovered_ips', 'targets', 'related_entities']
-            
-            for key in entity_keys:
-                if key in job.metadata:
-                    value = job.metadata[key]
-                    if isinstance(value, list):
-                        for item in value:
-                            if isinstance(item, str):
-                                domain_or_ip = extract_domain_or_ip(item)
-                                if domain_or_ip:
-                                    entity_type = detect_entity_type(domain_or_ip)
-                                    entity_id = await find_or_create_entity(domain_or_ip, entity_type)
-                                    if entity_id and entity_id not in node_ids:
-                                        node_ids.append(entity_id)
-                            elif isinstance(item, dict):
-                                # Handle dict with 'value' or 'domain' or 'ip' keys
-                                entity_value = item.get('value') or item.get('domain') or item.get('ip') or item.get('target')
-                                if entity_value:
-                                    domain_or_ip = extract_domain_or_ip(str(entity_value))
-                                    if domain_or_ip:
-                                        entity_type = detect_entity_type(domain_or_ip)
-                                        entity_id = await find_or_create_entity(domain_or_ip, entity_type)
-                                        if entity_id and entity_id not in node_ids:
-                                            node_ids.append(entity_id)
-                    elif isinstance(value, str):
-                        domain_or_ip = extract_domain_or_ip(value)
-                        if domain_or_ip:
-                            entity_type = detect_entity_type(domain_or_ip)
-                            entity_id = await find_or_create_entity(domain_or_ip, entity_type)
-                            if entity_id and entity_id not in node_ids:
-                                node_ids.append(entity_id)
-            
-            # Also check for nested structures (e.g., capture data)
-            if 'capture' in job.metadata and isinstance(job.metadata['capture'], dict):
-                capture_data = job.metadata['capture']
-                # Check for domain tree or discovered domains
-                if 'domain_tree' in capture_data:
-                    # Domain tree might be a graph structure, extract nodes
-                    domain_tree = capture_data['domain_tree']
-                    if isinstance(domain_tree, dict) and 'nodes' in domain_tree:
-                        for node in domain_tree['nodes']:
-                            if isinstance(node, dict):
-                                node_value = node.get('id') or node.get('label') or node.get('value')
-                                if node_value:
-                                    domain_or_ip = extract_domain_or_ip(str(node_value))
-                                    if domain_or_ip:
-                                        entity_type = detect_entity_type(domain_or_ip)
-                                        entity_id = await find_or_create_entity(domain_or_ip, entity_type)
-                                        if entity_id and entity_id not in node_ids:
-                                            node_ids.append(entity_id)
+            # Get crawled URLs from metadata
+            if 'crawled_urls' in job.metadata:
+                crawled_urls = job.metadata.get('crawled_urls', [])
+            elif 'discovered_urls' in job.metadata:
+                crawled_urls = job.metadata.get('discovered_urls', [])
         
         # Extract entities from execution_logs
         if job.execution_logs:
@@ -540,15 +488,48 @@ async def get_graph_for_job(
         # Track website nodes and their relationships
         website_to_entities = {}  # website_id -> [entity_ids]
         keyword_to_websites = []  # [website_ids]
+        processed_websites = set()  # Track which websites we've already processed
         
+        # First, create website nodes from crawled URLs (if not in findings)
+        for url in crawled_urls:
+            if not url or url in processed_websites:
+                continue
+            
+            # Normalize URL - keep full .onion URL or extract domain
+            if ".onion" in url:
+                website_value = url
+            else:
+                website_value = extract_domain_or_ip(url)
+            
+            if website_value:
+                website_node_id = await find_or_create_entity(website_value, "website")
+                if website_node_id and website_node_id not in node_ids:
+                    node_ids.append(website_node_id)
+                if website_node_id not in keyword_to_websites:
+                    keyword_to_websites.append(website_node_id)
+                if website_node_id not in website_to_entities:
+                    website_to_entities[website_node_id] = []
+                processed_websites.add(url)
+        
+        # Process findings to link entities to websites
         for finding in job_findings:
             # Extract website URL from finding evidence
             website_url = None
             entity_type_from_evidence = None
             
             if finding.evidence:
-                # Check for site URL in evidence
-                website_url = finding.evidence.get("site") or finding.evidence.get("url") or finding.evidence.get("source_url")
+                # Check for site URL in evidence - can be string or dict
+                site_data = finding.evidence.get("site")
+                if isinstance(site_data, str):
+                    # Site is a URL string
+                    website_url = site_data
+                elif isinstance(site_data, dict):
+                    # Site is a dict (from site.to_dict()), extract onion_url
+                    website_url = site_data.get("onion_url") or site_data.get("url")
+                
+                # Also check other possible keys
+                if not website_url:
+                    website_url = finding.evidence.get("url") or finding.evidence.get("source_url")
                 
                 # Get entity type from evidence if available
                 entity_data = finding.evidence.get("entity")
@@ -578,6 +559,7 @@ async def get_graph_for_job(
                         keyword_to_websites.append(website_node_id)
                     if website_node_id not in website_to_entities:
                         website_to_entities[website_node_id] = []
+                    processed_websites.add(website_url)
             
             # Process affected_assets (entities extracted from website)
             for asset in finding.affected_assets:
