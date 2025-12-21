@@ -78,19 +78,20 @@ export default function DashboardPage() {
   };
 
   // Fetch dashboard data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+  const fetchData = async (showLoading: boolean = true) => {
+    try {
+      if (showLoading) {
         setLoading(true);
-        setError(null);
+      }
+      setError(null);
 
-        // Fetch dashboard overview
-        const overview = await api.getDashboardOverview();
-        setDashboardData(overview);
+      // Fetch dashboard overview
+      const overview = await api.getDashboardOverview();
+      setDashboardData(overview);
 
-        // Fetch critical findings
-        const findingsResponse = await api.getDashboardCriticalFindings(10);
-        setCriticalFindings(findingsResponse.findings || []);
+      // Fetch critical findings
+      const findingsResponse = await api.getDashboardCriticalFindings(10);
+      setCriticalFindings(findingsResponse.findings || []);
 
         // Fetch timeline events for Live Activity (preferred over dashboard overview events)
         // Only show job lifecycle events, not findings/results
@@ -169,18 +170,21 @@ export default function DashboardPage() {
           }
         }
 
-      } catch (err: any) {
-        console.error("Error fetching dashboard data:", err);
-        setError(err.message || "Failed to load dashboard data");
-      } finally {
+    } catch (err: any) {
+      console.error("Error fetching dashboard data:", err);
+      setError(err.message || "Failed to load dashboard data");
+    } finally {
+      if (showLoading) {
         setLoading(false);
       }
-    };
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchData(true);
 
     // Poll for updates every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => fetchData(false), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -267,7 +271,10 @@ export default function DashboardPage() {
           highIssues={riskScoreData.highIssues}
           onClick={() => setScoreModalOpen(true)}
         />
-        <CriticalFindings findings={findingsData} />
+        <CriticalFindings 
+          findings={findingsData} 
+          onFindingResolved={() => fetchData(false)}
+        />
       </div>
 
       {/* Security Score Detail Modal */}

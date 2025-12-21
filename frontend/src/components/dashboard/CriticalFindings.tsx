@@ -18,9 +18,10 @@ interface Finding {
 interface CriticalFindingsProps {
   findings?: Finding[];
   className?: string;
+  onFindingResolved?: () => void; // Callback to refresh dashboard data
 }
 
-export function CriticalFindings({ findings: propFindings, className }: CriticalFindingsProps) {
+export function CriticalFindings({ findings: propFindings, className, onFindingResolved }: CriticalFindingsProps) {
   const router = useRouter();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,11 +37,11 @@ export function CriticalFindings({ findings: propFindings, className }: Critical
     try {
       setResolving(prev => new Set(prev).add(findingId));
       await api.resolveFinding(findingId, "resolved");
-      // Remove from list
+      // Remove from list immediately without page reload
       setFindings(prev => prev.filter(f => f.id !== findingId));
-      // Refresh the page data
-      if (typeof window !== 'undefined') {
-        window.location.reload();
+      // Trigger dashboard refresh if callback provided
+      if (onFindingResolved) {
+        onFindingResolved();
       }
     } catch (error) {
       console.error("Error resolving finding:", error);
