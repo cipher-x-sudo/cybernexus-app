@@ -13,6 +13,9 @@ interface Finding {
   capability: string;
   target: string;
   time: string;
+  status?: "active" | "resolved" | "false_positive" | "accepted_risk";
+  resolved_at?: string;
+  resolved_time_ago?: string;
 }
 
 interface CriticalFindingsProps {
@@ -75,6 +78,9 @@ export function CriticalFindings({ findings: propFindings, className, onFindingR
             capability: f.capability || "Unknown",
             target: f.target || "",
             time: f.time_ago || "Unknown",
+            status: f.status || "active",
+            resolved_at: f.resolved_at || undefined,
+            resolved_time_ago: f.resolved_time_ago || undefined,
           }));
           setFindings(mappedFindings);
         } else {
@@ -143,59 +149,100 @@ export function CriticalFindings({ findings: propFindings, className, onFindingR
       <div className="space-y-3">
         {findings.map((finding, index) => {
           const styles = getSeverityStyles(finding.severity);
+          const isResolved = finding.status === "resolved";
           return (
             <div
               key={finding.id}
               className={cn(
                 "p-3 rounded-xl border transition-all duration-200",
                 "hover:translate-x-1 cursor-pointer",
-                styles.bg,
-                styles.border,
-                styles.glow,
+                isResolved 
+                  ? "bg-white/[0.02] border-white/[0.05] opacity-60" 
+                  : cn(styles.bg, styles.border, styles.glow),
                 "animate-fade-in"
               )}
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <div className="flex items-start gap-3">
-                <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", styles.dot, finding.severity === "critical" && "animate-pulse")} />
+                {isResolved ? (
+                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-emerald-500" />
+                ) : (
+                  <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", styles.dot, finding.severity === "critical" && "animate-pulse")} />
+                )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={cn("text-xs font-mono uppercase tracking-wide", styles.text)}>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    {isResolved && (
+                      <>
+                        <span className="px-1.5 py-0.5 text-xs font-mono bg-emerald-500/20 text-emerald-400 rounded-full flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Resolved
+                        </span>
+                        <span className="text-white/20">•</span>
+                      </>
+                    )}
+                    <span className={cn(
+                      "text-xs font-mono uppercase tracking-wide",
+                      isResolved ? "text-white/40" : styles.text
+                    )}>
                       {finding.severity}
                     </span>
                     <span className="text-white/30">•</span>
-                    <span className="text-xs text-white/50 font-mono">
+                    <span className={cn(
+                      "text-xs font-mono",
+                      isResolved ? "text-white/40" : "text-white/50"
+                    )}>
                       {finding.capability}
                     </span>
                   </div>
-                  <p className="text-sm text-white font-medium truncate">
+                  <p className={cn(
+                    "text-sm font-medium truncate",
+                    isResolved ? "text-white/40" : "text-white"
+                  )}>
                     {finding.title}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-white/40 font-mono truncate">
+                    <span className={cn(
+                      "text-xs font-mono truncate",
+                      isResolved ? "text-white/30" : "text-white/40"
+                    )}>
                       {finding.target}
                     </span>
                     <span className="text-white/20">•</span>
-                    <span className="text-xs text-white/40 font-mono">
+                    <span className={cn(
+                      "text-xs font-mono",
+                      isResolved ? "text-white/30" : "text-white/40"
+                    )}>
                       {finding.time}
                     </span>
+                    {isResolved && finding.resolved_time_ago && (
+                      <>
+                        <span className="text-white/20">•</span>
+                        <span className="text-xs text-emerald-400/70 font-mono">
+                          Resolved {finding.resolved_time_ago}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => handleResolve(finding.id, e)}
-                    disabled={resolving.has(finding.id)}
-                    className="p-1.5 rounded-lg hover:bg-emerald-500/20 transition-colors group disabled:opacity-50"
-                    title="Mark as Resolved"
-                  >
-                    {resolving.has(finding.id) ? (
-                      <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <svg className="w-4 h-4 text-white/40 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
+                  {!isResolved && (
+                    <button
+                      onClick={(e) => handleResolve(finding.id, e)}
+                      disabled={resolving.has(finding.id)}
+                      className="p-1.5 rounded-lg hover:bg-emerald-500/20 transition-colors group disabled:opacity-50"
+                      title="Mark as Resolved"
+                    >
+                      {resolving.has(finding.id) ? (
+                        <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4 text-white/40 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={(e) => handleViewInGraph(finding.id, e)}
                     className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors group"

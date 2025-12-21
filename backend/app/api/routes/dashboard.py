@@ -329,6 +329,17 @@ async def get_critical_findings(
             else:
                 time_ago = f"{time_diff.seconds // 60}m ago"
             
+            # Calculate resolved time ago if resolved
+            resolved_time_ago = None
+            if finding.status == "resolved" and finding.resolved_at:
+                resolved_diff = now - finding.resolved_at
+                if resolved_diff.days > 0:
+                    resolved_time_ago = f"{resolved_diff.days}d ago"
+                elif resolved_diff.seconds > 3600:
+                    resolved_time_ago = f"{resolved_diff.seconds // 3600}h ago"
+                else:
+                    resolved_time_ago = f"{resolved_diff.seconds // 60}m ago"
+            
             findings_data.append({
                 "id": finding.id,
                 "title": finding.title,
@@ -337,7 +348,10 @@ async def get_critical_findings(
                 "target": finding.target,
                 "time_ago": time_ago,
                 "risk_score": finding.risk_score,
-                "discovered_at": finding.discovered_at.isoformat()
+                "discovered_at": finding.discovered_at.isoformat(),
+                "status": getattr(finding, 'status', 'active'),
+                "resolved_at": finding.resolved_at.isoformat() if finding.resolved_at else None,
+                "resolved_time_ago": resolved_time_ago
             })
         
         return {
