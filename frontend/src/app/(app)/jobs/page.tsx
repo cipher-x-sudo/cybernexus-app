@@ -79,6 +79,17 @@ export default function JobHistoryPage() {
     router.push(`/jobs/${jobId}`);
   };
 
+  const handleRestartJob = async (e: React.MouseEvent, jobId: string) => {
+    e.stopPropagation();
+    try {
+      await api.restartJob(jobId);
+      // Refresh the job list
+      fetchJobs();
+    } catch (error) {
+      console.error("Error restarting job:", error);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -254,15 +265,24 @@ export default function JobHistoryPage() {
                         <p className="text-xs font-mono text-white/60">{formatDate(job.created_at)}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleJobClick(job.id);
-                          }}
-                          className="text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors"
-                        >
-                          View →
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleJobClick(job.id);
+                            }}
+                            className="text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors"
+                          >
+                            View →
+                          </button>
+                          <button
+                            onClick={(e) => handleRestartJob(e, job.id)}
+                            className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
+                            title="Restart job"
+                          >
+                            ↻ Restart
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

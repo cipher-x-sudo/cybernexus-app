@@ -662,6 +662,82 @@ async def get_job(
     )
 
 
+@router.post("/jobs/{job_id}/restart", response_model=JobResponse)
+async def restart_job(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Restart a job by creating a new job with the same parameters.
+    The new job will be executed in the background.
+    """
+    # Get the original job from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    original_job = await storage.get_job(job_id)
+    
+    if not original_job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Create a new job with the same parameters
+    orchestrator = get_orchestrator()
+    
+    # Map priority from JobPriority enum or integer to JobPriority enum
+    if isinstance(original_job.priority, JobPriority):
+        priority = original_job.priority
+    else:
+        # If it's an integer, map it
+        priority_map = {
+            0: JobPriority.CRITICAL,
+            1: JobPriority.HIGH,
+            2: JobPriority.NORMAL,
+            3: JobPriority.LOW,
+            4: JobPriority.BACKGROUND
+        }
+        priority = priority_map.get(original_job.priority, JobPriority.NORMAL)
+    
+    # Create new job
+    new_job = await orchestrator.create_job(
+        capability=original_job.capability,
+        target=original_job.target,
+        config=original_job.config,
+        priority=priority,
+        user_id=current_user.id
+    )
+    
+    # Start execution in background
+    import threading
+    thread = threading.Thread(
+        target=run_job_in_thread,
+        args=(new_job.id, orchestrator),
+        daemon=True
+    )
+    thread.start()
+    
+    # Get findings count (will be 0 for new job)
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    findings = await finding_storage.get_findings_for_job(new_job.id)
+    findings_count = len(findings)
+    
+    return JobResponse(
+        id=new_job.id,
+        capability=new_job.capability.value,
+        target=new_job.target,
+        status=new_job.status.value,
+        progress=new_job.progress,
+        created_at=new_job.created_at.isoformat(),
+        started_at=new_job.started_at.isoformat() if new_job.started_at else None,
+        completed_at=new_job.completed_at.isoformat() if new_job.completed_at else None,
+        findings_count=findings_count,
+        error=new_job.error,
+        priority=new_job.priority.value if hasattr(new_job.priority, 'value') else new_job.priority,
+        config=new_job.config or {},
+        metadata=new_job.metadata or {},
+        execution_logs=new_job.execution_logs or []
+    )
+
+
 @router.get("/jobs/{job_id}/findings", response_model=List[FindingResponse])
 async def get_job_findings(
     job_id: str,

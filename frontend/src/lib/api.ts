@@ -382,6 +382,12 @@ class ApiClient {
     return this.request<JobDetail>(`/capabilities/jobs/${jobId}`);
   }
 
+  async restartJob(jobId: string): Promise<CapabilityJob> {
+    return this.request<CapabilityJob>(`/capabilities/jobs/${jobId}/restart`, {
+      method: "POST",
+    });
+  }
+
   async exportJobResults(jobId: string, format: "json" | "csv" = "json"): Promise<Blob> {
     const response = await fetch(`${this.baseUrl}/capabilities/jobs/${jobId}/export?format=${format}`, {
       headers: {
