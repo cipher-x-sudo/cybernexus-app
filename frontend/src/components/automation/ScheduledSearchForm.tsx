@@ -152,15 +152,12 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
             </label>
             <GlassSelect
               value={capability}
-              onChange={(e) => setCapability(e.target.value)}
-              required
-            >
-              {capabilities.map((cap) => (
-                <option key={cap.value} value={cap.value}>
-                  {cap.label}
-                </option>
-              ))}
-            </GlassSelect>
+              onChange={setCapability}
+              options={capabilities.map((cap) => ({
+                value: cap.value,
+                label: cap.label,
+              }))}
+            />
           </div>
         )}
 
@@ -215,15 +212,12 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
           </label>
           <GlassSelect
             value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            required
-          >
-            {timezones.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </GlassSelect>
+            onChange={setTimezone}
+            options={timezones.map((tz) => ({
+              value: tz,
+              label: tz,
+            }))}
+          />
         </div>
 
         <div className="flex items-center gap-2">

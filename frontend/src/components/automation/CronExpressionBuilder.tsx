@@ -105,15 +105,15 @@ export default function CronExpressionBuilder({
             </label>
             <GlassSelect
               value={selectedPreset || customExpression}
-              onChange={(e) => handlePresetChange(e.target.value)}
-            >
-              <option value="">Select a preset...</option>
-              {presets.map((preset) => (
-                <option key={preset.value} value={preset.value}>
-                  {preset.label}
-                </option>
-              ))}
-            </GlassSelect>
+              onChange={handlePresetChange}
+              options={[
+                { value: "", label: "Select a preset..." },
+                ...presets.map((preset) => ({
+                  value: preset.value,
+                  label: preset.label,
+                })),
+              ]}
+            />
           </div>
         ) : (
           <div className="space-y-4">
