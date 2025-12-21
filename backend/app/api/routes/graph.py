@@ -347,15 +347,30 @@ async def get_graph_for_job(
                 return value
         
         async def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
-            """Find entity by value or create it if not found. Returns entity ID."""
+            """Find entity by value or create/update it if not found. Returns entity ID."""
             if not value:
                 return None
             
-            # First, try to find existing entity by value
-            entities_by_type = await storage.get_by_type(entity_type)
-            for entity in entities_by_type:
-                if entity.get("value") == value:
-                    return entity.get("id")
+            # Search across all entity types to find existing entity by value
+            # Check common types that might contain this value
+            search_types = [entity_type, "email", "domain", "ip_address"]
+            for search_type in search_types:
+                entities_by_type = await storage.get_by_type(search_type)
+                for entity in entities_by_type:
+                    if entity.get("value") == value:
+                        entity_id = entity.get("id")
+                        # If type is incorrect, update it
+                        if entity.get("type") != entity_type:
+                            logger.debug(f"Updating entity {entity_id} type from {entity.get('type')} to {entity_type}")
+                            entity_data = {
+                                "id": entity_id,
+                                "type": entity_type,
+                                "value": value,
+                                "severity": entity.get("severity", "info"),
+                                "metadata": entity.get("metadata", {})
+                            }
+                            await storage.save_entity(entity_data)
+                        return entity_id
             
             # Also check all entities in graph
             for node_id, node_data in graph_data.get("nodes", {}).items():
@@ -363,6 +378,17 @@ async def get_graph_for_job(
                 if entity_id:
                     entity = await storage.get_entity(entity_id)
                     if entity and entity.get("value") == value:
+                        # If type is incorrect, update it
+                        if entity.get("type") != entity_type:
+                            logger.debug(f"Updating entity {entity_id} type from {entity.get('type')} to {entity_type}")
+                            entity_data = {
+                                "id": entity_id,
+                                "type": entity_type,
+                                "value": value,
+                                "severity": entity.get("severity", "info"),
+                                "metadata": entity.get("metadata", {})
+                            }
+                            await storage.save_entity(entity_data)
                         return entity_id
             
             # If not found, create a new entity
