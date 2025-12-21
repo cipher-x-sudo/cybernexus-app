@@ -39,7 +39,7 @@ class User(Base):
     graph_edges = relationship("GraphEdge", back_populates="user", foreign_keys="GraphEdge.user_id", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
     network_logs = relationship("NetworkLog", back_populates="user", cascade="all, delete-orphan")
-    findings = relationship("Finding", back_populates="user", cascade="all, delete-orphan")
+    findings = relationship("Finding", back_populates="user", foreign_keys="Finding.user_id", cascade="all, delete-orphan")
     company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")

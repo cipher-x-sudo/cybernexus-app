@@ -48,7 +48,7 @@ def upgrade() -> None:
         op.create_table(
             'positive_indicators',
             sa.Column('id', sa.String(length=255), primary_key=True),
-            sa.Column('user_id', sa.String(), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
+            sa.Column('user_id', sa.String(), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
             sa.Column('indicator_type', sa.String(length=50), nullable=False),
             sa.Column('category', sa.String(length=50), nullable=False),
             sa.Column('points_awarded', sa.Integer(), nullable=False, server_default='0'),
@@ -65,6 +65,35 @@ def upgrade() -> None:
         op.create_index('ix_positive_indicators_category', 'positive_indicators', ['category'])
         op.create_index('ix_positive_indicators_created_at', 'positive_indicators', ['created_at'])
         op.create_index('idx_positive_user_category', 'positive_indicators', ['user_id', 'category'])
+    else:
+        # Table exists, check and create missing indexes
+        existing_indexes = [idx['name'] for idx in inspector.get_indexes('positive_indicators')]
+        
+        if 'ix_positive_indicators_user_id' not in existing_indexes:
+            try:
+                op.create_index('ix_positive_indicators_user_id', 'positive_indicators', ['user_id'])
+            except Exception:
+                pass
+        if 'ix_positive_indicators_type' not in existing_indexes:
+            try:
+                op.create_index('ix_positive_indicators_type', 'positive_indicators', ['indicator_type'])
+            except Exception:
+                pass
+        if 'ix_positive_indicators_category' not in existing_indexes:
+            try:
+                op.create_index('ix_positive_indicators_category', 'positive_indicators', ['category'])
+            except Exception:
+                pass
+        if 'ix_positive_indicators_created_at' not in existing_indexes:
+            try:
+                op.create_index('ix_positive_indicators_created_at', 'positive_indicators', ['created_at'])
+            except Exception:
+                pass
+        if 'idx_positive_user_category' not in existing_indexes:
+            try:
+                op.create_index('idx_positive_user_category', 'positive_indicators', ['user_id', 'category'])
+            except Exception:
+                pass
 
 
 def downgrade() -> None:
