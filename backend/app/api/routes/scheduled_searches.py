@@ -22,41 +22,6 @@ from app.services.orchestrator import Capability
 router = APIRouter()
 
 
-def get_capabilities_list(scheduled_search: ScheduledSearchModel) -> List[str]:
-    """Get capabilities list from scheduled search (supports both old and new format)."""
-    if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
-        if isinstance(scheduled_search.capabilities, list):
-            return scheduled_search.capabilities
-        return [scheduled_search.capabilities]
-    elif hasattr(scheduled_search, 'capability') and scheduled_search.capability:
-        # Backward compatibility: convert single capability to list
-        return [scheduled_search.capability]
-    return []
-
-
-def scheduled_search_to_response(scheduled_search: ScheduledSearchModel) -> ScheduledSearchResponse:
-    """Convert ScheduledSearchModel to ScheduledSearchResponse."""
-    capabilities_list = get_capabilities_list(scheduled_search)
-    return ScheduledSearchResponse(
-        id=scheduled_search.id,
-        user_id=scheduled_search.user_id,
-        name=scheduled_search.name,
-        description=scheduled_search.description,
-        capabilities=capabilities_list,
-        target=scheduled_search.target,
-        config=scheduled_search.config or {},
-        schedule_type=scheduled_search.schedule_type,
-        cron_expression=scheduled_search.cron_expression,
-        timezone=scheduled_search.timezone,
-        enabled=scheduled_search.enabled,
-        last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-        next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-        run_count=scheduled_search.run_count or 0,
-        created_at=scheduled_search.created_at.isoformat(),
-        updated_at=scheduled_search.updated_at.isoformat()
-    )
-
-
 # ============================================================================
 # Request/Response Models
 # ============================================================================
