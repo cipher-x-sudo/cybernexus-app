@@ -55,7 +55,12 @@ export default function JobHistoryPage() {
       if (endDate) params.end_date = endDate;
       
       const response = await api.getJobHistory(params);
-      setJobs(response.jobs || []);
+      // Map and cast jobs to match CapabilityJob type
+      const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job) => ({
+        ...job,
+        status: job.status as CapabilityJob["status"],
+      }));
+      setJobs(mappedJobs);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
     } catch (error) {
