@@ -353,9 +353,13 @@ async def list_jobs(
     limit: int = Query(default=50, le=200)
 ):
     """
-    List jobs with optional filtering.
+    List jobs with optional filtering from database.
     """
-    orchestrator = get_orchestrator()
+    from app.core.database.database import init_db, _async_session_maker
+    from app.core.database.job_storage import DBJobStorage
+    
+    # Ensure database is initialized
+    init_db()
     
     # Parse filters
     cap_filter = None
@@ -372,27 +376,67 @@ async def list_jobs(
         except ValueError:
             pass
     
-    jobs = orchestrator.get_jobs(
-        capability=cap_filter,
-        status=status_filter,
-        limit=limit
-    )
-    
-    return [
-        JobResponse(
-            id=job.id,
-            capability=job.capability.value,
-            target=job.target,
-            status=job.status.value,
-            progress=job.progress,
-            created_at=job.created_at.isoformat(),
-            started_at=job.started_at.isoformat() if job.started_at else None,
-            completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            findings_count=len(job.findings),
-            error=job.error
-        )
-        for job in jobs
-    ]
+    # Query jobs from database
+    async with _async_session_maker() as db:
+        try:
+            # Use admin access to get all jobs (no user_id filtering)
+            storage = DBJobStorage(db, user_id=None, is_admin=True)
+            db_jobs = await storage.list_jobs(
+                capability=cap_filter,
+                status=status_filter,
+                limit=limit,
+                offset=0
+            )
+            
+            # Convert database jobs to response format
+            jobs_response = []
+            for db_job in db_jobs:
+                # Get findings count from database (query as admin to get all findings for the job)
+                from app.core.database.finding_storage import DBFindingStorage
+                finding_storage = DBFindingStorage(db, user_id=None, is_admin=True)
+                findings = await finding_storage.get_findings_for_job(db_job.id)
+                findings_count = len(findings)
+                
+                jobs_response.append(
+                    JobResponse(
+                        id=db_job.id,
+                        capability=db_job.capability.value,
+                        target=db_job.target,
+                        status=db_job.status.value,
+                        progress=db_job.progress,
+                        created_at=db_job.created_at.isoformat(),
+                        started_at=db_job.started_at.isoformat() if db_job.started_at else None,
+                        completed_at=db_job.completed_at.isoformat() if db_job.completed_at else None,
+                        findings_count=findings_count,
+                        error=db_job.error
+                    )
+                )
+            
+            return jobs_response
+        except Exception as e:
+            logger.error(f"Failed to list jobs from database: {e}", exc_info=True)
+            # Fallback to in-memory jobs if database query fails
+            orchestrator = get_orchestrator()
+            jobs = orchestrator.get_jobs(
+                capability=cap_filter,
+                status=status_filter,
+                limit=limit
+            )
+            return [
+                JobResponse(
+                    id=job.id,
+                    capability=job.capability.value,
+                    target=job.target,
+                    status=job.status.value,
+                    progress=job.progress,
+                    created_at=job.created_at.isoformat(),
+                    started_at=job.started_at.isoformat() if job.started_at else None,
+                    completed_at=job.completed_at.isoformat() if job.completed_at else None,
+                    findings_count=len(job.findings),
+                    error=job.error
+                )
+                for job in jobs
+            ]
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
