@@ -609,7 +609,9 @@ async def get_job_findings(
     job_id: str,
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return"),
     offset: int = Query(default=0, ge=0, description="Number of findings to skip"),
-    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling")
+    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling"),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
 ):
     """
     Get findings from a job with pagination and incremental polling support.
@@ -625,39 +627,105 @@ async def get_job_findings(
     """
     from datetime import datetime as dt
     
-    orchestrator = get_orchestrator()
-    job = orchestrator.get_job(job_id)
+    # First try to get job from database
+    job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    db_job = await job_storage.get_job(job_id)
     
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Get findings based on 'since' parameter for incremental polling
-    if since:
-        try:
-            # Try parsing as ISO timestamp first
+    if not db_job:
+        # Fallback to orchestrator (in-memory) for running jobs
+        orchestrator = get_orchestrator()
+        orchestrator_job = orchestrator.get_job(job_id)
+        if not orchestrator_job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job = orchestrator_job
+        
+        # Get findings based on 'since' parameter for incremental polling
+        if since:
             try:
-                since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
-                filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
-                logger.debug(
-                    f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
-                    f"since={since}, found={len(filtered_findings)} new findings"
+                # Try parsing as ISO timestamp first
+                try:
+                    since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
+                    filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
+                    logger.debug(
+                        f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
+                        f"since={since}, found={len(filtered_findings)} new findings"
+                    )
+                except (ValueError, AttributeError):
+                    # If not a timestamp, treat as finding ID
+                    filtered_findings = job.get_findings_since(since_id=since)
+                    logger.debug(
+                        f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
+                        f"since={since}, found={len(filtered_findings)} new findings"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
+                    f"Falling back to all findings."
                 )
-            except (ValueError, AttributeError):
-                # If not a timestamp, treat as finding ID
-                filtered_findings = job.get_findings_since(since_id=since)
-                logger.debug(
-                    f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
-                    f"since={since}, found={len(filtered_findings)} new findings"
-                )
-        except Exception as e:
-            logger.warning(
-                f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
-                f"Falling back to all findings."
-            )
+                filtered_findings = job.findings
+        else:
+            # No 'since' parameter, return all findings (backward compatible)
             filtered_findings = job.findings
     else:
-        # No 'since' parameter, return all findings (backward compatible)
-        filtered_findings = job.findings
+        # Job exists in database, get findings from database
+        from app.core.database.finding_storage import DBFindingStorage
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        db_findings = await finding_storage.get_findings_for_job(job_id)
+        
+        # Convert database findings to Finding objects for compatibility
+        from app.services.orchestrator import Finding
+        from app.core.models import Capability
+        from datetime import datetime
+        
+        filtered_findings = []
+        for db_f in db_findings:
+            # Parse discovered_at
+            discovered_at = db_f.discovered_at if isinstance(db_f.discovered_at, datetime) else datetime.fromisoformat(db_f.discovered_at.replace('Z', '+00:00'))
+            
+            finding = Finding(
+                id=db_f.id,
+                capability=Capability(db_f.capability),
+                severity=db_f.severity,
+                title=db_f.title,
+                description=db_f.description or "",
+                evidence=db_f.evidence or {},
+                affected_assets=db_f.affected_assets or [],
+                recommendations=db_f.recommendations or [],
+                discovered_at=discovered_at,
+                risk_score=db_f.risk_score or 0.0
+            )
+            filtered_findings.append(finding)
+        
+        # Apply 'since' filtering if provided
+        if since:
+            try:
+                try:
+                    since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
+                    filtered_findings = [f for f in filtered_findings if f.discovered_at > since_timestamp]
+                    logger.debug(
+                        f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
+                        f"since={since}, found={len(filtered_findings)} new findings"
+                    )
+                except (ValueError, AttributeError):
+                    # If not a timestamp, treat as finding ID
+                    since_index = next((i for i, f in enumerate(filtered_findings) if f.id == since), -1)
+                    if since_index >= 0:
+                        filtered_findings = filtered_findings[since_index + 1:]
+                        logger.debug(
+                            f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
+                            f"since={since}, found={len(filtered_findings)} new findings"
+                        )
+                    else:
+                        # Finding ID not found, return all findings
+                        logger.debug(
+                            f"[API] get_job_findings: job_id={job_id}, finding_id '{since}' not found, "
+                            f"returning all findings"
+                        )
+            except Exception as e:
+                logger.warning(
+                    f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
+                    f"Falling back to all findings."
+                )
     
     # Apply pagination to filtered results
     total_findings = len(filtered_findings)
