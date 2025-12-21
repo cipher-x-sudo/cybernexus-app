@@ -5,12 +5,13 @@ Detects good security practices and generates positive security indicators
 that contribute to the security score.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 from loguru import logger
 import uuid
 
-from app.services.orchestrator import Capability
+if TYPE_CHECKING:
+    from app.services.orchestrator import Capability
 
 
 class PositiveScorer:
@@ -75,7 +76,7 @@ class PositiveScorer:
         
         return None
     
-    def detect_no_vulnerabilities(self, capability: Capability, findings: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def detect_no_vulnerabilities(self, capability: "Capability", findings: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Detect if no vulnerabilities were found in a category.
         
@@ -178,7 +179,7 @@ class PositiveScorer:
             }
         }
     
-    def analyze_scan_results(self, capability: Capability, findings: List[Dict[str, Any]], 
+    def analyze_scan_results(self, capability: "Capability", findings: List[Dict[str, Any]], 
                             scan_results: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Analyze scan results and generate positive indicators.
@@ -199,6 +200,8 @@ class PositiveScorer:
             indicators.append(no_vuln_indicator)
         
         # Check for strong email config (if email security scan)
+        # Import here to avoid circular import
+        from app.services.orchestrator import Capability
         if capability == Capability.EMAIL_SECURITY and scan_results:
             email_indicator = self.detect_strong_email_config(scan_results)
             if email_indicator:
