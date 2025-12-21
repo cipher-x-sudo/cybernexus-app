@@ -52,13 +52,14 @@ async function fetchGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[
 
 interface NodeProps {
   node: GraphNode;
+  position: THREE.Vector3;
   isHovered: boolean;
   isSelected: boolean;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
 }
 
-function Node3D({ node, isHovered, isSelected, onHover, onClick }: NodeProps) {
+function Node3D({ node, position, isHovered, isSelected, onHover, onClick }: NodeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const config = entityTypes[node.type as keyof typeof entityTypes];
 
@@ -99,7 +100,7 @@ function Node3D({ node, isHovered, isSelected, onHover, onClick }: NodeProps) {
   }, [config.shape]);
 
   return (
-    <group position={[node.x || 0, node.y || 0, node.z || 0]}>
+    <group position={[position.x, position.y, position.z]}>
       <mesh
         ref={meshRef}
         onPointerOver={() => onHover(node.id)}
@@ -194,11 +195,83 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
 }) {
   const nodePositions = useMemo(() => {
     const positions: Record<string, THREE.Vector3> = {};
-    nodes.forEach((node) => {
-      positions[node.id] = new THREE.Vector3(node.x || 0, node.y || 0, node.z || 0);
-    });
+    
+    // Check if any nodes have explicit positions
+    const hasPositions = nodes.some(node => node.x !== null && node.x !== undefined);
+    
+    if (hasPositions) {
+      // Use provided positions
+      nodes.forEach((node) => {
+        positions[node.id] = new THREE.Vector3(node.x || 0, node.y || 0, node.z || 0);
+      });
+    } else {
+      // Calculate layout positions using force-directed algorithm
+      const nodeMap = new Map(nodes.map((node, i) => [node.id, { node, index: i }]));
+      const edgeList = edges.map(e => ({ source: e.source, target: e.target }));
+      
+      // Initialize positions randomly or in a sphere
+      const radius = Math.max(3, Math.sqrt(nodes.length) * 0.8);
+      nodes.forEach((node, i) => {
+        if (!positions[node.id]) {
+          // Place nodes in a sphere layout
+          const angle1 = (i / nodes.length) * Math.PI * 2;
+          const angle2 = Math.acos((i * 2.0 / nodes.length) - 1);
+          const x = radius * Math.sin(angle2) * Math.cos(angle1);
+          const y = radius * Math.sin(angle2) * Math.sin(angle1);
+          const z = radius * Math.cos(angle2);
+          positions[node.id] = new THREE.Vector3(x, y, z);
+        }
+      });
+      
+      // Simple force-directed layout iterations
+      for (let iter = 0; iter < 50; iter++) {
+        const forces: Record<string, THREE.Vector3> = {};
+        nodes.forEach(node => {
+          forces[node.id] = new THREE.Vector3(0, 0, 0);
+        });
+        
+        // Repulsion between all nodes
+        nodes.forEach((node1) => {
+          nodes.forEach((node2) => {
+            if (node1.id !== node2.id) {
+              const pos1 = positions[node1.id];
+              const pos2 = positions[node2.id];
+              const diff = new THREE.Vector3().subVectors(pos1, pos2);
+              const dist = Math.max(diff.length(), 0.1);
+              const force = 0.1 / (dist * dist);
+              diff.normalize().multiplyScalar(force);
+              forces[node1.id].add(diff);
+            }
+          });
+        });
+        
+        // Attraction along edges
+        edgeList.forEach((edge) => {
+          const pos1 = positions[edge.source];
+          const pos2 = positions[edge.target];
+          if (pos1 && pos2) {
+            const diff = new THREE.Vector3().subVectors(pos2, pos1);
+            const dist = Math.max(diff.length(), 0.1);
+            const force = dist * 0.05;
+            diff.normalize().multiplyScalar(force);
+            forces[edge.source].add(diff);
+            forces[edge.target].sub(diff);
+          }
+        });
+        
+        // Apply forces with damping
+        nodes.forEach((node) => {
+          const force = forces[node.id];
+          if (force) {
+            force.multiplyScalar(0.1);
+            positions[node.id].add(force);
+          }
+        });
+      }
+    }
+    
     return positions;
-  }, [nodes]);
+  }, [nodes, edges]);
   
   const focusedPosition = useMemo(() => {
     if (focusedNodeId && nodePositions[focusedNodeId]) {
@@ -220,29 +293,37 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
 
       {/* Edges */}
       {edges.map((edge, i) => {
+        const sourcePos = nodePositions[edge.source];
+        const targetPos = nodePositions[edge.target];
+        if (!sourcePos || !targetPos) return null;
         const highlighted = hoveredNode === edge.source || hoveredNode === edge.target ||
           selectedNode === edge.source || selectedNode === edge.target;
         return (
           <Edge3D
             key={i}
-            source={nodePositions[edge.source]}
-            target={nodePositions[edge.target]}
+            source={sourcePos}
+            target={targetPos}
             highlighted={highlighted}
           />
         );
       })}
 
       {/* Nodes */}
-      {nodes.map((node) => (
-        <Node3D
-          key={node.id}
-          node={node}
-          isHovered={hoveredNode === node.id}
-          isSelected={selectedNode === node.id || focusedNodeId === node.id}
-          onHover={onHover}
-          onClick={onClick}
-        />
-      ))}
+      {nodes.map((node) => {
+        const position = nodePositions[node.id];
+        if (!position) return null;
+        return (
+          <Node3D
+            key={node.id}
+            node={node}
+            position={position}
+            isHovered={hoveredNode === node.id}
+            isSelected={selectedNode === node.id || focusedNodeId === node.id}
+            onHover={onHover}
+            onClick={onClick}
+          />
+        );
+      })}
       
       {/* Camera controller for focusing */}
       <CameraController targetPosition={focusedPosition} />
