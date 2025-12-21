@@ -56,9 +56,11 @@ export default function JobHistoryPage() {
       
       const response = await api.getJobHistory(params);
       // Map and cast jobs to match CapabilityJob type
-      const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job) => ({
+      // Handle both capability (singular) and capabilities (array) from backend
+      const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job: any) => ({
         ...job,
         status: job.status as CapabilityJob["status"],
+        capabilities: job.capabilities || (job.capability ? [job.capability] : []),
       }));
       setJobs(mappedJobs);
       setTotal(response.total || 0);

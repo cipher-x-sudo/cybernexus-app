@@ -22,7 +22,12 @@ export default function JobDetailsPage() {
       try {
         setLoading(true);
         const jobData = await api.getJobDetails(jobId);
-        setJob(jobData);
+        // Normalize capability field: convert capability (singular) to capabilities (array)
+        const normalizedJob = {
+          ...jobData,
+          capabilities: jobData.capabilities || (jobData.capability ? [jobData.capability] : []),
+        };
+        setJob(normalizedJob as JobDetail);
         
         // Fetch findings
         try {
