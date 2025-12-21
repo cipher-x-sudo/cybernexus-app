@@ -164,9 +164,11 @@ class SchedulerService:
                 max_instances=1
             )
             
+            # Format capabilities for logging
+            capabilities_str = ", ".join(scheduled_search.capabilities) if scheduled_search.capabilities else "none"
             logger.info(
                 f"Added scheduled job {job_id} for search '{scheduled_search.name}' "
-                f"(capability: {scheduled_search.capability}, target: {scheduled_search.target})"
+                f"(capabilities: {capabilities_str}, target: {scheduled_search.target})"
             )
         except Exception as e:
             logger.error(f"Error adding scheduled job for {scheduled_search.id}: {e}", exc_info=True)
