@@ -22,7 +22,12 @@ export function JobHistoryCard({ className, limit = 5 }: JobHistoryCardProps) {
       try {
         setLoading(true);
         const response = await api.getRecentJobs(limit);
-        setJobs(response.jobs || []);
+        // Map and cast jobs to match CapabilityJob type
+        const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job) => ({
+          ...job,
+          status: job.status as CapabilityJob["status"],
+        }));
+        setJobs(mappedJobs);
       } catch (error) {
         console.error("Error fetching job history:", error);
         setJobs([]);
