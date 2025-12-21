@@ -1179,12 +1179,73 @@ async def get_stats():
 
 
 @router.get("/events")
-async def get_recent_events(limit: int = Query(default=50, le=200)):
+async def get_recent_events(
+    limit: int = Query(default=50, le=200),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
     """
     Get recent capability events for live activity feed.
+    Generates events from database (jobs and findings) for current user.
     """
-    orchestrator = get_orchestrator()
-    events = orchestrator.get_recent_events(limit=limit)
+    from datetime import datetime, timezone
+    
+    events = []
+    
+    try:
+        # Generate events from recent jobs
+        job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        recent_jobs = await job_storage.list_jobs(limit=limit, offset=0)
+        
+        for job in recent_jobs:
+            # Create event for completed jobs
+            if job.status.value == "completed" and job.completed_at:
+                events.append({
+                    "id": f"job-{job.id}",
+                    "type": "job_completed",
+                    "message": f"Scan completed: {job.capability.value} on {job.target}",
+                    "timestamp": job.completed_at.isoformat(),
+                    "capability": job.capability.value,
+                    "target": job.target
+                })
+            # Create event for running jobs
+            elif job.status.value == "running" and job.started_at:
+                events.append({
+                    "id": f"job-{job.id}",
+                    "type": "job_started",
+                    "message": f"Scan started: {job.capability.value} on {job.target}",
+                    "timestamp": job.started_at.isoformat(),
+                    "capability": job.capability.value,
+                    "target": job.target
+                })
+        
+        # Generate events from critical findings
+        from app.core.database.finding_storage import DBFindingStorage
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        critical_findings = await finding_storage.get_critical_findings(limit=limit)
+        
+        for finding in critical_findings:
+            events.append({
+                "id": f"finding-{finding.id}",
+                "type": "finding",
+                "message": f"{finding.title} - {finding.target or 'Unknown target'}",
+                "timestamp": finding.discovered_at.isoformat(),
+                "severity": finding.severity,
+                "capability": finding.capability.value
+            })
+        
+        # Sort by timestamp descending (most recent first)
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+        
+        # Limit results
+        events = events[:limit]
+        
+    except Exception as e:
+        logger.error(f"Error generating capability events from database: {e}", exc_info=True)
+        # Fall back to orchestrator if database fails
+        orchestrator = get_orchestrator()
+        orchestrator_events = orchestrator.get_recent_events(limit=limit)
+        events = orchestrator_events
     
     return {
         "events": events,
