@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { GlassCard, GlassButton, GlassInput, GlassTextarea, Badge } from "@/components/ui";
 import { CompanyProfileWizard } from "@/components/company";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 const sections = [
   { id: "profile", label: "Profile", icon: "👤" },
   { id: "company", label: "Company Profile", icon: "🏢" },
+  { id: "automation", label: "Automation", icon: "⚙️" },
   { id: "notifications", label: "Notifications", icon: "🔔" },
   { id: "security", label: "Security", icon: "🔒" },
 ];
@@ -52,6 +54,7 @@ export default function SettingsPage() {
         <div className="lg:col-span-3">
           {activeSection === "profile" && <ProfileSection />}
           {activeSection === "company" && <CompanyProfileSection />}
+          {activeSection === "automation" && <AutomationSection />}
           {activeSection === "notifications" && <NotificationsSection />}
           {activeSection === "security" && <SecuritySection />}
         </div>
@@ -356,6 +359,312 @@ function CompanyProfileSection() {
         )}
       </div>
     </GlassCard>
+  );
+}
+
+function AutomationSection() {
+  const [companyProfile, setCompanyProfile] = useState<any>(null);
+  const [scheduledSearches, setScheduledSearches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [profile, searches] = await Promise.all([
+        api.getCompanyProfile().catch(() => null),
+        api.getScheduledSearches().catch(() => []),
+      ]);
+      setCompanyProfile(profile);
+      // Filter automation-created searches
+      const automationSearches = searches.filter(
+        (s: any) => s.config?.metadata?.source === "company_automation"
+      );
+      setScheduledSearches(automationSearches);
+    } catch (err) {
+      console.error("Failed to load automation data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+  };
+
+  const handleComplete = async () => {
+    setEditing(false);
+    await loadData();
+  };
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      await api.syncCompanyAutomation();
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || "Failed to sync automation");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div>
+        <div className="mb-6">
+          <GlassButton variant="ghost" onClick={handleCancel} size="sm">
+            ← Back to Automation
+          </GlassButton>
+        </div>
+        <CompanyProfileWizard
+          onComplete={handleComplete}
+          onCancel={handleCancel}
+          initialData={companyProfile}
+          mode="edit"
+        />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <GlassCard>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+          <span className="ml-3 text-white/60">Loading automation settings...</span>
+        </div>
+      </GlassCard>
+    );
+  }
+
+  const automationConfig = companyProfile?.automation_config;
+  const isEnabled = automationConfig?.enabled || false;
+  const enabledCapabilities = automationConfig?.capabilities
+    ? Object.entries(automationConfig.capabilities).filter(([_, config]: [string, any]) => config?.enabled)
+    : [];
+
+  const capabilityNames: Record<string, string> = {
+    exposure_discovery: "Exposure Discovery",
+    darkweb_intelligence: "Dark Web Intelligence",
+    email_audit: "Email Security",
+    infrastructure_testing: "Infrastructure Testing",
+    investigation: "Investigation",
+  };
+
+  return (
+    <div className="space-y-6">
+      <GlassCard>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-mono text-lg text-white">Company Automation</h2>
+            <p className="text-sm text-white/50 mt-1">
+              Manage automated security scans based on your company profile
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge
+              variant={isEnabled ? "success" : "default"}
+              size="sm"
+            >
+              {isEnabled ? "Enabled" : "Disabled"}
+            </Badge>
+            <GlassButton variant="primary" size="sm" onClick={handleEdit}>
+              {automationConfig ? "Edit Automation" : "Configure Automation"}
+            </GlassButton>
+          </div>
+        </div>
+
+        {!companyProfile ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-white/60 mb-4">
+              Please create a company profile first to configure automation.
+            </p>
+            <Link href="/settings?section=company">
+              <GlassButton variant="primary">Go to Company Profile</GlassButton>
+            </Link>
+          </div>
+        ) : !automationConfig ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 rounded-full bg-white/[0.05] flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">⚙️</span>
+            </div>
+            <h3 className="font-mono text-lg text-white mb-2">No Automation Configured</h3>
+            <p className="text-sm text-white/60 mb-6">
+              Set up automated security scans to continuously monitor your assets.
+            </p>
+            <GlassButton variant="primary" onClick={handleEdit}>
+              Configure Automation
+            </GlassButton>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Status Overview */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                <p className="text-xs font-mono text-white/50 mb-1">Status</p>
+                <p className={cn(
+                  "text-lg font-mono font-bold",
+                  isEnabled ? "text-emerald-400" : "text-white/40"
+                )}>
+                  {isEnabled ? "Active" : "Inactive"}
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                <p className="text-xs font-mono text-white/50 mb-1">Capabilities</p>
+                <p className="text-lg font-mono font-bold text-white">
+                  {enabledCapabilities.length} Enabled
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                <p className="text-xs font-mono text-white/50 mb-1">Schedule</p>
+                <p className="text-sm font-mono text-white/80">
+                  {automationConfig.schedule?.cron || "Not set"}
+                </p>
+              </div>
+            </div>
+
+            {/* Schedule Details */}
+            {automationConfig.schedule && (
+              <div>
+                <h3 className="font-mono text-sm text-white/70 mb-3">Schedule</h3>
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs font-mono text-white/50 mb-1">Cron Expression</p>
+                      <p className="text-sm font-mono text-white">{automationConfig.schedule.cron}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-mono text-white/50 mb-1">Timezone</p>
+                      <p className="text-sm font-mono text-white">{automationConfig.schedule.timezone}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Enabled Capabilities */}
+            {enabledCapabilities.length > 0 && (
+              <div>
+                <h3 className="font-mono text-sm text-white/70 mb-3">Enabled Capabilities</h3>
+                <div className="space-y-2">
+                  {enabledCapabilities.map(([capId, config]: [string, any]) => (
+                    <div
+                      key={capId}
+                      className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-mono text-white mb-1">
+                            {capabilityNames[capId] || capId}
+                          </p>
+                          {config.targets && config.targets.length > 0 && (
+                            <p className="text-xs text-white/50">
+                              Targets: {config.targets.join(", ")}
+                            </p>
+                          )}
+                          {config.keywords && config.keywords.length > 0 && (
+                            <p className="text-xs text-white/50">
+                              Keywords: {config.keywords.join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Scheduled Searches */}
+            {scheduledSearches.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-mono text-sm text-white/70">Active Scheduled Searches</h3>
+                  <Link href="/automation">
+                    <GlassButton variant="ghost" size="sm">
+                      View All →
+                    </GlassButton>
+                  </Link>
+                </div>
+                <div className="space-y-2">
+                  {scheduledSearches.slice(0, 3).map((search: any) => (
+                    <div
+                      key={search.id}
+                      className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-mono text-white">{search.name}</p>
+                          <p className="text-xs text-white/50">
+                            {search.capabilities?.map((c: string) => capabilityNames[c] || c).join(", ")}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant={search.enabled ? "success" : "default"}
+                            size="sm"
+                          >
+                            {search.enabled ? "Active" : "Disabled"}
+                          </Badge>
+                          {search.next_run_at && (
+                            <p className="text-xs text-white/50 mt-1">
+                              Next: {formatRelativeTime(new Date(search.next_run_at))}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {scheduledSearches.length > 3 && (
+                    <Link href="/automation">
+                      <GlassButton variant="ghost" size="sm" className="w-full">
+                        View {scheduledSearches.length - 3} more scheduled searches →
+                      </GlassButton>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-4 border-t border-white/[0.05] flex items-center justify-between">
+              <div className="text-sm text-white/50">
+                {scheduledSearches.length === 0 && isEnabled && (
+                  <p className="text-amber-400/80">
+                    ⚠️ Automation is enabled but no scheduled searches found. Click "Sync" to create them.
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <Link href="/automation">
+                  <GlassButton variant="secondary" size="sm">
+                    View All Searches
+                  </GlassButton>
+                </Link>
+                <GlassButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={syncing}
+                >
+                  {syncing ? "Syncing..." : "Sync Automation"}
+                </GlassButton>
+              </div>
+            </div>
+          </div>
+        )}
+      </GlassCard>
+    </div>
   );
 }
 
