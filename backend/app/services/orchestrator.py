@@ -449,6 +449,14 @@ class Orchestrator:
         
         self._stats["total_jobs"] += 1
         
+        # Add initial execution log
+        self._add_execution_log(job, "info", f"Job created for {capability.value} on {target}", {
+            "capability": capability.value,
+            "target": target,
+            "priority": priority.value,
+            "config": merged_config
+        })
+        
         # Save to database
         await self._save_job_to_db(job, user_id=user_id)
         
@@ -570,10 +578,28 @@ class Orchestrator:
             job.findings = findings
             self._stats["total_findings"] += len(findings)
             
+            # Add execution log for findings discovered
+            if findings:
+                critical_count = sum(1 for f in findings if f.severity == "critical")
+                high_count = sum(1 for f in findings if f.severity == "high")
+                self._add_execution_log(job, "info", f"Discovered {len(findings)} findings ({critical_count} critical, {high_count} high)", {
+                    "findings_count": len(findings),
+                    "critical_count": critical_count,
+                    "high_count": high_count
+                })
+            else:
+                self._add_execution_log(job, "info", "No findings discovered", {})
+            
             # Complete job
             self._update_job_status(job, JobStatus.COMPLETED)
             job.completed_at = datetime.now()
             job.progress = 100
+            
+            # Add completion log
+            self._add_execution_log(job, "info", f"Job completed successfully. Found {len(findings)} findings.", {
+                "findings_count": len(findings),
+                "duration_seconds": (job.completed_at - job.started_at).total_seconds() if job.started_at and job.completed_at else None
+            })
             
             # Save to database
             await self._save_job_to_db(job)
@@ -640,8 +666,17 @@ class Orchestrator:
             
         except Exception as e:
             logger.error(f"Job {job_id} failed: {e}")
+            error_message = str(e)
+            job.error = error_message
+            
+            # Add error execution log
+            self._add_execution_log(job, "error", f"Job execution failed: {error_message}", {
+                "error": error_message,
+                "capability": job.capability.value,
+                "target": job.target
+            })
+            
             self._update_job_status(job, JobStatus.FAILED)
-            job.error = str(e)
             self._stats["failed_jobs"] += 1
             
             # Save to database
@@ -2888,9 +2923,48 @@ class Orchestrator:
         
         return findings
     
+    def _add_execution_log(self, job: Job, level: str, message: str, data: Optional[Dict[str, Any]] = None):
+        """Add an execution log entry to a job"""
+        from datetime import datetime
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "message": message
+        }
+        if data:
+            log_entry["data"] = data
+        job.execution_logs.append(log_entry)
+    
     def _update_job_status(self, job: Job, new_status: JobStatus):
         """Update job status and indexes"""
         old_status = job.status
+        
+        # Add execution log for status change
+        status_messages = {
+            JobStatus.PENDING: "Job created and queued",
+            JobStatus.QUEUED: "Job queued for execution",
+            JobStatus.RUNNING: "Job execution started",
+            JobStatus.COMPLETED: "Job completed successfully",
+            JobStatus.FAILED: "Job execution failed",
+            JobStatus.CANCELLED: "Job cancelled"
+        }
+        
+        if old_status != new_status:
+            message = status_messages.get(new_status, f"Job status changed to {new_status.value}")
+            level = "info"
+            if new_status == JobStatus.FAILED:
+                level = "error"
+            elif new_status == JobStatus.COMPLETED:
+                level = "info"
+            elif new_status == JobStatus.RUNNING:
+                level = "info"
+            
+            self._add_execution_log(job, level, message, {
+                "old_status": old_status.value,
+                "new_status": new_status.value,
+                "capability": job.capability.value,
+                "target": job.target
+            })
         
         # Remove from old status index (in-memory)
         old_status_jobs = self._jobs_by_status.get(old_status.value) or []
