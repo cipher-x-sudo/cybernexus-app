@@ -18,7 +18,11 @@ interface LiveActivityProps {
   events?: Array<{
     id?: string;
     type: string;
-    message: string;
+    message?: string;
+    title?: string;
+    description?: string;
+    severity?: string;
+    source?: string;
     timestamp: string;
   }>;
 }
@@ -68,21 +72,42 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
   }, [isLive, propEvents]);
 
   // Helper function to map API events to ActivityEvent format
-  function mapEventsToActivity(apiEvents: Array<{ id?: string; type: string; message: string; timestamp: string }>): ActivityEvent[] {
+  // Handles both timeline events (with title/description) and orchestrator events (with message)
+  function mapEventsToActivity(apiEvents: Array<{ 
+    id?: string; 
+    type: string; 
+    message?: string;
+    title?: string;
+    description?: string;
+    severity?: string;
+    source?: string;
+    timestamp: string;
+  }>): ActivityEvent[] {
     return apiEvents.map((event, index) => {
       // Determine event type from API event type
       let activityType: "job_started" | "job_completed" | "finding" | "alert" = "alert";
       if (event.type === "job_started") activityType = "job_started";
-      else if (event.type === "job_completed") activityType = "job_completed";
-      else if (event.type.includes("finding")) activityType = "finding";
+      else if (event.type === "job_completed" || event.type === "scan_completed") activityType = "job_completed";
+      else if (event.type.includes("finding") || event.type === "threat_detected" || event.type === "credential_leaked" || event.type === "dark_web_mention") {
+        activityType = "finding";
+      }
+      
+      // Get message from timeline format (title/description) or orchestrator format (message)
+      const message = event.title || event.description || event.message || "Unknown event";
+      
+      // Extract severity from timeline events (direct field) or from message
+      const severity = event.severity || extractSeverity(message);
+      
+      // Extract capability from timeline events (source field) or from message
+      const capability = event.source || extractCapability(message);
       
       return {
         id: event.id || `event-${index}`,
         type: activityType,
-        message: event.message,
+        message: message,
         timestamp: event.timestamp,
-        capability: extractCapability(event.message),
-        severity: extractSeverity(event.message),
+        capability: capability,
+        severity: severity,
       };
     });
   }
@@ -101,6 +126,28 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
     if (message.toLowerCase().includes("critical")) return "critical";
     if (message.toLowerCase().includes("high")) return "high";
     return undefined;
+  }
+
+  function formatTimestamp(timestamp: string): string {
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      
+      const seconds = Math.floor(diff / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      
+      if (days > 0) return `${days}d ago`;
+      if (hours > 0) return `${hours}h ago`;
+      if (minutes > 0) return `${minutes}m ago`;
+      if (seconds > 0) return `${seconds}s ago`;
+      return "Just now";
+    } catch {
+      // Fallback to showing the timestamp as-is if parsing fails
+      return new Date(timestamp).toLocaleString();
+    }
   }
 
   const getEventIcon = (type: string, severity?: string) => {
@@ -188,7 +235,7 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
             {getEventIcon(event.type, event.severity)}
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white/80 line-clamp-2">{event.message}</p>
-              <p className="text-xs text-white/40 mt-0.5 font-mono">{event.timestamp}</p>
+              <p className="text-xs text-white/40 mt-0.5 font-mono">{formatTimestamp(event.timestamp)}</p>
             </div>
           </div>
           ))

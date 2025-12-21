@@ -95,7 +95,7 @@ export function mapToJobs(jobs: any[]): JobData[] {
  */
 export function mapToEvents(events: any[]): EventData[] {
   return events.map((event, index) => ({
-    id: event.timestamp || `event-${index}`,
+    id: event.id || event.timestamp || `event-${index}`,
     type: event.type || "info",
     message: formatEventMessage(event),
     timestamp: event.timestamp || new Date().toISOString(),
@@ -196,8 +196,18 @@ function mapJobStatus(status: string): "completed" | "running" | "failed" | "pen
 
 /**
  * Format event message from event data
+ * Handles both timeline events (with title/description) and orchestrator events (with data object)
  */
 function formatEventMessage(event: any): string {
+  // Check if this is a timeline event (has title/description directly)
+  if (event.title) {
+    return event.title;
+  }
+  if (event.description) {
+    return event.description;
+  }
+  
+  // Otherwise, treat as orchestrator event (has data object)
   const type = event.type || "";
   const data = event.data || {};
   

@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [criticalFindings, setCriticalFindings] = useState<any[]>([]);
   const [threatsOverTime, setThreatsOverTime] = useState<{ data: number[]; labels: string[] }>({ data: [], labels: [] });
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +89,21 @@ export default function DashboardPage() {
         // Fetch critical findings
         const findingsResponse = await api.getDashboardCriticalFindings(10);
         setCriticalFindings(findingsResponse.findings || []);
+
+        // Fetch timeline events for Live Activity (preferred over dashboard overview events)
+        try {
+          const timelineEvents = await api.getRecentTimelineEvents(20);
+          if (timelineEvents && timelineEvents.length > 0) {
+            setRecentEvents(timelineEvents);
+          } else {
+            // Fallback to dashboard overview events
+            setRecentEvents(overview.recent_events || []);
+          }
+        } catch (timelineErr) {
+          console.error("Error fetching timeline events:", timelineErr);
+          // Fallback to dashboard overview events
+          setRecentEvents(overview.recent_events || []);
+        }
 
         // Fetch timeline events or all findings for chart
         try {
@@ -180,7 +196,10 @@ export default function DashboardPage() {
   const riskScoreData = mapToRiskScore(dashboardData);
   const findingsData = criticalFindings.length > 0 ? mapToFindings(criticalFindings) : [];
   const recentJobs = dashboardData.recent_jobs ? mapToJobs(dashboardData.recent_jobs) : [];
-  const recentEvents = dashboardData.recent_events ? mapToEvents(dashboardData.recent_events) : [];
+  // Use timeline events if available, otherwise fallback to dashboard overview events
+  const mappedRecentEvents = recentEvents.length > 0 
+    ? mapToEvents(recentEvents) 
+    : (dashboardData.recent_events ? mapToEvents(dashboardData.recent_events) : []);
   const capabilityStats = dashboardData.capability_stats ? mapToCapabilityStats(dashboardData.capability_stats) : {};
   const threatMapData = dashboardData.threat_map_data || [];
 
@@ -244,7 +263,7 @@ export default function DashboardPage() {
         </GlassCard>
 
         {/* Live Activity */}
-        <LiveActivity events={recentEvents} />
+        <LiveActivity events={mappedRecentEvents} />
       </div>
 
       {/* Trends row */}
