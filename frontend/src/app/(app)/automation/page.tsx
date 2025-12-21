@@ -12,7 +12,7 @@ interface ScheduledSearch {
   id: string;
   name: string;
   description: string | null;
-  capability: string;
+  capabilities: string[];
   target: string;
   config: Record<string, any>;
   schedule_type: string;
@@ -141,7 +141,7 @@ export default function AutomationPage() {
   const filteredSearches = scheduledSearches.filter((search) =>
     search.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     search.target.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    capabilityNames[search.capability]?.toLowerCase().includes(searchQuery.toLowerCase())
+    search.capabilities.some(cap => capabilityNames[cap]?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (showForm) {
@@ -283,14 +283,14 @@ export default function AutomationPage() {
                 <div key={search.id} className="p-6 hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-start gap-3 mb-3">
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", colors.bg)}>
                           <svg className={cn("w-4 h-4", colors.accent)} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <h3 className="text-lg font-mono font-semibold text-white">{search.name}</h3>
                             <span
                               className={cn(
@@ -302,9 +302,22 @@ export default function AutomationPage() {
                             >
                               {search.enabled ? "Enabled" : "Disabled"}
                             </span>
-                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono border", colors.bg, colors.accent, colors.border)}>
-                              {capabilityNames[search.capability] || search.capability}
-                            </span>
+                            {search.capabilities.map((cap) => {
+                              const capColors = capabilityColors[cap] || capabilityColors.exposure_discovery;
+                              return (
+                                <span
+                                  key={cap}
+                                  className={cn(
+                                    "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono border",
+                                    capColors.bg,
+                                    capColors.accent,
+                                    capColors.border
+                                  )}
+                                >
+                                  {capabilityNames[cap] || cap}
+                                </span>
+                              );
+                            })}
                           </div>
                           {search.description && (
                             <p className="text-sm text-white/60 mb-3">{search.description}</p>

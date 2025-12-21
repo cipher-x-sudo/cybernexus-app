@@ -327,9 +327,9 @@ class ScheduledSearch(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    capability = Column(String(50), nullable=False, index=True)  # exposure_discovery, dark_web_intelligence, email_security, infrastructure_testing
+    capabilities = Column(JSONB, default=list, nullable=False)  # List of capabilities: ["exposure_discovery", "dark_web_intelligence", etc.]
     target = Column(String(500), nullable=False)  # Domain, keywords, URL, etc.
-    config = Column(JSONB, default=dict, nullable=True)  # Capability-specific configuration
+    config = Column(JSONB, default=dict, nullable=True)  # Capability-specific configuration (can be per-capability)
     schedule_type = Column(String(20), nullable=False, default="cron")  # cron, interval, date
     cron_expression = Column(String(100), nullable=True)  # e.g., "0 9 * * *" for daily at 9 AM
     timezone = Column(String(50), default="UTC", nullable=False)
@@ -345,6 +345,5 @@ class ScheduledSearch(Base):
     
     __table_args__ = (
         Index('idx_scheduled_search_user_enabled', 'user_id', 'enabled'),
-        Index('idx_scheduled_search_user_capability', 'user_id', 'capability'),
         Index('idx_scheduled_search_next_run', 'next_run_at'),
     )

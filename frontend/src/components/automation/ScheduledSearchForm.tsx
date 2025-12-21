@@ -10,7 +10,7 @@ interface ScheduledSearchFormProps {
     id: string;
     name: string;
     description: string | null;
-    capability: string;
+    capabilities: string[];
     target: string;
     config: Record<string, any>;
     cron_expression: string;
@@ -43,7 +43,7 @@ const timezones = [
 export default function ScheduledSearchForm({ search, onClose }: ScheduledSearchFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [capability, setCapability] = useState("exposure_discovery");
+  const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>(["exposure_discovery"]);
   const [target, setTarget] = useState("");
   const [cronExpression, setCronExpression] = useState("0 9 * * *");
   const [timezone, setTimezone] = useState("UTC");
@@ -55,7 +55,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
     if (search) {
       setName(search.name);
       setDescription(search.description || "");
-      setCapability(search.capability);
+      setSelectedCapabilities(search.capabilities || []);
       setTarget(search.target);
       setCronExpression(search.cron_expression);
       setTimezone(search.timezone);
@@ -63,8 +63,26 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
     }
   }, [search]);
 
+  const handleCapabilityToggle = (capValue: string) => {
+    setSelectedCapabilities((prev) => {
+      if (prev.includes(capValue)) {
+        // Don't allow deselecting if it's the last one
+        if (prev.length === 1) {
+          return prev;
+        }
+        return prev.filter((c) => c !== capValue);
+      } else {
+        return [...prev, capValue];
+      }
+    });
+  };
+
   const getTargetPlaceholder = () => {
-    const cap = capabilities.find((c) => c.value === capability);
+    // If multiple capabilities, show generic placeholder
+    if (selectedCapabilities.length > 1) {
+      return "Enter target (e.g., example.com, keywords, or URL)";
+    }
+    const cap = capabilities.find((c) => c.value === selectedCapabilities[0]);
     return cap?.targetPlaceholder || "Enter target...";
   };
 
@@ -74,10 +92,17 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
     setError(null);
 
     try {
+      if (selectedCapabilities.length === 0) {
+        setError("Please select at least one capability");
+        setLoading(false);
+        return;
+      }
+
       if (search) {
         await api.updateScheduledSearch(search.id, {
           name,
           description: description || undefined,
+          capabilities: selectedCapabilities,
           target,
           cron_expression: cronExpression,
           timezone,
@@ -87,7 +112,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         await api.createScheduledSearch({
           name,
           description: description || undefined,
-          capability,
+          capabilities: selectedCapabilities,
           target,
           cron_expression: cronExpression,
           timezone,
@@ -160,35 +185,33 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
           />
         </div>
 
-        {!search && (
-          <div>
-            <label className="block text-xs font-mono text-white/70 mb-2">
-              Capability *
-            </label>
-            <GlassSelect
-              value={capability}
-              onChange={setCapability}
-              options={capabilities.map((cap) => ({
-                value: cap.value,
-                label: cap.label,
-              }))}
-            />
+        <div>
+          <label className="block text-xs font-mono text-white/70 mb-2">
+            Capabilities * (Select one or more)
+          </label>
+          <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+            {capabilities.map((cap) => (
+              <label
+                key={cap.value}
+                className="flex items-center gap-2 cursor-pointer group"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCapabilities.includes(cap.value)}
+                  onChange={() => handleCapabilityToggle(cap.value)}
+                  disabled={selectedCapabilities.length === 1 && selectedCapabilities.includes(cap.value)}
+                  className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-amber-500 focus:ring-amber-500 disabled:opacity-50"
+                />
+                <span className="text-sm text-white/60 group-hover:text-white/80 font-mono">
+                  {cap.label}
+                </span>
+              </label>
+            ))}
           </div>
-        )}
-
-        {search && (
-          <div>
-            <label className="block text-xs font-mono text-white/70 mb-2">
-              Capability
-            </label>
-            <GlassInput
-              type="text"
-              value={capabilities.find((c) => c.value === capability)?.label || capability}
-              disabled
-              className="opacity-50"
-            />
-          </div>
-        )}
+          {selectedCapabilities.length === 0 && (
+            <p className="text-xs text-red-400 mt-1 font-mono">Please select at least one capability</p>
+          )}
+        </div>
 
         <div>
           <label className="block text-xs font-mono text-white/70 mb-2">

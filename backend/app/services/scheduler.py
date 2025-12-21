@@ -238,7 +238,7 @@ class SchedulerService:
                 
                 logger.info(
                     f"Scheduled search '{scheduled_search.name}' executed successfully. "
-                    f"Created job {job.id}"
+                    f"Created {len(jobs_created)} jobs: {', '.join(jobs_created)}"
                 )
         except Exception as e:
             logger.error(

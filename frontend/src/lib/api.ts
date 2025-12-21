@@ -1338,7 +1338,7 @@ class ApiClient {
   async createScheduledSearch(data: {
     name: string;
     description?: string;
-    capability: string;
+    capabilities: string[];
     target: string;
     config?: Record<string, any>;
     schedule_type?: string;
@@ -1351,7 +1351,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
@@ -1424,6 +1424,7 @@ class ApiClient {
   async updateScheduledSearch(id: string, data: {
     name?: string;
     description?: string;
+    capabilities?: string[];
     target?: string;
     config?: Record<string, any>;
     cron_expression?: string;

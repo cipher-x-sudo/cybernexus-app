@@ -22,6 +22,41 @@ from app.services.orchestrator import Capability
 router = APIRouter()
 
 
+def get_capabilities_list(scheduled_search: ScheduledSearchModel) -> List[str]:
+    """Get capabilities list from scheduled search (supports both old and new format)."""
+    if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
+        if isinstance(scheduled_search.capabilities, list):
+            return scheduled_search.capabilities
+        return [scheduled_search.capabilities]
+    elif hasattr(scheduled_search, 'capability') and scheduled_search.capability:
+        # Backward compatibility: convert single capability to list
+        return [scheduled_search.capability]
+    return []
+
+
+def scheduled_search_to_response(scheduled_search: ScheduledSearchModel) -> ScheduledSearchResponse:
+    """Convert ScheduledSearchModel to ScheduledSearchResponse."""
+    capabilities_list = get_capabilities_list(scheduled_search)
+    return ScheduledSearchResponse(
+        id=scheduled_search.id,
+        user_id=scheduled_search.user_id,
+        name=scheduled_search.name,
+        description=scheduled_search.description,
+        capabilities=capabilities_list,
+        target=scheduled_search.target,
+        config=scheduled_search.config or {},
+        schedule_type=scheduled_search.schedule_type,
+        cron_expression=scheduled_search.cron_expression,
+        timezone=scheduled_search.timezone,
+        enabled=scheduled_search.enabled,
+        last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
+        next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
+        run_count=scheduled_search.run_count or 0,
+        created_at=scheduled_search.created_at.isoformat(),
+        updated_at=scheduled_search.updated_at.isoformat()
+    )
+
+
 # ============================================================================
 # Request/Response Models
 # ============================================================================
@@ -30,25 +65,28 @@ class ScheduledSearchCreate(BaseModel):
     """Request to create a scheduled search"""
     name: str = Field(..., min_length=1, max_length=200, description="Name for the scheduled search")
     description: Optional[str] = Field(None, description="Optional description")
-    capability: str = Field(..., description="Capability to run: exposure_discovery, dark_web_intelligence, email_security, infrastructure_testing")
+    capabilities: List[str] = Field(..., min_length=1, description="List of capabilities to run: exposure_discovery, dark_web_intelligence, email_security, infrastructure_testing")
     target: str = Field(..., min_length=1, max_length=500, description="Target domain, keywords, URL, etc.")
-    config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Capability-specific configuration")
+    config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Capability-specific configuration (can be per-capability)")
     schedule_type: str = Field(default="cron", description="Schedule type: cron")
     cron_expression: str = Field(..., min_length=1, max_length=100, description="Cron expression (e.g., '0 9 * * *' for daily at 9 AM)")
     timezone: str = Field(default="UTC", description="Timezone for scheduling")
     enabled: bool = Field(default=True, description="Whether the scheduled search is enabled")
     
-    @field_validator('capability')
+    @field_validator('capabilities')
     @classmethod
-    def validate_capability(cls, v: str) -> str:
+    def validate_capabilities(cls, v: List[str]) -> List[str]:
         valid_capabilities = [
             "exposure_discovery",
             "dark_web_intelligence",
             "email_security",
             "infrastructure_testing"
         ]
-        if v not in valid_capabilities:
-            raise ValueError(f"Invalid capability. Must be one of: {', '.join(valid_capabilities)}")
+        if not v or len(v) == 0:
+            raise ValueError("At least one capability must be selected")
+        for cap in v:
+            if cap not in valid_capabilities:
+                raise ValueError(f"Invalid capability: {cap}. Must be one of: {', '.join(valid_capabilities)}")
         return v
     
     @field_validator('cron_expression')
@@ -65,11 +103,30 @@ class ScheduledSearchUpdate(BaseModel):
     """Request to update a scheduled search"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
+    capabilities: Optional[List[str]] = Field(None, min_length=1, description="List of capabilities to run")
     target: Optional[str] = Field(None, min_length=1, max_length=500)
     config: Optional[Dict[str, Any]] = None
     cron_expression: Optional[str] = Field(None, min_length=1, max_length=100)
     timezone: Optional[str] = None
     enabled: Optional[bool] = None
+    
+    @field_validator('capabilities')
+    @classmethod
+    def validate_capabilities(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return v
+        valid_capabilities = [
+            "exposure_discovery",
+            "dark_web_intelligence",
+            "email_security",
+            "infrastructure_testing"
+        ]
+        if len(v) == 0:
+            raise ValueError("At least one capability must be selected")
+        for cap in v:
+            if cap not in valid_capabilities:
+                raise ValueError(f"Invalid capability: {cap}. Must be one of: {', '.join(valid_capabilities)}")
+        return v
 
 
 class ScheduledSearchResponse(BaseModel):
@@ -78,7 +135,7 @@ class ScheduledSearchResponse(BaseModel):
     user_id: str
     name: str
     description: Optional[str]
-    capability: str
+    capabilities: List[str]  # List of capabilities
     target: str
     config: Dict[str, Any]
     schedule_type: str
@@ -117,18 +174,19 @@ async def create_scheduled_search(
 ):
     """Create a new scheduled search"""
     try:
-        # Validate capability
-        try:
-            Capability(request.capability)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid capability: {request.capability}")
+        # Validate capabilities
+        for cap in request.capabilities:
+            try:
+                Capability(cap)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid capability: {cap}")
         
         # Create scheduled search
         scheduled_search = ScheduledSearchModel(
             user_id=current_user.id,
             name=request.name,
             description=request.description,
-            capability=request.capability,
+            capabilities=request.capabilities,
             target=request.target,
             config=request.config or {},
             schedule_type=request.schedule_type,
@@ -148,24 +206,7 @@ async def create_scheduled_search(
         
         logger.info(f"Created scheduled search '{scheduled_search.name}' for user {current_user.id}")
         
-        return ScheduledSearchResponse(
-            id=scheduled_search.id,
-            user_id=scheduled_search.user_id,
-            name=scheduled_search.name,
-            description=scheduled_search.description,
-            capability=scheduled_search.capability,
-            target=scheduled_search.target,
-            config=scheduled_search.config or {},
-            schedule_type=scheduled_search.schedule_type,
-            cron_expression=scheduled_search.cron_expression,
-            timezone=scheduled_search.timezone,
-            enabled=scheduled_search.enabled,
-            last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-            next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-            run_count=scheduled_search.run_count or 0,
-            created_at=scheduled_search.created_at.isoformat(),
-            updated_at=scheduled_search.updated_at.isoformat()
-        )
+        return scheduled_search_to_response(scheduled_search)
     except HTTPException:
         raise
     except Exception as e:
@@ -191,27 +232,7 @@ async def list_scheduled_searches(
         result = await db.execute(query)
         scheduled_searches = result.scalars().all()
         
-        return [
-            ScheduledSearchResponse(
-                id=ss.id,
-                user_id=ss.user_id,
-                name=ss.name,
-                description=ss.description,
-                capability=ss.capability,
-                target=ss.target,
-                config=ss.config or {},
-                schedule_type=ss.schedule_type,
-                cron_expression=ss.cron_expression,
-                timezone=ss.timezone,
-                enabled=ss.enabled,
-                last_run_at=ss.last_run_at.isoformat() if ss.last_run_at else None,
-                next_run_at=ss.next_run_at.isoformat() if ss.next_run_at else None,
-                run_count=ss.run_count or 0,
-                created_at=ss.created_at.isoformat(),
-                updated_at=ss.updated_at.isoformat()
-            )
-            for ss in scheduled_searches
-        ]
+        return [scheduled_search_to_response(ss) for ss in scheduled_searches]
     except Exception as e:
         logger.error(f"Error listing scheduled searches: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list scheduled searches: {str(e)}")
@@ -233,24 +254,7 @@ async def get_scheduled_search(
         if scheduled_search.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        return ScheduledSearchResponse(
-            id=scheduled_search.id,
-            user_id=scheduled_search.user_id,
-            name=scheduled_search.name,
-            description=scheduled_search.description,
-            capability=scheduled_search.capability,
-            target=scheduled_search.target,
-            config=scheduled_search.config or {},
-            schedule_type=scheduled_search.schedule_type,
-            cron_expression=scheduled_search.cron_expression,
-            timezone=scheduled_search.timezone,
-            enabled=scheduled_search.enabled,
-            last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-            next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-            run_count=scheduled_search.run_count or 0,
-            created_at=scheduled_search.created_at.isoformat(),
-            updated_at=scheduled_search.updated_at.isoformat()
-        )
+        return scheduled_search_to_response(scheduled_search)
     except HTTPException:
         raise
     except Exception as e:
@@ -280,6 +284,14 @@ async def update_scheduled_search(
         for field, value in update_data.items():
             setattr(scheduled_search, field, value)
         
+        # Validate capabilities if updating
+        if 'capabilities' in update_data:
+            for cap in update_data['capabilities']:
+                try:
+                    Capability(cap)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid capability: {cap}")
+        
         await db.commit()
         await db.refresh(scheduled_search)
         
@@ -289,24 +301,7 @@ async def update_scheduled_search(
         
         logger.info(f"Updated scheduled search '{scheduled_search.name}' for user {current_user.id}")
         
-        return ScheduledSearchResponse(
-            id=scheduled_search.id,
-            user_id=scheduled_search.user_id,
-            name=scheduled_search.name,
-            description=scheduled_search.description,
-            capability=scheduled_search.capability,
-            target=scheduled_search.target,
-            config=scheduled_search.config or {},
-            schedule_type=scheduled_search.schedule_type,
-            cron_expression=scheduled_search.cron_expression,
-            timezone=scheduled_search.timezone,
-            enabled=scheduled_search.enabled,
-            last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-            next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-            run_count=scheduled_search.run_count or 0,
-            created_at=scheduled_search.created_at.isoformat(),
-            updated_at=scheduled_search.updated_at.isoformat()
-        )
+        return scheduled_search_to_response(scheduled_search)
     except HTTPException:
         raise
     except Exception as e:
@@ -374,24 +369,7 @@ async def enable_scheduled_search(
         
         logger.info(f"Enabled scheduled search '{scheduled_search.name}' for user {current_user.id}")
         
-        return ScheduledSearchResponse(
-            id=scheduled_search.id,
-            user_id=scheduled_search.user_id,
-            name=scheduled_search.name,
-            description=scheduled_search.description,
-            capability=scheduled_search.capability,
-            target=scheduled_search.target,
-            config=scheduled_search.config or {},
-            schedule_type=scheduled_search.schedule_type,
-            cron_expression=scheduled_search.cron_expression,
-            timezone=scheduled_search.timezone,
-            enabled=scheduled_search.enabled,
-            last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-            next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-            run_count=scheduled_search.run_count or 0,
-            created_at=scheduled_search.created_at.isoformat(),
-            updated_at=scheduled_search.updated_at.isoformat()
-        )
+        return scheduled_search_to_response(scheduled_search)
     except HTTPException:
         raise
     except Exception as e:
@@ -425,24 +403,7 @@ async def disable_scheduled_search(
         
         logger.info(f"Disabled scheduled search '{scheduled_search.name}' for user {current_user.id}")
         
-        return ScheduledSearchResponse(
-            id=scheduled_search.id,
-            user_id=scheduled_search.user_id,
-            name=scheduled_search.name,
-            description=scheduled_search.description,
-            capability=scheduled_search.capability,
-            target=scheduled_search.target,
-            config=scheduled_search.config or {},
-            schedule_type=scheduled_search.schedule_type,
-            cron_expression=scheduled_search.cron_expression,
-            timezone=scheduled_search.timezone,
-            enabled=scheduled_search.enabled,
-            last_run_at=scheduled_search.last_run_at.isoformat() if scheduled_search.last_run_at else None,
-            next_run_at=scheduled_search.next_run_at.isoformat() if scheduled_search.next_run_at else None,
-            run_count=scheduled_search.run_count or 0,
-            created_at=scheduled_search.created_at.isoformat(),
-            updated_at=scheduled_search.updated_at.isoformat()
-        )
+        return scheduled_search_to_response(scheduled_search)
     except HTTPException:
         raise
     except Exception as e:
