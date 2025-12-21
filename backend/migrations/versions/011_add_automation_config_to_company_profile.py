@@ -44,3 +44,4 @@ def downgrade() -> None:
         if 'automation_config' in columns:
             op.drop_column('company_profiles', 'automation_config')
 
+

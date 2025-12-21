@@ -68,3 +68,4 @@ def downgrade() -> None:
                 pass
         op.drop_table('scheduled_searches')
 
+

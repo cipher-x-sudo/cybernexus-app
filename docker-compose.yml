@@ -5,6 +5,27 @@ services:
   # CORE SERVICES
   # ===========================================================================
   
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=cybernexus
+    restart: unless-stopped
+    networks:
+      - cybernexus-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Service
   backend:
     build:
       context: ./backend
@@ -18,12 +39,17 @@ services:
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/cybernexus
       - TOR_PROXY_HOST=tor-proxy
       - TOR_PROXY_PORT=9050
+      - TOR_PROXY_TYPE=socks5h
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - CORS_ORIGINS=*
     depends_on:
-      - redis
-      - tor-proxy
+      postgres:
+        condition: service_healthy
+      tor-proxy:
+        condition: service_started
     restart: unless-stopped
     networks:
       - cybernexus-network
@@ -32,7 +58,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
+  # Frontend Web Application
   frontend:
     build:
       context: ./frontend
@@ -46,27 +74,12 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - NODE_ENV=development
     depends_on:
       - backend
     restart: unless-stopped
     networks:
       - cybernexus-network
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
-    networks:
-      - cybernexus-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ===========================================================================
   # TOR PROXY SERVICE - For Dark Web Intelligence
@@ -122,9 +135,8 @@ services:
       - ./backend:/app
       - ./data:/app/data
       - tool-data:/app/tool_data
-      # Mount tool repositories for direct access
+      # Mount tool repositories for direct access (only existing tools)
       - ../espoofer:/tools/espoofer:ro
-      - ../freshonions-torscraper:/tools/freshonions:ro
       - ../VigilantOnion:/tools/vigilantonion:ro
       - ../oxdork:/tools/oxdork:ro
       - ../nginxpwner:/tools/nginxpwner:ro
@@ -133,13 +145,20 @@ services:
       - ../RDPassSpray:/tools/rdpassspray:ro
     environment:
       - ENVIRONMENT=development
-      - REDIS_URL=redis://redis:6379
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/cybernexus
       - TOR_PROXY_HOST=tor-proxy
       - TOR_PROXY_PORT=9050
+      - TOR_PROXY_TYPE=socks5h
       - WORKER_CONCURRENCY=4
+      - SECRET_KEY=your-super-secret-key-change-in-production
     depends_on:
-      - redis
-      - tor-proxy
+      postgres:
+        condition: service_healthy
+      tor-proxy:
+        condition: service_started
+      backend:
+        condition: service_started
     restart: unless-stopped
     networks:
       - cybernexus-network
@@ -200,7 +219,9 @@ networks:
 # ===========================================================================
 
 volumes:
-  data:
-  redis-data:
+  postgres-data:
+    driver: local
   tool-data:
+    driver: local
   es-data:
+    driver: local

@@ -91,3 +91,4 @@ def downgrade() -> None:
         if 'capabilities' in columns:
             op.drop_column('scheduled_searches', 'capabilities')
 
+
