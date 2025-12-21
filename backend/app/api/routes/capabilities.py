@@ -502,6 +502,46 @@ async def get_job_history(
     return result
 
 
+@router.get("/jobs/recent", response_model=List[JobResponse])
+async def get_recent_jobs(
+    limit: int = Query(default=5, ge=1, le=50, description="Number of recent jobs to return"),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Get recent jobs for the current user.
+    Returns the most recently created jobs, ordered by creation date descending.
+    """
+    # Query from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    jobs = await storage.list_jobs(limit=limit, offset=0)
+    
+    # Get findings count for each job from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    
+    result = []
+    for job in jobs:
+        # Get findings count for this job
+        findings = await finding_storage.get_findings_for_job(job.id)
+        findings_count = len(findings)
+        
+        result.append(JobResponse(
+            id=job.id,
+            capability=job.capability.value,
+            target=job.target,
+            status=job.status.value,
+            progress=job.progress,
+            created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            findings_count=findings_count,
+            error=job.error
+        ))
+    
+    return result
+
+
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: str,
@@ -852,13 +892,14 @@ async def list_findings(
     severity: Optional[str] = None,
     target: Optional[str] = None,
     min_risk_score: float = Query(default=0, ge=0, le=100),
-    limit: int = Query(default=100, le=500)
+    limit: int = Query(default=100, le=500),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
 ):
     """
     List all findings with optional filtering.
+    Queries from database, filtered by current user.
     """
-    orchestrator = get_orchestrator()
-    
     # Parse capability filter
     cap_filter = None
     if capability:
@@ -867,7 +908,10 @@ async def list_findings(
         except ValueError:
             pass
     
-    findings = orchestrator.get_findings(
+    # Query from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    findings = await finding_storage.get_findings(
         capability=cap_filter,
         severity=severity,
         target=target,
@@ -892,13 +936,52 @@ async def list_findings(
     ]
 
 
+@router.get("/findings/{finding_id}", response_model=FindingResponse)
+async def get_finding(
+    finding_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Get a single finding by ID.
+    Queries from database, ensures user can only access their own findings.
+    """
+    # Query from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    finding = await finding_storage.get_finding(finding_id)
+    
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    
+    return FindingResponse(
+        id=finding.id,
+        capability=finding.capability.value,
+        severity=finding.severity,
+        title=finding.title,
+        description=finding.description,
+        evidence=finding.evidence,
+        affected_assets=finding.affected_assets,
+        recommendations=finding.recommendations,
+        discovered_at=finding.discovered_at.isoformat(),
+        risk_score=finding.risk_score
+    )
+
+
 @router.get("/findings/critical", response_model=List[FindingResponse])
-async def get_critical_findings(limit: int = Query(default=10, le=50)):
+async def get_critical_findings(
+    limit: int = Query(default=10, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
     """
     Get critical and high severity findings that need immediate attention.
+    Queries from database, filtered by current user.
     """
-    orchestrator = get_orchestrator()
-    findings = orchestrator.get_critical_findings(limit=limit)
+    # Query from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    findings = await finding_storage.get_critical_findings(limit=limit)
     
     return [
         FindingResponse(
