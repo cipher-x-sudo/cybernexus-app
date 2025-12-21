@@ -217,7 +217,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => handleRunNow(search.id)}
                       className="w-full"
-                      variant="default"
+                      variant="secondary"
                     >
                       Run Now
                     </GlassButton>
@@ -226,7 +226,7 @@ export default function AutomationPage() {
                         size="sm"
                         onClick={() => handleDisable(search.id)}
                         className="w-full"
-                        variant="default"
+                        variant="secondary"
                       >
                         Disable
                       </GlassButton>
@@ -235,7 +235,7 @@ export default function AutomationPage() {
                         size="sm"
                         onClick={() => handleEnable(search.id)}
                         className="w-full"
-                        variant="default"
+                        variant="secondary"
                       >
                         Enable
                       </GlassButton>
@@ -244,7 +244,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => setSelectedSearch(selectedSearch === search.id ? null : search.id)}
                       className="w-full"
-                      variant="default"
+                      variant="secondary"
                     >
                       {selectedSearch === search.id ? "Hide History" : "View History"}
                     </GlassButton>
@@ -252,7 +252,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => handleDelete(search.id)}
                       className="w-full text-red-400 hover:text-red-300"
-                      variant="default"
+                      variant="secondary"
                     >
                       Delete
                     </GlassButton>
