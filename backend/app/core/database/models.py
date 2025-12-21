@@ -43,6 +43,7 @@ class User(Base):
     company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")
+    scheduled_searches = relationship("ScheduledSearch", back_populates="user", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index('idx_user_username', 'username'),
@@ -315,4 +316,35 @@ class Job(Base):
         Index('idx_job_user_capability', 'user_id', 'capability'),
         Index('idx_job_user_created', 'user_id', 'created_at'),
         Index('idx_job_status_created', 'status', 'created_at'),
+    )
+
+
+class ScheduledSearch(Base):
+    """Scheduled search model for automated recurring searches."""
+    __tablename__ = "scheduled_searches"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    capability = Column(String(50), nullable=False, index=True)  # exposure_discovery, dark_web_intelligence, email_security, infrastructure_testing
+    target = Column(String(500), nullable=False)  # Domain, keywords, URL, etc.
+    config = Column(JSONB, default=dict, nullable=True)  # Capability-specific configuration
+    schedule_type = Column(String(20), nullable=False, default="cron")  # cron, interval, date
+    cron_expression = Column(String(100), nullable=True)  # e.g., "0 9 * * *" for daily at 9 AM
+    timezone = Column(String(50), default="UTC", nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
+    next_run_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    run_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="scheduled_searches")
+    
+    __table_args__ = (
+        Index('idx_scheduled_search_user_enabled', 'user_id', 'enabled'),
+        Index('idx_scheduled_search_user_capability', 'user_id', 'capability'),
+        Index('idx_scheduled_search_next_run', 'next_run_at'),
     )

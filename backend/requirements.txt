@@ -58,6 +58,8 @@ packaging==24.0
 
 # Scheduling
 apscheduler==3.10.4
+croniter==2.0.1
+pytz==2024.1
 
 # Browser Automation & Investigation
 playwright==1.40.0

@@ -16,7 +16,7 @@ import sys
 import time
 
 from app.config import settings, init_directories
-from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws, notifications
+from app.api.routes import auth, entities, graph, threats, timeline, reports, websocket, capabilities, company, darkweb, dashboard, network, network_ws, notifications, scheduled_searches
 from app.utils import check_tor_connectivity
 from app.utils.tor_status_cache import get_tor_status_cache
 from app.middleware.network_blocker import NetworkBlockerMiddleware
@@ -128,6 +128,17 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing custom DSA structures...")
     # TODO: Initialize graph, indices, etc.
     
+    # Initialize scheduler service
+    logger.info("Initializing scheduler service...")
+    try:
+        from app.services.scheduler import get_scheduler_service
+        scheduler = get_scheduler_service()
+        await scheduler.initialize()
+        logger.info("Scheduler service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize scheduler service: {e}", exc_info=True)
+        # Don't fail startup if scheduler fails - it's not critical
+    
     logger.info(f"{settings.APP_NAME} is ready!")
     
     yield
@@ -139,6 +150,15 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     logger.info("Tor status cache background task stopped")
+    
+    # Shutdown scheduler service
+    try:
+        from app.services.scheduler import get_scheduler_service
+        scheduler = get_scheduler_service()
+        await scheduler.shutdown()
+        logger.info("Scheduler service shut down")
+    except Exception as e:
+        logger.warning(f"Error shutting down scheduler service: {e}")
     
     # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
@@ -488,6 +508,7 @@ app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
 app.include_router(network.router, prefix="/api/v1/network", tags=["Network Monitoring"])
 app.include_router(network_ws.router, prefix="/api/v1/network", tags=["Network WebSocket"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
+app.include_router(scheduled_searches.router, prefix="/api/v1/scheduled-searches", tags=["Scheduled Searches"])
 
 
 @app.get("/", tags=["Health"])
