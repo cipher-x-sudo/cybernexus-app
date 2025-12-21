@@ -23,9 +23,11 @@ export default function JobDetailsPage() {
         setLoading(true);
         const jobData = await api.getJobDetails(jobId);
         // Normalize capability field: convert capability (singular) to capabilities (array)
+        // Backend may return 'capability' (singular) but frontend expects 'capabilities' (array)
+        const jobDataAny = jobData as any;
         const normalizedJob = {
           ...jobData,
-          capabilities: jobData.capabilities || (jobData.capability ? [jobData.capability] : []),
+          capabilities: jobData.capabilities || (jobDataAny.capability ? [jobDataAny.capability] : []),
         };
         setJob(normalizedJob as JobDetail);
         
