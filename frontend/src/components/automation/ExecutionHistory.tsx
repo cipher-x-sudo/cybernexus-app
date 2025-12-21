@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { GlassCard, StatusBadge } from "@/components/ui";
+import { GlassCard, Badge } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -73,16 +73,17 @@ export default function ExecutionHistory({ scheduledSearchId }: ExecutionHistory
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <StatusBadge
-                    status={
+                  <Badge
+                    variant={
                       item.status === "completed"
-                        ? "active"
+                        ? "success"
                         : item.status === "failed"
-                        ? "inactive"
-                        : "pending"
+                        ? "critical"
+                        : "info"
                     }
-                    label={item.status}
-                  />
+                  >
+                    {item.status}
+                  </Badge>
                   <span className="text-sm text-gray-400 font-mono">
                     {item.job_id.slice(0, 8)}...
                   </span>

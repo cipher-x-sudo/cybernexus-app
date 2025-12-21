@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { GlassCard, GlassButton, Badge, StatusBadge } from "@/components/ui";
+import { GlassCard, GlassButton, Badge } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import ScheduledSearchForm from "@/components/automation/ScheduledSearchForm";
@@ -164,11 +164,10 @@ export default function AutomationPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-xl font-semibold text-white">{search.name}</h3>
-                      <StatusBadge
-                        status={search.enabled ? "active" : "inactive"}
-                        label={search.enabled ? "Enabled" : "Disabled"}
-                      />
-                      <Badge variant="secondary">
+                      <Badge variant={search.enabled ? "success" : "default"}>
+                        {search.enabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                      <Badge variant="info">
                         {capabilityNames[search.capability] || search.capability}
                       </Badge>
                     </div>
@@ -218,7 +217,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => handleRunNow(search.id)}
                       className="w-full"
-                      variant="secondary"
+                      variant="default"
                     >
                       Run Now
                     </GlassButton>
@@ -227,7 +226,7 @@ export default function AutomationPage() {
                         size="sm"
                         onClick={() => handleDisable(search.id)}
                         className="w-full"
-                        variant="secondary"
+                        variant="default"
                       >
                         Disable
                       </GlassButton>
@@ -236,7 +235,7 @@ export default function AutomationPage() {
                         size="sm"
                         onClick={() => handleEnable(search.id)}
                         className="w-full"
-                        variant="secondary"
+                        variant="default"
                       >
                         Enable
                       </GlassButton>
@@ -245,7 +244,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => setSelectedSearch(selectedSearch === search.id ? null : search.id)}
                       className="w-full"
-                      variant="secondary"
+                      variant="default"
                     >
                       {selectedSearch === search.id ? "Hide History" : "View History"}
                     </GlassButton>
@@ -253,7 +252,7 @@ export default function AutomationPage() {
                       size="sm"
                       onClick={() => handleDelete(search.id)}
                       className="w-full text-red-400 hover:text-red-300"
-                      variant="secondary"
+                      variant="default"
                     >
                       Delete
                     </GlassButton>
