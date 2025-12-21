@@ -115,7 +115,8 @@ class DBFindingStorage:
         severity: Optional[str] = None,
         target: Optional[str] = None,
         min_risk_score: float = 0.0,
-        limit: int = 100
+        limit: int = 100,
+        status_filter: Optional[str] = None
     ) -> List[FindingDataclass]:
         """
         Get findings with filtering.
@@ -126,6 +127,7 @@ class DBFindingStorage:
             target: Filter by target
             min_risk_score: Minimum risk score
             limit: Maximum results
+            status_filter: Filter by status (e.g., 'active' to exclude resolved)
             
         Returns:
             List of finding dataclass instances
@@ -147,6 +149,18 @@ class DBFindingStorage:
             conditions.append(Finding.target == target)
         if min_risk_score > 0:
             conditions.append(Finding.risk_score >= min_risk_score)
+        
+        # Filter by status (default to only active/unresolved)
+        if status_filter:
+            conditions.append(Finding.status == status_filter)
+        else:
+            # Default: only show active findings (exclude resolved)
+            conditions.append(
+                or_(
+                    Finding.status == "active",
+                    Finding.status.is_(None)
+                )
+            )
         
         if conditions:
             query = query.where(and_(*conditions))

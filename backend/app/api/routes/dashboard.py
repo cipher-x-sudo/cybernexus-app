@@ -139,12 +139,12 @@ async def get_dashboard_overview(
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
         
-        # Get all findings from database
+        # Get all findings from database (only active/unresolved)
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        # get_findings now filters by status='active' by default, so we get only unresolved findings
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Filter to only active findings (not resolved)
-        active_findings = [f for f in all_findings if getattr(f, 'status', 'active') == 'active']
+        # Convert to dict format (findings are already filtered to active only)
         findings_data = [{
             "id": f.id,
             "title": f.title,
@@ -154,7 +154,7 @@ async def get_dashboard_overview(
             "risk_score": f.risk_score,
             "status": getattr(f, 'status', 'active'),
             "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now(timezone.utc).isoformat()
-        } for f in active_findings]
+        } for f in all_findings]
         
         # Get resolved findings count
         resolved_findings = await finding_storage.get_resolved_findings()
@@ -384,12 +384,13 @@ async def get_risk_breakdown(
     - Recommendations
     """
     try:
-        # Get all findings from database
+        # Get all findings from database (only active/unresolved)
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        # get_findings now filters by status='active' by default, so we get only unresolved findings
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Filter to only active findings
-        active_findings = [f for f in all_findings if getattr(f, 'status', 'active') == 'active']
+        # Convert to list (findings are already filtered to active only)
+        active_findings = list(all_findings)
         
         if not active_findings and not all_findings:
             return {
