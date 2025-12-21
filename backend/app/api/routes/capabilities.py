@@ -674,7 +674,6 @@ async def get_job_findings(
         
         # Convert database findings to Finding objects for compatibility
         from app.services.orchestrator import Finding
-        from app.core.models import Capability
         from datetime import datetime
         
         filtered_findings = []
@@ -682,9 +681,10 @@ async def get_job_findings(
             # Parse discovered_at
             discovered_at = db_f.discovered_at if isinstance(db_f.discovered_at, datetime) else datetime.fromisoformat(db_f.discovered_at.replace('Z', '+00:00'))
             
+            # db_f.capability is already a Capability enum from FindingDataclass
             finding = Finding(
                 id=db_f.id,
-                capability=Capability(db_f.capability),
+                capability=db_f.capability,
                 severity=db_f.severity,
                 title=db_f.title,
                 description=db_f.description or "",
