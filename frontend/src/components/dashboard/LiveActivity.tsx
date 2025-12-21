@@ -52,7 +52,17 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
         const { api } = await import("@/lib/api");
         const response = await api.getCapabilityEvents(20);
         if (response.events && response.events.length > 0) {
-          setEvents(mapEventsToActivity(response.events));
+          // Filter to only job-related events (not findings/results)
+          const jobEvents = response.events.filter((event: any) => {
+            const type = event.type || "";
+            return type === "job_started" || 
+                   type === "job_completed" || 
+                   type === "job_created" ||
+                   type === "scan_started" ||
+                   type === "scan_completed" ||
+                   type === "scan_queued";
+          });
+          setEvents(mapEventsToActivity(jobEvents));
         } else {
           // Clear events if no events returned
           setEvents([]);

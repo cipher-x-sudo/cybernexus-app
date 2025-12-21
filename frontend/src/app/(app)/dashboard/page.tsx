@@ -91,18 +91,49 @@ export default function DashboardPage() {
         setCriticalFindings(findingsResponse.findings || []);
 
         // Fetch timeline events for Live Activity (preferred over dashboard overview events)
+        // Only show job lifecycle events, not findings/results
         try {
           const timelineEvents = await api.getRecentTimelineEvents(20);
           if (timelineEvents && timelineEvents.length > 0) {
-            setRecentEvents(timelineEvents);
+            // Filter to only job-related events
+            const jobEvents = timelineEvents.filter((event: any) => {
+              const type = event.type || "";
+              return type === "job_started" || 
+                     type === "job_completed" || 
+                     type === "job_created" ||
+                     type === "scan_started" ||
+                     type === "scan_completed" ||
+                     type === "scan_queued";
+            });
+            setRecentEvents(jobEvents);
           } else {
-            // Fallback to dashboard overview events
-            setRecentEvents(overview.recent_events || []);
+            // Fallback to dashboard overview events - also filter for job events only
+            const allEvents = overview.recent_events || [];
+            const jobEvents = allEvents.filter((event: any) => {
+              const type = event.type || "";
+              return type === "job_started" || 
+                     type === "job_completed" || 
+                     type === "job_created" ||
+                     type === "scan_started" ||
+                     type === "scan_completed" ||
+                     type === "scan_queued";
+            });
+            setRecentEvents(jobEvents);
           }
         } catch (timelineErr) {
           console.error("Error fetching timeline events:", timelineErr);
-          // Fallback to dashboard overview events
-          setRecentEvents(overview.recent_events || []);
+          // Fallback to dashboard overview events - also filter for job events only
+          const allEvents = overview.recent_events || [];
+          const jobEvents = allEvents.filter((event: any) => {
+            const type = event.type || "";
+            return type === "job_started" || 
+                   type === "job_completed" || 
+                   type === "job_created" ||
+                   type === "scan_started" ||
+                   type === "scan_completed" ||
+                   type === "scan_queued";
+          });
+          setRecentEvents(jobEvents);
         }
 
         // Fetch timeline events or all findings for chart
