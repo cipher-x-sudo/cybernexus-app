@@ -132,7 +132,7 @@ export default function AutomationConfigStep({
       }
     });
 
-    return [...new Set(targets)]; // Remove duplicates
+    return Array.from(new Set(targets)); // Remove duplicates
   };
 
   const toggleCapability = (capabilityId: string, enabled: boolean) => {
