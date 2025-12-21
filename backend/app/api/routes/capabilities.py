@@ -15,7 +15,7 @@ Capabilities:
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -31,6 +31,9 @@ from app.services.orchestrator import (
     JobPriority
 )
 from app.services.risk_engine import get_risk_engine
+from app.api.routes.auth import get_current_active_user, User
+from app.core.database.database import get_db
+from app.core.database.job_storage import DBJobStorage
 
 
 router = APIRouter()
@@ -180,7 +183,7 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
                 try:
                     # Execute the job
                     await orchestrator_instance.execute_job(job_id)
-                finally:
+        finally:
                     # Clean up thread-local database engine
                     await close_db()
             
@@ -202,7 +205,10 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
 
 
 @router.post("/jobs", response_model=JobResponse)
-async def create_job(request: JobCreateRequest):
+async def create_job(
+    request: JobCreateRequest,
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Create and start a capability job.
     
@@ -220,7 +226,7 @@ async def create_job(request: JobCreateRequest):
         logger.info(
             f"[API] [create_job] Request received - capability={request.capability}, "
             f"target={request.target}, priority={request.priority}, "
-            f"config={request.config}"
+            f"config={request.config}, user_id={current_user.id}"
         )
         orchestrator = get_orchestrator()
         
@@ -252,14 +258,15 @@ async def create_job(request: JobCreateRequest):
         priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
         logger.debug(f"[API] [create_job] Mapped priority: {request.priority} -> {priority.value}")
         
-        # Create job
+        # Create job with user_id
         job_creation_start = time.time()
         try:
             job = await orchestrator.create_job(
                 capability=capability,
                 target=request.target,
                 config=request.config,
-                priority=priority
+                priority=priority,
+                user_id=current_user.id
             )
             job_creation_time = time.time() - job_creation_start
             logger.info(
@@ -350,17 +357,17 @@ async def create_job(request: JobCreateRequest):
 async def list_jobs(
     capability: Optional[str] = None,
     status: Optional[str] = None,
-    limit: int = Query(default=50, le=200)
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
 ):
     """
-    List jobs with optional filtering from database.
+    List jobs with optional filtering.
+    Queries jobs from database, filtered by current user.
     """
-    from app.core.database.database import init_db, _async_session_maker
-    from app.core.database.job_storage import DBJobStorage
-    
-    # Ensure database is initialized
-    init_db()
-    
     # Parse filters
     cap_filter = None
     if capability:
@@ -376,79 +383,79 @@ async def list_jobs(
         except ValueError:
             pass
     
-    # Query jobs from database
-    async with _async_session_maker() as db:
+    # Parse date filters
+    start_date_obj = None
+    end_date_obj = None
+    if start_date:
         try:
-            # Use admin access to get all jobs (no user_id filtering)
-            storage = DBJobStorage(db, user_id=None, is_admin=True)
-            db_jobs = await storage.list_jobs(
-                capability=cap_filter,
-                status=status_filter,
-                limit=limit,
-                offset=0
-            )
-            
-            # Convert database jobs to response format
-            jobs_response = []
-            for db_job in db_jobs:
-                # Get findings count from database (query as admin to get all findings for the job)
-                from app.core.database.finding_storage import DBFindingStorage
-                finding_storage = DBFindingStorage(db, user_id=None, is_admin=True)
-                findings = await finding_storage.get_findings_for_job(db_job.id)
-                findings_count = len(findings)
-                
-                jobs_response.append(
-                    JobResponse(
-                        id=db_job.id,
-                        capability=db_job.capability.value,
-                        target=db_job.target,
-                        status=db_job.status.value,
-                        progress=db_job.progress,
-                        created_at=db_job.created_at.isoformat(),
-                        started_at=db_job.started_at.isoformat() if db_job.started_at else None,
-                        completed_at=db_job.completed_at.isoformat() if db_job.completed_at else None,
-                        findings_count=findings_count,
-                        error=db_job.error
-                    )
-                )
-            
-            return jobs_response
-        except Exception as e:
-            logger.error(f"Failed to list jobs from database: {e}", exc_info=True)
-            # Fallback to in-memory jobs if database query fails
-            orchestrator = get_orchestrator()
-            jobs = orchestrator.get_jobs(
-                capability=cap_filter,
-                status=status_filter,
-                limit=limit
-            )
-            return [
-                JobResponse(
-                    id=job.id,
-                    capability=job.capability.value,
-                    target=job.target,
-                    status=job.status.value,
-                    progress=job.progress,
-                    created_at=job.created_at.isoformat(),
-                    started_at=job.started_at.isoformat() if job.started_at else None,
-                    completed_at=job.completed_at.isoformat() if job.completed_at else None,
-                    findings_count=len(job.findings),
-                    error=job.error
-                )
-                for job in jobs
-            ]
+            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
+    if end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
+    
+    # Query from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    jobs = await storage.list_jobs(
+        capability=cap_filter,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+        start_date=start_date_obj,
+        end_date=end_date_obj
+    )
+    
+    # Get findings count for each job from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    
+    result = []
+    for job in jobs:
+        # Get findings count for this job
+        findings = await finding_storage.get_findings_for_job(job.id)
+        findings_count = len(findings)
+        
+        result.append(JobResponse(
+            id=job.id,
+            capability=job.capability.value,
+            target=job.target,
+            status=job.status.value,
+            progress=job.progress,
+            created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            findings_count=findings_count,
+            error=job.error
+        ))
+    
+    return result
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
-async def get_job(job_id: str):
+async def get_job(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
     """
     Get job status and details.
+    Queries job from database, ensures user can only access their own jobs.
     """
-    orchestrator = get_orchestrator()
-    job = orchestrator.get_job(job_id)
+    # Query from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    job = await storage.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get findings count for this job from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    findings = await finding_storage.get_findings_for_job(job_id)
+    findings_count = len(findings)
     
     return JobResponse(
         id=job.id,
@@ -459,7 +466,7 @@ async def get_job(job_id: str):
         created_at=job.created_at.isoformat(),
         started_at=job.started_at.isoformat() if job.started_at else None,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        findings_count=len(job.findings),
+        findings_count=findings_count,
         error=job.error
     )
 

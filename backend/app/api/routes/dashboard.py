@@ -6,11 +6,15 @@ Provides aggregated data for the main dashboard overview.
 
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from loguru import logger
 
 from app.services.orchestrator import get_orchestrator, Capability, JobStatus
 from app.services.risk_engine import get_risk_engine
+from app.api.routes.auth import get_current_active_user, User
+from app.core.database.database import get_db
+from app.core.database.job_storage import DBJobStorage
+from app.core.database.finding_storage import DBFindingStorage
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -88,7 +92,10 @@ def calculate_trend(current_score: int, previous_score: Optional[int]) -> str:
 
 
 @router.get("/overview")
-async def get_dashboard_overview():
+async def get_dashboard_overview(
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
     """
     Get comprehensive dashboard overview data.
     
@@ -103,9 +110,18 @@ async def get_dashboard_overview():
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
         
-        # Get all findings
-        all_findings = orchestrator.get_findings(limit=1000)
-        findings_data = [f.to_dict() for f in all_findings]
+        # Get all findings from database
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        all_findings = await finding_storage.get_findings(limit=1000)
+        findings_data = [{
+            "id": f.id,
+            "title": f.title,
+            "severity": f.severity,
+            "capability": f.capability.value,
+            "target": f.target,
+            "risk_score": f.risk_score,
+            "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now().isoformat()
+        } for f in all_findings]
         
         # Calculate risk score
         risk_data = calculate_risk_score(findings_data)
@@ -114,11 +130,11 @@ async def get_dashboard_overview():
         critical_findings = [f for f in findings_data if f.get("severity") in ["critical", "high"]]
         critical_findings = sorted(critical_findings, key=lambda x: x.get("risk_score", 0), reverse=True)[:10]
         
-        # Get recent jobs (last 10)
-        recent_jobs = orchestrator.get_jobs(limit=10)
+        # Get recent jobs from database (last 10)
+        job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        recent_jobs = await job_storage.list_jobs(limit=10, offset=0)
         jobs_data = []
         for job in recent_jobs:
-            job_dict = job.to_dict()
             # Calculate time ago
             if job.completed_at:
                 time_diff = datetime.now() - job.completed_at
@@ -134,8 +150,9 @@ async def get_dashboard_overview():
             else:
                 time_ago = "Just created"
             
-            # Get findings count
-            findings_count = len(job.findings) if hasattr(job, 'findings') and job.findings else 0
+            # Get findings count from database
+            findings = await finding_storage.get_findings_for_job(job.id)
+            findings_count = len(findings)
             
             jobs_data.append({
                 "id": job.id,
@@ -152,14 +169,17 @@ async def get_dashboard_overview():
         # Get recent events
         recent_events = orchestrator.get_recent_events(limit=20)
         
-        # Get orchestrator stats
+        # Get orchestrator stats (for total counts, still use orchestrator)
         stats = orchestrator.get_stats()
         
-        # Calculate capability statistics
+        # Get total jobs count from database
+        total_jobs_count = await job_storage.count_jobs()
+        
+        # Calculate capability statistics from database
         capability_stats = {}
         for capability in Capability:
-            cap_jobs = orchestrator.get_jobs(capability=capability, limit=100)
-            cap_findings = orchestrator.get_findings(capability=capability, limit=100)
+            cap_jobs = await job_storage.list_jobs(capability=capability, limit=100)
+            cap_findings = await finding_storage.get_findings(capability=capability, limit=100)
             
             # Find last run time
             last_run = None
@@ -214,7 +234,7 @@ async def get_dashboard_overview():
             "trend": trend,
             "critical_findings_count": risk_data["critical_count"],
             "high_findings_count": risk_data["high_count"],
-            "total_jobs": stats.get("total_jobs", 0),
+            "total_jobs": total_jobs_count,
             "active_jobs": len([j for j in recent_jobs if j.status == JobStatus.RUNNING]),
             "recent_jobs": jobs_data,
             "recent_events": recent_events,
@@ -243,14 +263,18 @@ def _is_within_24h(timestamp_str: str) -> bool:
 
 @router.get("/critical-findings")
 async def get_critical_findings(
-    limit: int = Query(default=10, ge=1, le=50)
+    limit: int = Query(default=10, ge=1, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
 ):
     """
     Get critical and high severity findings for dashboard.
+    Queries from database, filtered by current user.
     """
     try:
-        orchestrator = get_orchestrator()
-        findings = orchestrator.get_critical_findings(limit=limit)
+        # Get critical findings from database
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        findings = await finding_storage.get_critical_findings(limit=limit)
         
         findings_data = []
         for finding in findings:
