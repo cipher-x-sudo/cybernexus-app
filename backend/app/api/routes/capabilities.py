@@ -81,6 +81,15 @@ class JobResponse(BaseModel):
     execution_logs: Optional[List[Dict[str, Any]]] = None
 
 
+class JobHistoryResponse(BaseModel):
+    """Job history response with pagination"""
+    jobs: List[JobResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class FindingResponse(BaseModel):
     """Security finding"""
     id: str
@@ -438,12 +447,14 @@ async def list_jobs(
     return result
 
 
-@router.get("/jobs/history", response_model=List[JobResponse])
+@router.get("/jobs/history", response_model=JobHistoryResponse)
 async def get_job_history(
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(default=20, ge=1, le=200, description="Number of jobs per page"),
     capability: Optional[str] = None,
     status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
@@ -471,13 +482,39 @@ async def get_job_history(
         except ValueError:
             pass
     
+    # Parse date filters
+    start_date_obj = None
+    end_date_obj = None
+    if start_date:
+        try:
+            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
+    if end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            pass
+    
     # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    
+    # Get total count for pagination
+    total_count = await storage.count_jobs(
+        capability=cap_filter,
+        status=status_filter,
+        start_date=start_date_obj,
+        end_date=end_date_obj
+    )
+    
+    # Get jobs
     jobs = await storage.list_jobs(
         capability=cap_filter,
         status=status_filter,
         limit=limit,
-        offset=offset
+        offset=offset,
+        start_date=start_date_obj,
+        end_date=end_date_obj
     )
     
     # Get findings count for each job from database
@@ -500,10 +537,23 @@ async def get_job_history(
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
             findings_count=findings_count,
-            error=job.error
+            error=job.error,
+            priority=job.priority.value if hasattr(job.priority, 'value') else job.priority,
+            config=job.config or {},
+            metadata=job.metadata or {},
+            execution_logs=job.execution_logs or []
         ))
     
-    return result
+    # Calculate total pages
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+    
+    return JobHistoryResponse(
+        jobs=result,
+        total=total_count,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
 
 
 @router.get("/jobs/recent")
