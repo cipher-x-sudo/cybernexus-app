@@ -308,6 +308,40 @@ class Orchestrator:
         
         logger.info("Orchestrator initialized with real collectors (PostgreSQL storage)")
     
+    async def _save_job_to_db(self, job: Job, user_id: Optional[str] = None):
+        """
+        Save or update a job in the database.
+        
+        Args:
+            job: Job to save
+            user_id: User ID (extracted from job metadata if not provided)
+        """
+        try:
+            from app.core.database.database import init_db, _async_session_maker
+            from app.core.database.job_storage import DBJobStorage
+            
+            # Get user_id from job metadata or parameter
+            owner_id = user_id or (job.metadata.get("user_id") if job.metadata else None)
+            if not owner_id:
+                # Skip if no user_id available
+                return
+            
+            # Ensure database is initialized
+            init_db()
+            
+            if _async_session_maker:
+                async with _async_session_maker() as db:
+                    try:
+                        storage = DBJobStorage(db, user_id=owner_id, is_admin=False)
+                        await storage.save_job(job, user_id=owner_id)
+                        await db.commit()
+                        logger.debug(f"Saved job {job.id} to database")
+                    except Exception as e:
+                        await db.rollback()
+                        logger.warning(f"Failed to save job {job.id} to database: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize database storage for job {job.id}: {e}")
+    
     def register_tool_executor(self, tool_name: str, executor: Any):
         """Register a tool executor function for a specific tool"""
         self._tool_executors[tool_name] = executor
@@ -414,6 +448,9 @@ class Orchestrator:
         
         self._stats["total_jobs"] += 1
         
+        # Save to database
+        await self._save_job_to_db(job, user_id=user_id)
+        
         # Add event
         self._add_event("job_created", {
             "job_id": job_id,
@@ -436,6 +473,9 @@ class Orchestrator:
             # Update status
             self._update_job_status(job, JobStatus.RUNNING)
             job.started_at = datetime.now()
+            
+            # Save to database
+            await self._save_job_to_db(job)
             
             self._add_event("job_started", {
                 "job_id": job_id,
@@ -534,6 +574,9 @@ class Orchestrator:
             job.completed_at = datetime.now()
             job.progress = 100
             
+            # Save to database
+            await self._save_job_to_db(job)
+            
             # Create notification for job completion
             if user_id:
                 try:
@@ -599,6 +642,9 @@ class Orchestrator:
             self._update_job_status(job, JobStatus.FAILED)
             job.error = str(e)
             self._stats["failed_jobs"] += 1
+            
+            # Save to database
+            await self._save_job_to_db(job)
             
             self._add_event("job_failed", {
                 "job_id": job_id,

@@ -34,7 +34,10 @@ from app.services.risk_engine import get_risk_engine
 from app.api.routes.auth import get_current_active_user, User, is_admin
 from app.core.database.database import get_db
 from app.core.database.finding_storage import DBFindingStorage
+from app.core.database.job_storage import DBJobStorage
+from app.core.database.models import Job as JobModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from fastapi import Depends
 
 
@@ -77,6 +80,33 @@ class JobResponse(BaseModel):
     completed_at: Optional[str]
     findings_count: int
     error: Optional[str]
+
+
+class JobDetailResponse(BaseModel):
+    """Detailed job information with all fields"""
+    id: str
+    capability: str
+    target: str
+    status: str
+    priority: int
+    progress: int
+    config: Dict[str, Any]
+    metadata: Dict[str, Any]
+    created_at: str
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    findings_count: int
+    error: Optional[str]
+    execution_logs: List[Dict[str, Any]]
+
+
+class JobHistoryResponse(BaseModel):
+    """Paginated job history response"""
+    jobs: List[JobResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class FindingResponse(BaseModel):
@@ -339,13 +369,13 @@ async def create_job(
 async def list_jobs(
     capability: Optional[str] = None,
     status: Optional[str] = None,
-    limit: int = Query(default=50, le=200)
+    limit: int = Query(default=50, le=200),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    List jobs with optional filtering.
+    List jobs with optional filtering (from database).
     """
-    orchestrator = get_orchestrator()
-    
     # Parse filters
     cap_filter = None
     if capability:
@@ -361,14 +391,22 @@ async def list_jobs(
         except ValueError:
             pass
     
-    jobs = orchestrator.get_jobs(
+    # Query from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    jobs = await storage.list_jobs(
         capability=cap_filter,
         status=status_filter,
-        limit=limit
+        limit=limit,
+        offset=0
     )
     
-    return [
-        JobResponse(
+    # Get findings count for each job
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    result = []
+    for job in jobs:
+        # Get findings count from database
+        findings = await finding_storage.get_findings_for_job(job.id)
+        result.append(JobResponse(
             id=job.id,
             capability=job.capability.value,
             target=job.target,
@@ -377,35 +415,61 @@ async def list_jobs(
             created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            findings_count=len(job.findings),
+            findings_count=len(findings),
             error=job.error
-        )
-        for job in jobs
-    ]
+        ))
+    
+    return result
 
 
-@router.get("/jobs/{job_id}", response_model=JobResponse)
-async def get_job(job_id: str):
+@router.get("/jobs/{job_id}", response_model=JobDetailResponse)
+async def get_job(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get job status and details.
+    Get detailed job information including config, metadata, and execution logs.
     """
-    orchestrator = get_orchestrator()
-    job = orchestrator.get_job(job_id)
+    # Try database first
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    job = await storage.get_job(job_id)
+    
+    # Fallback to in-memory if not in database
+    if not job:
+        orchestrator = get_orchestrator()
+        job = orchestrator.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return JobResponse(
+    # Get findings count
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    findings = await finding_storage.get_findings_for_job(job_id)
+    
+    # Get execution logs from database if available
+    from app.core.database.models import Job as JobModel
+    result = await db.execute(
+        select(JobModel).where(JobModel.id == job_id)
+    )
+    db_job = result.scalar_one_or_none()
+    execution_logs = db_job.execution_logs if db_job and db_job.execution_logs else []
+    
+    return JobDetailResponse(
         id=job.id,
         capability=job.capability.value,
         target=job.target,
         status=job.status.value,
+        priority=job.priority.value,
         progress=job.progress,
+        config=job.config or {},
+        metadata=job.metadata or {},
         created_at=job.created_at.isoformat(),
         started_at=job.started_at.isoformat() if job.started_at else None,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        findings_count=len(job.findings),
-        error=job.error
+        findings_count=len(findings),
+        error=job.error,
+        execution_logs=execution_logs
     )
 
 
@@ -1088,16 +1152,24 @@ async def get_recent_events(limit: int = Query(default=50, le=200)):
 async def get_recent_jobs(
     limit: int = Query(default=10, ge=1, le=100),
     capability: Optional[Capability] = None,
-    status: Optional[JobStatus] = None
+    status: Optional[JobStatus] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Get recent jobs with optional filtering.
+    Get recent jobs with optional filtering (from database).
     
     Returns jobs with formatted timestamps and findings counts.
     """
-    orchestrator = get_orchestrator()
-    jobs = orchestrator.get_jobs(capability=capability, status=status, limit=limit)
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    jobs = await storage.list_jobs(
+        capability=capability,
+        status=status,
+        limit=limit,
+        offset=0
+    )
     
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
     jobs_data = []
     for job in jobs:
         # Calculate time ago
@@ -1115,8 +1187,9 @@ async def get_recent_jobs(
         else:
             time_ago = "Just created"
         
-        # Get findings count
-        findings_count = len(job.findings) if hasattr(job, 'findings') and job.findings else 0
+        # Get findings count from database
+        findings = await finding_storage.get_findings_for_job(job.id)
+        findings_count = len(findings)
         
         jobs_data.append({
             "id": job.id,
@@ -1129,13 +1202,201 @@ async def get_recent_jobs(
             "created_at": job.created_at.isoformat(),
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            "error": job.error if hasattr(job, 'error') and job.error else None
+            "error": job.error if job.error else None
         })
     
     return {
         "jobs": jobs_data,
         "count": len(jobs_data)
     }
+
+
+@router.get("/jobs/history", response_model=JobHistoryResponse)
+async def get_job_history(
+    capability: Optional[str] = Query(None, description="Filter by capability"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    start_date: Optional[str] = Query(None, description="Filter jobs created after this date (ISO format)"),
+    end_date: Optional[str] = Query(None, description="Filter jobs created before this date (ISO format)"),
+    page: int = Query(default=1, ge=1, description="Page number"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get paginated job history with filtering options.
+    """
+    # Parse filters
+    cap_filter = None
+    if capability:
+        try:
+            cap_filter = Capability(capability)
+        except ValueError:
+            pass
+    
+    status_filter = None
+    if status:
+        try:
+            status_filter = JobStatus(status)
+        except ValueError:
+            pass
+    
+    start_date_obj = None
+    if start_date:
+        try:
+            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+    
+    end_date_obj = None
+    if end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+    
+    # Calculate offset
+    offset = (page - 1) * page_size
+    
+    # Query database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    jobs = await storage.list_jobs(
+        capability=cap_filter,
+        status=status_filter,
+        limit=page_size,
+        offset=offset,
+        start_date=start_date_obj,
+        end_date=end_date_obj
+    )
+    
+    total = await storage.count_jobs(
+        capability=cap_filter,
+        status=status_filter,
+        start_date=start_date_obj,
+        end_date=end_date_obj
+    )
+    
+    # Get findings count for each job
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    job_responses = []
+    for job in jobs:
+        findings = await finding_storage.get_findings_for_job(job.id)
+        job_responses.append(JobResponse(
+            id=job.id,
+            capability=job.capability.value,
+            target=job.target,
+            status=job.status.value,
+            progress=job.progress,
+            created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            findings_count=len(findings),
+            error=job.error
+        ))
+    
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    
+    return JobHistoryResponse(
+        jobs=job_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
+
+
+@router.get("/jobs/{job_id}/export")
+async def export_job_results(
+    job_id: str,
+    format: str = Query(default="json", regex="^(json|csv)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export job results (job details + findings) in JSON or CSV format.
+    """
+    # Get job
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    job = await storage.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get findings
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+    findings = await finding_storage.get_findings_for_job(job_id)
+    
+    if format == "json":
+        # Export as JSON
+        export_data = {
+            "job": {
+                "id": job.id,
+                "capability": job.capability.value,
+                "target": job.target,
+                "status": job.status.value,
+                "priority": job.priority.value,
+                "progress": job.progress,
+                "config": job.config,
+                "metadata": job.metadata,
+                "created_at": job.created_at.isoformat(),
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "error": job.error
+            },
+            "findings": [f.to_dict() for f in findings],
+            "exported_at": datetime.now().isoformat()
+        }
+        
+        return Response(
+            content=json.dumps(export_data, indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="job_{job_id}_export.json"'
+            }
+        )
+    
+    elif format == "csv":
+        # Export as CSV
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write job info header
+        writer.writerow(["Job Information"])
+        writer.writerow(["ID", job.id])
+        writer.writerow(["Capability", job.capability.value])
+        writer.writerow(["Target", job.target])
+        writer.writerow(["Status", job.status.value])
+        writer.writerow(["Progress", job.progress])
+        writer.writerow(["Created At", job.created_at.isoformat()])
+        writer.writerow(["Started At", job.started_at.isoformat() if job.started_at else ""])
+        writer.writerow(["Completed At", job.completed_at.isoformat() if job.completed_at else ""])
+        writer.writerow([])
+        
+        # Write findings header
+        writer.writerow(["Findings"])
+        writer.writerow(["ID", "Severity", "Title", "Description", "Risk Score", "Discovered At", "Target"])
+        
+        # Write findings
+        for finding in findings:
+            writer.writerow([
+                finding.id,
+                finding.severity,
+                finding.title,
+                finding.description,
+                finding.risk_score,
+                finding.discovered_at.isoformat(),
+                finding.target
+            ])
+        
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="job_{job_id}_export.csv"'
+            }
+        )
 
 
 @router.get("/findings")

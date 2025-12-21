@@ -9,6 +9,7 @@ import {
   LiveActivity,
   MiniWorldMap,
   LineChart,
+  JobHistoryCard,
 } from "@/components/dashboard";
 import { api } from "@/lib/api";
 import { mapToRiskScore, mapToFindings, mapToJobs, mapToEvents, mapToCapabilityStats } from "@/lib/data-mappers";
@@ -249,50 +250,7 @@ export default function DashboardPage() {
       {/* Trends row */}
       <div className="grid lg:grid-cols-2 gap-6">
         <LineChart data={threatsOverTime.data} labels={threatsOverTime.labels} />
-        
-        {/* Recent Scans Summary */}
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="font-mono text-lg font-semibold text-white mb-4">Recent Assessments</h2>
-          <div className="space-y-3">
-            {recentJobs.length > 0 ? recentJobs.map((scan, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  {scan.status === "running" ? (
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm text-white font-medium">{scan.capability}</p>
-                    <p className="text-xs text-white/40 font-mono">{scan.target}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  {scan.status === "completed" && (
-                    <p className="text-sm font-mono text-amber-400">{scan.findings} findings</p>
-                  )}
-                  <p className="text-xs text-white/40">{scan.time}</p>
-                </div>
-              </div>
-            )) : (
-              <div className="py-8 text-center">
-                <p className="text-sm text-white/50 font-mono">No recent assessments</p>
-                <p className="text-xs text-white/30 mt-1">Start a scan to see results here</p>
-              </div>
-            )}
-          </div>
-        </GlassCard>
+        <JobHistoryCard limit={5} />
       </div>
     </div>
   );

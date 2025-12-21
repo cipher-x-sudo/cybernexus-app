@@ -98,6 +98,35 @@ export interface CapabilityJob {
   error: string | null;
 }
 
+export interface JobDetail extends CapabilityJob {
+  priority: number;
+  config: Record<string, any>;
+  metadata: Record<string, any>;
+  execution_logs: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+    data?: Record<string, any>;
+  }>;
+}
+
+export interface JobHistoryParams {
+  capability?: string;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface JobHistoryResponse {
+  jobs: CapabilityJob[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface CapabilityFinding {
   id: string;
   capability: string;
@@ -333,6 +362,40 @@ class ApiClient {
       }>;
       count: number;
     }>(`/capabilities/jobs/recent?${query}`);
+  }
+
+  async getJobHistory(params?: JobHistoryParams): Promise<JobHistoryResponse> {
+    const queryParams: Record<string, string> = {};
+    if (params?.capability) queryParams.capability = params.capability;
+    if (params?.status) queryParams.status = params.status;
+    if (params?.start_date) queryParams.start_date = params.start_date;
+    if (params?.end_date) queryParams.end_date = params.end_date;
+    if (params?.page) queryParams.page = params.page.toString();
+    if (params?.page_size) queryParams.page_size = params.page_size.toString();
+    
+    const query = new URLSearchParams(queryParams).toString();
+    return this.request<JobHistoryResponse>(`/capabilities/jobs/history?${query}`);
+  }
+
+  async getJobDetails(jobId: string): Promise<JobDetail> {
+    return this.request<JobDetail>(`/capabilities/jobs/${jobId}`);
+  }
+
+  async exportJobResults(jobId: string, format: "json" | "csv" = "json"): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/capabilities/jobs/${jobId}/export?format=${format}`, {
+      headers: {
+        "Authorization": this.token ? `Bearer ${this.token}` : "",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ 
+        message: response.status === 401 ? "Unauthorized. Please log in again." : "Request failed" 
+      }));
+      throw new Error(error.detail || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.blob();
   }
 
   // Threats

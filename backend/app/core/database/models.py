@@ -42,6 +42,7 @@ class User(Base):
     findings = relationship("Finding", back_populates="user", cascade="all, delete-orphan")
     company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index('idx_user_username', 'username'),
@@ -257,4 +258,34 @@ class Notification(Base):
         Index('idx_notification_user_read', 'user_id', 'read'),
         Index('idx_notification_user_created', 'user_id', 'created_at'),
         Index('idx_notification_channel', 'channel', 'created_at'),
+    )
+
+
+class Job(Base):
+    """Job model for capability execution jobs."""
+    __tablename__ = "jobs"
+    
+    id = Column(String(255), primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    capability = Column(String(50), nullable=False, index=True)
+    target = Column(String(500), nullable=False)
+    status = Column(String(20), nullable=False, index=True)  # pending, queued, running, completed, failed, cancelled
+    priority = Column(Integer, nullable=False, default=2)  # 0=critical, 1=high, 2=normal, 3=low, 4=background
+    progress = Column(Integer, nullable=False, default=0)  # 0-100
+    config = Column(JSONB, default=dict, nullable=True)  # Job configuration/parameters
+    metadata = Column(JSONB, default=dict, nullable=True)  # Additional job metadata
+    error = Column(Text, nullable=True)  # Error message if failed
+    execution_logs = Column(JSONB, default=list, nullable=True)  # Execution timeline/logs
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="jobs")
+    
+    __table_args__ = (
+        Index('idx_job_user_status', 'user_id', 'status'),
+        Index('idx_job_user_capability', 'user_id', 'capability'),
+        Index('idx_job_user_created', 'user_id', 'created_at'),
+        Index('idx_job_status_created', 'status', 'created_at'),
     )
