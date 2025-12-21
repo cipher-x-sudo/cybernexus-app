@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { GlassCard } from "@/components/ui/GlassCard";
-import { GlassButton } from "@/components/ui/GlassButton";
-import { GlassInput } from "@/components/ui/GlassInput";
+import { GlassCard, GlassButton, GlassInput } from "@/components/ui";
 import SchedulePicker from "@/components/automation/SchedulePicker";
 import { cn } from "@/lib/utils";
 
