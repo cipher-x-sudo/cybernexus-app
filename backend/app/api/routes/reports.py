@@ -7,14 +7,16 @@ Handles report generation and management.
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse, FileResponse, Response
 from pydantic import BaseModel
 from pathlib import Path
 
 from app.services.report_generator import ReportGenerator
-from app.api.routes.threats import threats_db
-from app.api.routes.entities import entities_db
+from app.core.database.database import get_db
+from app.core.database.finding_storage import DBFindingStorage
+from app.core.database.models import User
+from app.api.routes.auth import get_current_active_user
 
 router = APIRouter()
 
@@ -164,38 +166,50 @@ async def get_report(report_id: str):
 
 
 @router.post("/generate", response_model=Report)
-async def generate_report(report_config: ReportCreate):
+async def generate_report(
+    report_config: ReportCreate,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
     """Generate a new report."""
     report_id = generate_report_id()
     now = datetime.utcnow()
     
     try:
-        # Fetch real data from threats and entities
-        all_threats = list(threats_db.values())
-        all_entities = list(entities_db.values())
+        # Fetch real data from database
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Calculate threat statistics
-        total_threats = len(all_threats)
-        critical_threats = len([t for t in all_threats if t.get("severity") == "critical"])
-        high_threats = len([t for t in all_threats if t.get("severity") == "high"])
+        # Calculate threat statistics from findings
+        total_threats = len(all_findings)
+        critical_threats = len([f for f in all_findings if f.severity.lower() == "critical"])
+        high_threats = len([f for f in all_findings if f.severity.lower() == "high"])
         
-        # Get top threats by score
+        # Get top threats by risk score
         top_threats_list = sorted(
-            all_threats,
-            key=lambda t: t.get("score", 0),
+            all_findings,
+            key=lambda f: f.risk_score or 0,
             reverse=True
         )[:10]
         
         # Format top threats for report
         formatted_top_threats = [
             {
-                "title": t.get("title", "Unknown Threat"),
-                "severity": t.get("severity", "medium").lower(),
-                "category": t.get("category", "unknown"),
-                "score": t.get("score", 0)
+                "title": f.title,
+                "severity": f.severity.lower(),
+                "category": f.capability.value if hasattr(f.capability, 'value') else str(f.capability),
+                "score": int(f.risk_score or 0)
             }
-            for t in top_threats_list
+            for f in top_threats_list
         ]
+        
+        # Count unique assets/entities from findings
+        all_assets = set()
+        for finding in all_findings:
+            if finding.affected_assets:
+                all_assets.update(finding.affected_assets)
+            if finding.target:
+                all_assets.add(finding.target)
         
         # Generate recommendations based on actual data
         recommendations = []
@@ -214,7 +228,7 @@ async def generate_report(report_config: ReportCreate):
             "total_threats": total_threats,
             "critical_threats": critical_threats,
             "high_threats": high_threats,
-            "assets_discovered": len(all_entities),
+            "assets_discovered": len(all_assets),
             "top_threats": formatted_top_threats,
             "recommendations": recommendations if recommendations else [
                 "Continue monitoring for new threats",
