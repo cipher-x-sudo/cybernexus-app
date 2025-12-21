@@ -1347,43 +1347,6 @@ class ApiClient {
   // ============================================================================
 
   /**
-   * Create a new scheduled search
-   */
-  async createScheduledSearch(data: {
-    name: string;
-    description?: string;
-    capabilities: string[];
-    target: string;
-    config?: Record<string, any>;
-    schedule_type?: string;
-    cron_expression: string;
-    timezone?: string;
-    enabled?: boolean;
-  }) {
-    return this.request<{
-      id: string;
-      user_id: string;
-      name: string;
-      description: string | null;
-      capabilities: string[];
-      target: string;
-      config: Record<string, any>;
-      schedule_type: string;
-      cron_expression: string;
-      timezone: string;
-      enabled: boolean;
-      last_run_at: string | null;
-      next_run_at: string | null;
-      run_count: number;
-      created_at: string;
-      updated_at: string;
-    }>("/scheduled-searches", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  /**
    * List all scheduled searches for the current user
    */
   async getScheduledSearches(enabled?: boolean) {
@@ -1407,153 +1370,6 @@ class ApiClient {
       updated_at: string;
     }>>(`/scheduled-searches${query}`);
   }
-
-  /**
-   * Get a specific scheduled search
-   */
-  async getScheduledSearch(id: string) {
-    return this.request<{
-      id: string;
-      user_id: string;
-      name: string;
-      description: string | null;
-      capabilities: string[];
-      target: string;
-      config: Record<string, any>;
-      schedule_type: string;
-      cron_expression: string;
-      timezone: string;
-      enabled: boolean;
-      last_run_at: string | null;
-      next_run_at: string | null;
-      run_count: number;
-      created_at: string;
-      updated_at: string;
-    }>(`/scheduled-searches/${id}`);
-  }
-
-  /**
-   * Update a scheduled search
-   */
-  async updateScheduledSearch(id: string, data: {
-    name?: string;
-    description?: string;
-    capabilities?: string[];
-    target?: string;
-    config?: Record<string, any>;
-    cron_expression?: string;
-    timezone?: string;
-    enabled?: boolean;
-  }) {
-    return this.request<{
-      id: string;
-      user_id: string;
-      name: string;
-      description: string | null;
-      capabilities: string[];
-      target: string;
-      config: Record<string, any>;
-      schedule_type: string;
-      cron_expression: string;
-      timezone: string;
-      enabled: boolean;
-      last_run_at: string | null;
-      next_run_at: string | null;
-      run_count: number;
-      created_at: string;
-      updated_at: string;
-    }>(`/scheduled-searches/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  /**
-   * Delete a scheduled search
-   */
-  async deleteScheduledSearch(id: string) {
-    return this.request<void>(`/scheduled-searches/${id}`, {
-      method: "DELETE",
-    });
-  }
-
-  /**
-   * Enable a scheduled search
-   */
-  async enableScheduledSearch(id: string) {
-    return this.request<{
-      id: string;
-      user_id: string;
-      name: string;
-      description: string | null;
-      capabilities: string[];
-      target: string;
-      config: Record<string, any>;
-      schedule_type: string;
-      cron_expression: string;
-      timezone: string;
-      enabled: boolean;
-      last_run_at: string | null;
-      next_run_at: string | null;
-      run_count: number;
-      created_at: string;
-      updated_at: string;
-    }>(`/scheduled-searches/${id}/enable`, {
-      method: "POST",
-    });
-  }
-
-  /**
-   * Disable a scheduled search
-   */
-  async disableScheduledSearch(id: string) {
-    return this.request<{
-      id: string;
-      user_id: string;
-      name: string;
-      description: string | null;
-      capabilities: string[];
-      target: string;
-      config: Record<string, any>;
-      schedule_type: string;
-      cron_expression: string;
-      timezone: string;
-      enabled: boolean;
-      last_run_at: string | null;
-      next_run_at: string | null;
-      run_count: number;
-      created_at: string;
-      updated_at: string;
-    }>(`/scheduled-searches/${id}/disable`, {
-      method: "POST",
-    });
-  }
-
-  /**
-   * Manually trigger execution of a scheduled search
-   */
-  async runScheduledSearchNow(id: string) {
-    return this.request<{ message: string; scheduled_search_id: string }>(
-      `/scheduled-searches/${id}/run-now`,
-      {
-        method: "POST",
-      }
-    );
-  }
-
-  /**
-   * Get execution history for a scheduled search
-   */
-  async getScheduledSearchHistory(id: string, limit: number = 50) {
-    return this.request<Array<{
-      job_id: string;
-      status: string;
-      created_at: string;
-      completed_at: string | null;
-      findings_count: number;
-      error: string | null;
-    }>>(`/scheduled-searches/${id}/history?limit=${limit}`);
-  }
 }
 
 // Export singleton instance
@@ -1576,8 +1392,6 @@ export const queryKeys = {
   capabilities: ["capabilities"],
   // Scheduled Searches
   scheduledSearches: (enabled?: boolean) => ["scheduled-searches", enabled],
-  scheduledSearch: (id: string) => ["scheduled-search", id],
-  scheduledSearchHistory: (id: string, limit?: number) => ["scheduled-search-history", id, limit],
   capability: (id: string) => ["capability", id],
   jobs: (params?: any) => ["jobs", params],
   job: (id: string) => ["job", id],
