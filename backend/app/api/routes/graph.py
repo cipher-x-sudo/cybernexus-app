@@ -303,10 +303,34 @@ async def get_graph_for_job(
         graph_data = await storage.get_graph_data()
         node_ids = []
         
+        def detect_entity_type(value: str) -> str:
+            """Detect entity type: email, ip_address, or domain."""
+            if not value:
+                return "domain"
+            
+            # Check if it's an email address (contains @ and matches pattern)
+            email_pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            if '@' in value and re.match(email_pattern, value):
+                return "email"
+            
+            # Check if it's an IP address
+            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+            if re.match(ip_pattern, value):
+                return "ip_address"
+            
+            # Default to domain
+            return "domain"
+        
         def extract_domain_or_ip(value: str) -> str:
-            """Extract domain or IP from URL or return as-is."""
+            """Extract domain or IP from URL or return as-is. Preserves email addresses."""
             if not value:
                 return ""
+            
+            # If it's an email, return as-is
+            email_pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            if '@' in value and re.match(email_pattern, value):
+                return value
+            
             # Check if it's already an IP
             ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
             if re.match(ip_pattern, value):
@@ -364,8 +388,7 @@ async def get_graph_for_job(
         if job.target:
             target_domain_or_ip = extract_domain_or_ip(job.target)
             if target_domain_or_ip:
-                ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
+                entity_type = detect_entity_type(target_domain_or_ip)
                 entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
                 if entity_id and entity_id not in node_ids:
                     node_ids.append(entity_id)
@@ -384,8 +407,7 @@ async def get_graph_for_job(
                             if isinstance(item, str):
                                 domain_or_ip = extract_domain_or_ip(item)
                                 if domain_or_ip:
-                                    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                                    entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                    entity_type = detect_entity_type(domain_or_ip)
                                     entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                                     if entity_id and entity_id not in node_ids:
                                         node_ids.append(entity_id)
@@ -395,16 +417,14 @@ async def get_graph_for_job(
                                 if entity_value:
                                     domain_or_ip = extract_domain_or_ip(str(entity_value))
                                     if domain_or_ip:
-                                        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                                        entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                        entity_type = detect_entity_type(domain_or_ip)
                                         entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                                         if entity_id and entity_id not in node_ids:
                                             node_ids.append(entity_id)
                     elif isinstance(value, str):
                         domain_or_ip = extract_domain_or_ip(value)
                         if domain_or_ip:
-                            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                            entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                            entity_type = detect_entity_type(domain_or_ip)
                             entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                             if entity_id and entity_id not in node_ids:
                                 node_ids.append(entity_id)
@@ -423,8 +443,7 @@ async def get_graph_for_job(
                                 if node_value:
                                     domain_or_ip = extract_domain_or_ip(str(node_value))
                                     if domain_or_ip:
-                                        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                                        entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                        entity_type = detect_entity_type(domain_or_ip)
                                         entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                                         if entity_id and entity_id not in node_ids:
                                             node_ids.append(entity_id)
@@ -435,17 +454,27 @@ async def get_graph_for_job(
                 if isinstance(log_entry, dict):
                     # Look for entity mentions in log messages
                     message = log_entry.get('message', '') or log_entry.get('log', '') or str(log_entry)
-                    # Try to extract domains/IPs from log messages using regex
+                    # Try to extract emails, domains/IPs from log messages using regex
+                    # Match email addresses first
+                    email_pattern = r'\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+[a-zA-Z0-9]\b'
+                    emails = re.findall(email_pattern, message)
+                    for email in emails:
+                        if email and '@' in email:
+                            entity_id = await find_or_create_entity(email, "email")
+                            if entity_id and entity_id not in node_ids:
+                                node_ids.append(entity_id)
+                    
                     # Match common patterns like "discovered domain.com" or "found 1.2.3.4"
                     domain_pattern = r'\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)\b'
                     ip_pattern = r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b'
                     
-                    # Extract domains
+                    # Extract domains (excluding emails already extracted)
                     domains = re.findall(domain_pattern, message)
                     for domain in domains:
-                        # Filter out common false positives
-                        if domain and '.' in domain and not domain.startswith('http') and len(domain) > 3:
-                            entity_id = await find_or_create_entity(domain, "domain")
+                        # Filter out emails and common false positives
+                        if domain and '@' not in domain and '.' in domain and not domain.startswith('http') and len(domain) > 3:
+                            entity_type = detect_entity_type(domain)
+                            entity_id = await find_or_create_entity(domain, entity_type)
                             if entity_id and entity_id not in node_ids:
                                 node_ids.append(entity_id)
                     
@@ -457,14 +486,13 @@ async def get_graph_for_job(
                             node_ids.append(entity_id)
                     
                     # Also check for structured data in logs
-                    for key in ['domain', 'ip', 'target', 'url', 'host']:
+                    for key in ['domain', 'ip', 'email', 'target', 'url', 'host']:
                         if key in log_entry:
                             value = log_entry[key]
                             if isinstance(value, str):
                                 domain_or_ip = extract_domain_or_ip(value)
                                 if domain_or_ip:
-                                    ip_pattern_check = r'^(\d{1,3}\.){3}\d{1,3}$'
-                                    entity_type = "ip_address" if re.match(ip_pattern_check, domain_or_ip) else "domain"
+                                    entity_type = detect_entity_type(domain_or_ip)
                                     entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                                     if entity_id and entity_id not in node_ids:
                                         node_ids.append(entity_id)
@@ -487,14 +515,13 @@ async def get_graph_for_job(
                         node_ids.append(asset)
                     continue
                 
-                # Extract domain/IP from URL
+                # Extract domain/IP/email from URL
                 domain_or_ip = extract_domain_or_ip(asset)
                 if not domain_or_ip:
                     continue
                 
                 # Determine entity type
-                ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                entity_type = detect_entity_type(domain_or_ip)
                 
                 # Find or create entity
                 entity_id = await find_or_create_entity(domain_or_ip, entity_type)
@@ -505,8 +532,7 @@ async def get_graph_for_job(
             if finding.target:
                 target_domain_or_ip = extract_domain_or_ip(finding.target)
                 if target_domain_or_ip:
-                    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-                    entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
+                    entity_type = detect_entity_type(target_domain_or_ip)
                     entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
                     if entity_id and entity_id not in node_ids:
                         node_ids.append(entity_id)
