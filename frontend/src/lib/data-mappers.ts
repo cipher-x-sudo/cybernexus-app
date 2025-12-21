@@ -55,11 +55,11 @@ export interface ReportData {
  */
 export function mapToRiskScore(overview: any): RiskScoreData {
   return {
-    score: overview.risk_score || 100,
+    score: overview.risk_score !== undefined && overview.risk_score !== null ? overview.risk_score : 100,
     riskLevel: overview.risk_level || "minimal",
     trend: overview.trend || "stable",
-    criticalIssues: overview.critical_findings_count || 0,
-    highIssues: overview.high_findings_count || 0,
+    criticalIssues: overview.critical_findings_count ?? 0,
+    highIssues: overview.high_findings_count ?? 0,
   };
 }
 
