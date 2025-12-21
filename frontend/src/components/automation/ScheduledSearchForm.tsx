@@ -103,25 +103,40 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
   };
 
   return (
-    <GlassCard className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">
-          {search ? "Edit Scheduled Search" : "Create Scheduled Search"}
-        </h2>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-mono font-bold text-white">
+              {search ? "Edit Scheduled Search" : "Create Scheduled Search"}
+            </h1>
+          </div>
+          <p className="text-sm text-white/50 mt-1">
+            {search ? "Update your scheduled search configuration" : "Configure a new automated search"}
+          </p>
+        </div>
         <GlassButton onClick={onClose} variant="secondary" size="sm">
           Cancel
         </GlassButton>
       </div>
 
+      <GlassCard className="p-6">
+
       {error && (
-        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded text-red-200">
-          {error}
-        </div>
+        <GlassCard className="p-4 border-red-500/20">
+          <p className="text-red-400 font-mono text-sm">{error}</p>
+        </GlassCard>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Name *
           </label>
           <GlassInput
@@ -134,7 +149,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Description
           </label>
           <GlassInput
@@ -147,7 +162,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
 
         {!search && (
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-mono text-white/70 mb-2">
               Capability *
             </label>
             <GlassSelect
@@ -163,7 +178,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
 
         {search && (
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-mono text-white/70 mb-2">
               Capability
             </label>
             <GlassInput
@@ -176,7 +191,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Target *
           </label>
           <GlassInput
@@ -186,7 +201,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
             placeholder={getTargetPlaceholder()}
             required
           />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-white/40 mt-1 font-mono">
             {capability === "dark_web_intelligence"
               ? "Enter keywords separated by commas"
               : capability === "infrastructure_testing"
@@ -196,7 +211,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Schedule *
           </label>
           <CronExpressionBuilder
@@ -207,7 +222,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Timezone *
           </label>
           <GlassSelect
@@ -220,21 +235,21 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer group">
           <input
             type="checkbox"
             id="enabled"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+            className="w-4 h-4 rounded bg-white/[0.05] border-white/[0.1] text-amber-500 focus:ring-amber-500"
           />
-          <label htmlFor="enabled" className="text-sm text-gray-300">
+          <span className="text-xs text-white/60 group-hover:text-white/80 font-mono">
             Enable this scheduled search
-          </label>
-        </div>
+          </span>
+        </label>
 
-        <div className="flex gap-3 pt-4">
-          <GlassButton type="submit" disabled={loading} className="flex-1">
+        <div className="flex gap-3 pt-4 border-t border-white/[0.05]">
+          <GlassButton type="submit" disabled={loading} variant="primary" className="flex-1">
             {loading ? "Saving..." : search ? "Update" : "Create"}
           </GlassButton>
           <GlassButton
@@ -247,7 +262,8 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
           </GlassButton>
         </div>
       </form>
-    </GlassCard>
+      </GlassCard>
+    </div>
   );
 }
 

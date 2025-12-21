@@ -77,7 +77,7 @@ export default function CronExpressionBuilder({
     <GlassCard className="p-4">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-xs font-mono text-white/70 mb-2">
             Schedule Type
           </label>
           <div className="flex gap-2">
@@ -100,7 +100,7 @@ export default function CronExpressionBuilder({
 
         {usePreset ? (
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-mono text-white/70 mb-2">
               Select Preset Schedule
             </label>
             <GlassSelect
@@ -118,7 +118,7 @@ export default function CronExpressionBuilder({
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-xs font-mono text-white/70 mb-2">
                 Custom Cron Expression
               </label>
               <GlassInput
@@ -128,14 +128,14 @@ export default function CronExpressionBuilder({
                 placeholder="0 9 * * *"
                 className="font-mono"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-white/40 mt-1 font-mono">
                 Format: minute hour day month weekday (e.g., "0 9 * * *" = daily at 9 AM)
               </p>
             </div>
 
             <div className="grid grid-cols-5 gap-2">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Minute</label>
+                <label className="block text-xs font-mono text-white/50 mb-1">Minute</label>
                 <GlassInput
                   type="text"
                   value={parts.minute}
@@ -145,7 +145,7 @@ export default function CronExpressionBuilder({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Hour</label>
+                <label className="block text-xs font-mono text-white/50 mb-1">Hour</label>
                 <GlassInput
                   type="text"
                   value={parts.hour}
@@ -155,7 +155,7 @@ export default function CronExpressionBuilder({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Day</label>
+                <label className="block text-xs font-mono text-white/50 mb-1">Day</label>
                 <GlassInput
                   type="text"
                   value={parts.day}
@@ -165,7 +165,7 @@ export default function CronExpressionBuilder({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Month</label>
+                <label className="block text-xs font-mono text-white/50 mb-1">Month</label>
                 <GlassInput
                   type="text"
                   value={parts.month}
@@ -175,7 +175,7 @@ export default function CronExpressionBuilder({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Weekday</label>
+                <label className="block text-xs font-mono text-white/50 mb-1">Weekday</label>
                 <GlassInput
                   type="text"
                   value={parts.weekday}
@@ -189,10 +189,10 @@ export default function CronExpressionBuilder({
         )}
 
         <div className="pt-2 border-t border-white/10">
-          <p className="text-xs text-gray-400">
-            Current expression: <code className="text-white font-mono">{customExpression}</code>
+          <p className="text-xs font-mono text-white/50">
+            Current expression: <code className="text-white">{customExpression}</code>
           </p>
-          <p className="text-xs text-gray-400 mt-1">Timezone: {timezone}</p>
+          <p className="text-xs font-mono text-white/50 mt-1">Timezone: {timezone}</p>
         </div>
       </div>
     </GlassCard>
