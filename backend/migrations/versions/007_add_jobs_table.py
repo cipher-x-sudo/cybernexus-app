@@ -1,7 +1,7 @@
 """Add jobs table
 
 Revision ID: 007_jobs
-Revises: 006_timestamp_notifications
+Revises: 006_notifications_timestamp
 Create Date: 2024-01-01 00:06:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = '007_jobs'
-down_revision = '006_timestamp_notifications'
+down_revision = '006_notifications_timestamp'
 branch_labels = None
 depends_on = None
 
