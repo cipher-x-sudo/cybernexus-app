@@ -45,16 +45,18 @@ def calculate_risk_score(
     base_score = 100
     deductions = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
     
-    # Calculate positive points from resolved findings
+    # Calculate positive points from resolved findings (bonus points - more than deductions)
+    # Deductions: Critical=-20, High=-10, Medium=-5, Low=-2
+    # Resolved bonus: Critical=+25, High=+12, Medium=+6, Low=+3
     resolved_points = 0
     resolved_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     if resolved_findings:
         resolved_counts = resolved_findings
         resolved_points = (
-            resolved_counts.get("critical", 0) * 15 +
-            resolved_counts.get("high", 0) * 10 +
-            resolved_counts.get("medium", 0) * 5 +
-            resolved_counts.get("low", 0) * 2
+            resolved_counts.get("critical", 0) * 25 +  # Bonus: +5 more than deduction
+            resolved_counts.get("high", 0) * 12 +      # Bonus: +2 more than deduction
+            resolved_counts.get("medium", 0) * 6 +     # Bonus: +1 more than deduction
+            resolved_counts.get("low", 0) * 3          # Bonus: +1 more than deduction
         )
     
     # Calculate positive points from positive indicators

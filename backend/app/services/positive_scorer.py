@@ -20,15 +20,20 @@ class PositiveScorer:
     """
     
     # Points awarded for different positive indicators
+    # Note: Resolved finding points are calculated in dashboard.py calculate_risk_score()
+    # These values are kept for reference/documentation purposes
     POSITIVE_POINTS = {
         "strong_email_config": 10,  # SPF/DKIM/DMARC all properly configured
         "no_vulnerabilities": 5,  # No vulnerabilities found in a category
         "improvement_trend": 3,  # Per 10% score increase
         "sustained_good_practices": 5,  # Bonus for sustained good practices
-        "remediated_critical": 15,  # Resolved critical finding
-        "remediated_high": 10,  # Resolved high finding
-        "remediated_medium": 5,  # Resolved medium finding
-        "remediated_low": 2,  # Resolved low finding
+        # Resolved finding points (bonus - more than deductions):
+        # Deductions: Critical=-20, High=-10, Medium=-5, Low=-2
+        # Resolved: Critical=+25 (+5 bonus), High=+12 (+2 bonus), Medium=+6 (+1 bonus), Low=+3 (+1 bonus)
+        "remediated_critical": 25,  # Resolved critical finding (bonus points)
+        "remediated_high": 12,  # Resolved high finding (bonus points)
+        "remediated_medium": 6,  # Resolved medium finding (bonus points)
+        "remediated_low": 3,  # Resolved low finding (bonus points)
     }
     
     # Category mapping
