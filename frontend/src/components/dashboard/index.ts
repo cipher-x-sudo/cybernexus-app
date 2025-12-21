@@ -9,3 +9,4 @@ export * from "./CapabilityCards";
 export * from "./LiveActivity";
 export * from "./QuickStart";
 export * from "./JobHistoryCard";
+export * from "./SecurityScoreDetailModal";

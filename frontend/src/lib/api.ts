@@ -340,6 +340,52 @@ class ApiClient {
   }
 
   /**
+   * Get detailed risk score breakdown with category analysis
+   */
+  async getDashboardRiskBreakdown() {
+    return this.request<{
+      overall_score: number;
+      risk_level: string;
+      trend: "improving" | "stable" | "worsening";
+      categories: Record<string, {
+        name: string;
+        score: number;
+        findings_count: number;
+        contribution: number;
+        severity_breakdown: {
+          critical: number;
+          high: number;
+          medium: number;
+          low: number;
+        };
+      }>;
+      severity_distribution: {
+        critical: number;
+        high: number;
+        medium: number;
+        low: number;
+      };
+      calculation: {
+        base_score: number;
+        deductions: {
+          critical: number;
+          high: number;
+          medium: number;
+          low: number;
+        };
+        total_deduction: number;
+        formula: string;
+      };
+      recommendations: Array<{
+        priority: "critical" | "high" | "medium" | "low";
+        title: string;
+        description: string;
+        action: string;
+      }>;
+    }>("/dashboard/risk-breakdown");
+  }
+
+  /**
    * Get recent jobs for dashboard
    */
   async getRecentJobs(limit: number = 10, capability?: string, status?: string) {

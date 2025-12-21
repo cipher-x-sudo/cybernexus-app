@@ -8,4 +8,5 @@ export * from "./expandable-section";
 export * from "./copy-button";
 export * from "./status-badge";
 export * from "./redirect-banner";
+export * from "./dialog";
 

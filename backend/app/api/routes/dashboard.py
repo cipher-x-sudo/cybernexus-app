@@ -310,3 +310,198 @@ async def get_critical_findings(
         logger.error(f"Error getting critical findings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error fetching critical findings: {str(e)}")
 
+
+@router.get("/risk-breakdown")
+async def get_risk_breakdown(
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Get detailed risk score breakdown aggregated across all targets.
+    
+    Returns:
+    - Overall score and risk level
+    - Category-wise breakdown (exposure, dark_web, email_security, etc.)
+    - Severity distribution per category
+    - Calculation details
+    - Recommendations
+    """
+    try:
+        # Get all findings from database
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        all_findings = await finding_storage.get_findings(limit=1000)
+        
+        if not all_findings:
+            return {
+                "overall_score": 100,
+                "risk_level": "minimal",
+                "trend": "stable",
+                "categories": {},
+                "severity_distribution": {
+                    "critical": 0,
+                    "high": 0,
+                    "medium": 0,
+                    "low": 0
+                },
+                "calculation": {
+                    "base_score": 100,
+                    "deductions": {
+                        "critical": 0,
+                        "high": 0,
+                        "medium": 0,
+                        "low": 0
+                    },
+                    "formula": "Base Score (100) - (Critical × 20) - (High × 10) - (Medium × 5) - (Low × 2)"
+                },
+                "recommendations": []
+            }
+        
+        findings_data = [{
+            "id": f.id,
+            "title": f.title,
+            "severity": f.severity,
+            "capability": f.capability.value,
+            "target": f.target,
+            "risk_score": f.risk_score,
+        } for f in all_findings]
+        
+        # Calculate overall risk score
+        risk_data = calculate_risk_score(findings_data)
+        
+        # Map capabilities to display names
+        capability_names = {
+            "exposure_discovery": "Exposure Discovery",
+            "dark_web_intelligence": "Dark Web Intel",
+            "email_security": "Email Security",
+            "infrastructure_testing": "Infrastructure",
+            "network_security": "Network Security",
+            "investigation": "Investigation"
+        }
+        
+        # Group findings by capability
+        findings_by_capability: Dict[str, List[Dict[str, Any]]] = {}
+        for finding in findings_data:
+            capability = finding.get("capability", "unknown")
+            if capability not in findings_by_capability:
+                findings_by_capability[capability] = []
+            findings_by_capability[capability].append(finding)
+        
+        # Calculate category breakdowns
+        categories = {}
+        total_deductions = {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0
+        }
+        
+        for capability, findings in findings_by_capability.items():
+            # Count severities for this category
+            critical_count = sum(1 for f in findings if f.get("severity") == "critical")
+            high_count = sum(1 for f in findings if f.get("severity") == "high")
+            medium_count = sum(1 for f in findings if f.get("severity") == "medium")
+            low_count = sum(1 for f in findings if f.get("severity") == "low")
+            
+            # Calculate category score (base 100, deduct based on severity)
+            category_score = 100
+            category_score -= (critical_count * 20)
+            category_score -= (high_count * 10)
+            category_score -= (medium_count * 5)
+            category_score -= (low_count * 2)
+            category_score = max(0, min(100, category_score))
+            
+            # Calculate contribution to overall score
+            total_findings = len(findings)
+            contribution = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
+            
+            total_deductions["critical"] += critical_count
+            total_deductions["high"] += high_count
+            total_deductions["medium"] += medium_count
+            total_deductions["low"] += low_count
+            
+            categories[capability] = {
+                "name": capability_names.get(capability, capability.replace("_", " ").title()),
+                "score": category_score,
+                "findings_count": total_findings,
+                "contribution": contribution,
+                "severity_breakdown": {
+                    "critical": critical_count,
+                    "high": high_count,
+                    "medium": medium_count,
+                    "low": low_count
+                }
+            }
+        
+        # Generate recommendations
+        recommendations = []
+        
+        # Critical findings recommendations
+        if risk_data["critical_count"] > 0:
+            recommendations.append({
+                "priority": "critical",
+                "title": f"Address {risk_data['critical_count']} Critical Finding(s)",
+                "description": "Critical findings pose immediate security risks and should be addressed immediately.",
+                "action": "Review and remediate all critical findings as soon as possible."
+            })
+        
+        # High findings recommendations
+        if risk_data["high_count"] > 0:
+            recommendations.append({
+                "priority": "high",
+                "title": f"Review {risk_data['high_count']} High Severity Finding(s)",
+                "description": "High severity findings require prompt attention to prevent potential security incidents.",
+                "action": "Schedule remediation for high severity findings within 7 days."
+            })
+        
+        # Category-specific recommendations
+        for capability, cat_data in categories.items():
+            if cat_data["severity_breakdown"]["critical"] > 0 or cat_data["severity_breakdown"]["high"] > 0:
+                recommendations.append({
+                    "priority": "high" if cat_data["severity_breakdown"]["critical"] > 0 else "medium",
+                    "title": f"Improve {cat_data['name']} Security",
+                    "description": f"{cat_data['name']} has {cat_data['severity_breakdown']['critical']} critical and {cat_data['severity_breakdown']['high']} high findings.",
+                    "action": f"Focus on addressing findings in {cat_data['name']} to improve overall security posture."
+                })
+        
+        # If score is low, add general recommendation
+        if risk_data["risk_score"] < 60:
+            recommendations.append({
+                "priority": "high",
+                "title": "Overall Security Posture Needs Improvement",
+                "description": f"Your security score of {risk_data['risk_score']}/100 indicates significant security risks.",
+                "action": "Prioritize remediation of critical and high severity findings across all categories."
+            })
+        
+        # Calculate trend
+        previous_score = None  # TODO: Store and retrieve historical scores
+        trend = calculate_trend(risk_data["risk_score"], previous_score)
+        
+        return {
+            "overall_score": risk_data["risk_score"],
+            "risk_level": risk_data["risk_level"],
+            "trend": trend,
+            "categories": categories,
+            "severity_distribution": {
+                "critical": risk_data["critical_count"],
+                "high": risk_data["high_count"],
+                "medium": risk_data["medium_count"],
+                "low": risk_data["low_count"]
+            },
+            "calculation": {
+                "base_score": 100,
+                "deductions": total_deductions,
+                "total_deduction": sum([
+                    total_deductions["critical"] * 20,
+                    total_deductions["high"] * 10,
+                    total_deductions["medium"] * 5,
+                    total_deductions["low"] * 2
+                ]),
+                "formula": "Base Score (100) - (Critical × 20) - (High × 10) - (Medium × 5) - (Low × 2)"
+            },
+            "recommendations": recommendations[:10]  # Limit to top 10
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting risk breakdown: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching risk breakdown: {str(e)}")
+

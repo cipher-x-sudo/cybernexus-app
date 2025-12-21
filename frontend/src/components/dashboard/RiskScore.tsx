@@ -11,6 +11,7 @@ interface RiskScoreProps {
   criticalIssues: number;
   highIssues: number;
   className?: string;
+  onClick?: () => void;
 }
 
 export function RiskScore({
@@ -20,6 +21,7 @@ export function RiskScore({
   criticalIssues = 3,
   highIssues = 7,
   className,
+  onClick,
 }: RiskScoreProps) {
   const [animatedScore, setAnimatedScore] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -103,7 +105,15 @@ export function RiskScore({
   const strokeDashoffset = circumference - (animatedScore / 100) * circumference;
 
   return (
-    <GlassCard className={cn("p-6", className)} hover={false}>
+    <GlassCard 
+      className={cn(
+        "p-6",
+        onClick && "cursor-pointer transition-all hover:border-white/20 hover:shadow-lg",
+        className
+      )} 
+      hover={false}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-mono text-lg font-semibold text-white">Security Score</h2>
         <div className="flex items-center gap-1.5 text-xs font-mono">

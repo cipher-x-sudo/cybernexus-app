@@ -10,6 +10,7 @@ import {
   MiniWorldMap,
   LineChart,
   JobHistoryCard,
+  SecurityScoreDetailModal,
 } from "@/components/dashboard";
 import { api } from "@/lib/api";
 import { mapToRiskScore, mapToFindings, mapToJobs, mapToEvents, mapToCapabilityStats } from "@/lib/data-mappers";
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scoreModalOpen, setScoreModalOpen] = useState(false);
 
   // Aggregate findings/events by month for chart
   const aggregateThreatsByTime = (items: any[]) => {
@@ -263,9 +265,21 @@ export default function DashboardPage() {
           trend={riskScoreData.trend}
           criticalIssues={riskScoreData.criticalIssues}
           highIssues={riskScoreData.highIssues}
+          onClick={() => setScoreModalOpen(true)}
         />
         <CriticalFindings findings={findingsData} />
       </div>
+
+      {/* Security Score Detail Modal */}
+      <SecurityScoreDetailModal
+        open={scoreModalOpen}
+        onOpenChange={setScoreModalOpen}
+        currentScore={riskScoreData.score}
+        riskLevel={riskScoreData.riskLevel}
+        trend={riskScoreData.trend}
+        criticalIssues={riskScoreData.criticalIssues}
+        highIssues={riskScoreData.highIssues}
+      />
 
       {/* Capability Cards */}
       <CapabilityCards stats={capabilityStats} />
