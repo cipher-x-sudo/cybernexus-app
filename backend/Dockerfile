@@ -25,9 +25,9 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     # WeasyPrint dependencies
     libpango-1.0-0 \
+    libpangocairo-1.0-0 \
     libpangoft2-1.0-0 \
     libcairo2 \
-    libgdk-pixbuf2.0-0 \
     shared-mime-info \
     fontconfig \
     && rm -rf /var/lib/apt/lists/*
