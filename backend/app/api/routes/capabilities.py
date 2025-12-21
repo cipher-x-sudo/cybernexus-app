@@ -1223,6 +1223,37 @@ async def list_findings(
     ]
 
 
+@router.patch("/findings/{finding_id}/resolve")
+async def resolve_finding(
+    finding_id: str,
+    status: str = Query(default="resolved", description="Status: resolved, false_positive, or accepted_risk"),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Mark a finding as resolved.
+    
+    Args:
+        finding_id: Finding ID to resolve
+        status: Resolution status (resolved, false_positive, accepted_risk)
+        
+    Returns:
+        Success message
+    """
+    if status not in ["resolved", "false_positive", "accepted_risk"]:
+        raise HTTPException(status_code=400, detail="Invalid status. Must be: resolved, false_positive, or accepted_risk")
+    
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    
+    success = await finding_storage.mark_finding_resolved(finding_id, current_user.id, status)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    
+    return {"message": f"Finding marked as {status}", "finding_id": finding_id, "status": status}
+
+
 @router.get("/findings/{finding_id}", response_model=FindingResponse)
 async def get_finding(
     finding_id: str,

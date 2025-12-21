@@ -5,12 +5,12 @@ Provides methods to query and manage findings stored in PostgreSQL database.
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, delete
 from loguru import logger
 
-from app.core.database.models import Finding
+from app.core.database.models import Finding, PositiveIndicator
 from app.services.orchestrator import Finding as FindingDataclass, Capability
 
 
@@ -285,6 +285,94 @@ class DBFindingStorage:
         await self.db.commit()
         
         return True
+    
+    async def mark_finding_resolved(self, finding_id: str, user_id: str, status: str = "resolved") -> bool:
+        """
+        Mark a finding as resolved.
+        
+        Args:
+            finding_id: Finding ID
+            user_id: User ID who resolved it
+            status: Status to set (resolved, false_positive, accepted_risk)
+            
+        Returns:
+            True if updated
+        """
+        query = select(Finding).where(Finding.id == finding_id)
+        
+        # Apply user filter if not admin
+        if not self.is_admin:
+            query = query.where(Finding.user_id == self.user_id)
+        
+        result = await self.db.execute(query)
+        finding = result.scalar_one_or_none()
+        
+        if not finding:
+            return False
+        
+        finding.status = status
+        finding.resolved_at = datetime.now(timezone.utc)
+        finding.resolved_by = user_id
+        
+        await self.db.commit()
+        return True
+    
+    async def get_resolved_findings(self) -> Dict[str, int]:
+        """
+        Get count of resolved findings by severity.
+        
+        Returns:
+            Dictionary with counts per severity
+        """
+        query = select(Finding).where(Finding.status.in_(["resolved", "false_positive", "accepted_risk"]))
+        
+        # Apply user filter if not admin
+        if not self.is_admin:
+            query = query.where(Finding.user_id == self.user_id)
+        
+        result = await self.db.execute(query)
+        findings = result.scalars().all()
+        
+        counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for finding in findings:
+            severity = finding.severity.lower()
+            if severity in counts:
+                counts[severity] += 1
+        
+        return counts
+    
+    async def get_positive_indicators(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get positive security indicators.
+        
+        Args:
+            limit: Maximum results
+            
+        Returns:
+            List of positive indicator dictionaries
+        """
+        query = select(PositiveIndicator)
+        
+        # Apply user filter if not admin
+        if not self.is_admin:
+            query = query.where(PositiveIndicator.user_id == self.user_id)
+        
+        query = query.order_by(PositiveIndicator.created_at.desc())
+        query = query.limit(limit)
+        
+        result = await self.db.execute(query)
+        indicators = result.scalars().all()
+        
+        return [{
+            "id": ind.id,
+            "indicator_type": ind.indicator_type,
+            "category": ind.category,
+            "points_awarded": ind.points_awarded,
+            "description": ind.description,
+            "evidence": ind.evidence or {},
+            "target": ind.target,
+            "created_at": ind.created_at.isoformat() if ind.created_at else None
+        } for ind in indicators]
     
     def _finding_to_dataclass(self, finding: Finding) -> FindingDataclass:
         """Convert Finding model to Finding dataclass."""

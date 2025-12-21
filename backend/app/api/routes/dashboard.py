@@ -11,6 +11,7 @@ from loguru import logger
 
 from app.services.orchestrator import get_orchestrator, Capability, JobStatus
 from app.services.risk_engine import get_risk_engine
+from app.services.positive_scorer import get_positive_scorer
 from app.api.routes.auth import get_current_active_user, User
 from app.core.database.database import get_db
 from app.core.database.job_storage import DBJobStorage
@@ -19,34 +20,51 @@ from app.core.database.finding_storage import DBFindingStorage
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-def calculate_risk_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Calculate risk score from findings.
+def calculate_risk_score(
+    findings: List[Dict[str, Any]], 
+    resolved_findings: Optional[Dict[str, int]] = None,
+    positive_indicators: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
+    """Calculate risk score from findings, including positive points.
     
     Args:
-        findings: List of finding dictionaries
+        findings: List of active finding dictionaries
+        resolved_findings: Dictionary with counts of resolved findings by severity
+        positive_indicators: List of positive indicator dictionaries
         
     Returns:
-        Dictionary with risk_score, risk_level, critical_count, high_count
+        Dictionary with risk_score, risk_level, counts, and positive points breakdown
     """
-    if not findings:
-        return {
-            "risk_score": 100,
-            "risk_level": "minimal",
-            "critical_count": 0,
-            "high_count": 0
-        }
-    
     # Normalize severity to lowercase for comparison
     critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
     high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
     medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
     low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
     
-    # Calculate risk score (0-100, higher is better)
-    # Critical: -20 points each, High: -10, Medium: -5, Low: -2
+    # Calculate deductions (negative points)
     base_score = 100
-    score = base_score - (critical_count * 20) - (high_count * 10) - (medium_count * 5) - (low_count * 2)
-    score = max(0, min(100, score))
+    deductions = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
+    
+    # Calculate positive points from resolved findings
+    resolved_points = 0
+    resolved_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    if resolved_findings:
+        resolved_counts = resolved_findings
+        resolved_points = (
+            resolved_counts.get("critical", 0) * 15 +
+            resolved_counts.get("high", 0) * 10 +
+            resolved_counts.get("medium", 0) * 5 +
+            resolved_counts.get("low", 0) * 2
+        )
+    
+    # Calculate positive points from positive indicators
+    indicator_points = 0
+    if positive_indicators:
+        indicator_points = sum(ind.get("points_awarded", 0) for ind in positive_indicators)
+    
+    # Calculate final score
+    score = base_score - deductions + resolved_points + indicator_points
+    score = max(0, min(100, score))  # Clamp between 0 and 100
     
     # Determine risk level
     if score >= 80:
@@ -66,7 +84,17 @@ def calculate_risk_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         "critical_count": critical_count,
         "high_count": high_count,
         "medium_count": medium_count,
-        "low_count": low_count
+        "low_count": low_count,
+        "resolved_critical_count": resolved_counts.get("critical", 0),
+        "resolved_high_count": resolved_counts.get("high", 0),
+        "resolved_medium_count": resolved_counts.get("medium", 0),
+        "resolved_low_count": resolved_counts.get("low", 0),
+        "positive_points": {
+            "resolved": resolved_points,
+            "indicators": indicator_points,
+            "total": resolved_points + indicator_points
+        },
+        "deductions": deductions
     }
 
 
@@ -114,6 +142,9 @@ async def get_dashboard_overview(
         # Get all findings from database
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
+        
+        # Filter to only active findings (not resolved)
+        active_findings = [f for f in all_findings if getattr(f, 'status', 'active') == 'active']
         findings_data = [{
             "id": f.id,
             "title": f.title,
@@ -121,11 +152,18 @@ async def get_dashboard_overview(
             "capability": f.capability.value,
             "target": f.target,
             "risk_score": f.risk_score,
+            "status": getattr(f, 'status', 'active'),
             "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now(timezone.utc).isoformat()
-        } for f in all_findings]
+        } for f in active_findings]
         
-        # Calculate risk score
-        risk_data = calculate_risk_score(findings_data)
+        # Get resolved findings count
+        resolved_findings = await finding_storage.get_resolved_findings()
+        
+        # Get positive indicators
+        positive_indicators = await finding_storage.get_positive_indicators(limit=100)
+        
+        # Calculate risk score with positive points
+        risk_data = calculate_risk_score(findings_data, resolved_findings, positive_indicators)
         
         # Get critical and high findings for dashboard (case-insensitive)
         critical_findings = [f for f in findings_data if f.get("severity", "").lower() in ["critical", "high"]]
@@ -332,7 +370,10 @@ async def get_risk_breakdown(
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        if not all_findings:
+        # Filter to only active findings
+        active_findings = [f for f in all_findings if getattr(f, 'status', 'active') == 'active']
+        
+        if not active_findings and not all_findings:
             return {
                 "overall_score": 100,
                 "risk_level": "minimal",
@@ -352,7 +393,17 @@ async def get_risk_breakdown(
                         "medium": 0,
                         "low": 0
                     },
-                    "formula": "Base Score (100) - (Critical × 20) - (High × 10) - (Medium × 5) - (Low × 2)"
+                    "additions": {
+                        "resolved": 0,
+                        "indicators": 0,
+                        "total": 0
+                    },
+                    "formula": "Base Score (100) - Deductions + Positive Points"
+                },
+                "positive_points": {
+                    "resolved": 0,
+                    "indicators": 0,
+                    "total": 0
                 },
                 "recommendations": []
             }
@@ -364,10 +415,14 @@ async def get_risk_breakdown(
             "capability": f.capability.value,
             "target": f.target,
             "risk_score": f.risk_score,
-        } for f in all_findings]
+        } for f in active_findings]
         
-        # Calculate overall risk score
-        risk_data = calculate_risk_score(findings_data)
+        # Get resolved findings and positive indicators
+        resolved_findings = await finding_storage.get_resolved_findings()
+        positive_indicators = await finding_storage.get_positive_indicators(limit=100)
+        
+        # Calculate overall risk score with positive points
+        risk_data = calculate_risk_score(findings_data, resolved_findings, positive_indicators)
         
         # Map capabilities to display names
         capability_names = {
@@ -497,12 +552,92 @@ async def get_risk_breakdown(
                     total_deductions["medium"] * 5,
                     total_deductions["low"] * 2
                 ]),
-                "formula": "Base Score (100) - (Critical × 20) - (High × 10) - (Medium × 5) - (Low × 2)"
+                "additions": risk_data.get("positive_points", {"resolved": 0, "indicators": 0, "total": 0}),
+                "formula": "Base Score (100) - Deductions + Positive Points (Resolved + Indicators)"
             },
+            "positive_points": risk_data.get("positive_points", {"resolved": 0, "indicators": 0, "total": 0}),
             "recommendations": recommendations[:10]  # Limit to top 10
         }
         
     except Exception as e:
         logger.error(f"Error getting risk breakdown: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error fetching risk breakdown: {str(e)}")
+
+
+@router.get("/positive-indicators")
+async def get_positive_indicators(
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Get positive security indicators for the current user.
+    """
+    try:
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+        indicators = await finding_storage.get_positive_indicators(limit=100)
+        
+        return {
+            "indicators": indicators,
+            "count": len(indicators),
+            "total_points": sum(ind.get("points_awarded", 0) for ind in indicators)
+        }
+    except Exception as e:
+        logger.error(f"Error getting positive indicators: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching positive indicators: {str(e)}")
+
+
+@router.post("/positive-indicators")
+async def create_positive_indicator(
+    indicator_type: str,
+    category: str,
+    points_awarded: int,
+    description: str,
+    target: Optional[str] = None,
+    evidence: Optional[Dict[str, Any]] = None,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Manually create a positive indicator.
+    
+    Args:
+        indicator_type: Type of indicator (strong_config, no_vulnerabilities, improvement, etc.)
+        category: Category (exposure, dark_web, email_security, etc.)
+        points_awarded: Points to award
+        description: Description of the indicator
+        target: Target domain/IP (optional)
+        evidence: Additional evidence (optional)
+    """
+    try:
+        from app.core.database.models import PositiveIndicator
+        import uuid
+        
+        indicator = PositiveIndicator(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            indicator_type=indicator_type,
+            category=category,
+            points_awarded=points_awarded,
+            description=description,
+            target=target,
+            evidence=evidence or {},
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(indicator)
+        await db.commit()
+        await db.refresh(indicator)
+        
+        return {
+            "id": indicator.id,
+            "indicator_type": indicator.indicator_type,
+            "category": indicator.category,
+            "points_awarded": indicator.points_awarded,
+            "description": indicator.description,
+            "created_at": indicator.created_at.isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error creating positive indicator: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating positive indicator: {str(e)}")
 

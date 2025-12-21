@@ -43,17 +43,27 @@ interface BreakdownData {
     medium: number;
     low: number;
   };
-  calculation: {
-    base_score: number;
-    deductions: {
-      critical: number;
-      high: number;
-      medium: number;
-      low: number;
+    calculation: {
+      base_score: number;
+      deductions: {
+        critical: number;
+        high: number;
+        medium: number;
+        low: number;
+      };
+      total_deduction: number;
+      additions?: {
+        resolved: number;
+        indicators: number;
+        total: number;
+      };
+      formula: string;
     };
-    total_deduction: number;
-    formula: string;
-  };
+    positive_points?: {
+      resolved: number;
+      indicators: number;
+      total: number;
+    };
   recommendations: Array<{
     priority: "critical" | "high" | "medium" | "low";
     title: string;
@@ -324,6 +334,44 @@ export function SecurityScoreDetailModal({
                   <span className="text-white/70 font-mono">Total Deduction</span>
                   <span className="text-red-400 font-mono font-semibold">
                     -{breakdownData.calculation.total_deduction}
+                  </span>
+                </div>
+                {/* Positive Points Section */}
+                {(breakdownData.positive_points?.total || 0) > 0 && (
+                  <>
+                    <div className="h-px bg-white/[0.08]" />
+                    <div className="space-y-2">
+                      <div className="text-sm text-emerald-400 font-mono font-semibold mb-2">Positive Points</div>
+                      {breakdownData.positive_points.resolved > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/60 font-mono">Resolved Findings</span>
+                          <span className="text-emerald-400 font-mono">
+                            +{breakdownData.positive_points.resolved}
+                          </span>
+                        </div>
+                      )}
+                      {breakdownData.positive_points.indicators > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/60 font-mono">Positive Indicators</span>
+                          <span className="text-emerald-400 font-mono">
+                            +{breakdownData.positive_points.indicators}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+                        <span className="text-white/70 font-mono font-semibold">Total Positive Points</span>
+                        <span className="text-emerald-400 font-mono font-semibold">
+                          +{breakdownData.positive_points.total}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div className="h-px bg-white/[0.08]" />
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-white/70 font-mono font-semibold">Final Score</span>
+                  <span className={cn("font-mono font-bold text-xl", getScoreColor(breakdownData.overall_score))}>
+                    {breakdownData.overall_score}
                   </span>
                 </div>
                 <div className="pt-2 text-xs text-white/50 font-mono italic">

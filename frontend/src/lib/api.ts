@@ -374,7 +374,17 @@ class ApiClient {
           low: number;
         };
         total_deduction: number;
+        additions: {
+          resolved: number;
+          indicators: number;
+          total: number;
+        };
         formula: string;
+      };
+      positive_points: {
+        resolved: number;
+        indicators: number;
+        total: number;
       };
       recommendations: Array<{
         priority: "critical" | "high" | "medium" | "low";
@@ -383,6 +393,39 @@ class ApiClient {
         action: string;
       }>;
     }>("/dashboard/risk-breakdown");
+  }
+
+  /**
+   * Resolve a finding
+   */
+  async resolveFinding(findingId: string, status: "resolved" | "false_positive" | "accepted_risk" = "resolved") {
+    return this.request<{
+      message: string;
+      finding_id: string;
+      status: string;
+    }>(`/capabilities/findings/${findingId}/resolve?status=${status}`, {
+      method: "PATCH",
+    });
+  }
+
+  /**
+   * Get positive indicators
+   */
+  async getPositiveIndicators() {
+    return this.request<{
+      indicators: Array<{
+        id: string;
+        indicator_type: string;
+        category: string;
+        points_awarded: number;
+        description: string;
+        evidence: Record<string, any>;
+        target: string | null;
+        created_at: string | null;
+      }>;
+      count: number;
+      total_points: number;
+    }>("/dashboard/positive-indicators");
   }
 
   /**

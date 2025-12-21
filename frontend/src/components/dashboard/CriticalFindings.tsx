@@ -24,10 +24,34 @@ export function CriticalFindings({ findings: propFindings, className }: Critical
   const router = useRouter();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState<Set<string>>(new Set());
   
   const handleViewInGraph = (findingId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/graph?findingId=${findingId}&depth=2`);
+  };
+
+  const handleResolve = async (findingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setResolving(prev => new Set(prev).add(findingId));
+      await api.resolveFinding(findingId, "resolved");
+      // Remove from list
+      setFindings(prev => prev.filter(f => f.id !== findingId));
+      // Refresh the page data
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error resolving finding:", error);
+      alert("Failed to resolve finding. Please try again.");
+    } finally {
+      setResolving(prev => {
+        const next = new Set(prev);
+        next.delete(findingId);
+        return next;
+      });
+    }
   };
 
   // Fetch findings if not provided
@@ -158,17 +182,26 @@ export function CriticalFindings({ findings: propFindings, className }: Critical
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={(e) => handleResolve(finding.id, e)}
+                    disabled={resolving.has(finding.id)}
+                    className="p-1.5 rounded-lg hover:bg-emerald-500/20 transition-colors group disabled:opacity-50"
+                    title="Mark as Resolved"
+                  >
+                    {resolving.has(finding.id) ? (
+                      <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4 text-white/40 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
                     onClick={(e) => handleViewInGraph(finding.id, e)}
                     className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors group"
                     title="View in Graph"
                   >
                     <svg className="w-4 h-4 text-white/40 group-hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                    </svg>
-                  </button>
-                  <button className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors">
-                    <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 </div>

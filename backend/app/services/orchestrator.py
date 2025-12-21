@@ -33,6 +33,7 @@ from app.core.dsa import HashMap, MinHeap, AVLTree
 # Import real collectors
 from app.collectors.web_recon import WebRecon
 from app.collectors.email_audit import EmailAudit
+from app.services.positive_scorer import get_positive_scorer
 from app.collectors.config_audit import ConfigAudit
 from app.collectors.domain_tree import DomainTree
 
@@ -1006,6 +1007,50 @@ class Orchestrator:
                 discovered_at=datetime.now(),
                 risk_score=self._severity_to_score(risk.get("spoofing_risk", "medium"))
             ))
+        
+        # Generate positive indicators from scan results
+        positive_scorer = get_positive_scorer()
+        try:
+            # Check for positive indicators (strong config, no vulnerabilities, etc.)
+            positive_indicators = positive_scorer.analyze_scan_results(
+                Capability.EMAIL_SECURITY,
+                [f.to_dict() for f in findings],
+                results
+            )
+            
+            # Store positive indicators in database
+            user_id = job.metadata.get("user_id") if job.metadata else None
+            if positive_indicators and user_id:
+                try:
+                    from app.core.database.database import init_db, _async_session_maker
+                    from app.core.database.models import PositiveIndicator
+                    
+                    init_db()
+                    if _async_session_maker:
+                        async with _async_session_maker() as db:
+                            try:
+                                for indicator in positive_indicators:
+                                    db_indicator = PositiveIndicator(
+                                        id=indicator["id"],
+                                        user_id=user_id,
+                                        indicator_type=indicator["indicator_type"],
+                                        category=indicator["category"],
+                                        points_awarded=indicator["points_awarded"],
+                                        description=indicator["description"],
+                                        evidence=indicator.get("evidence", {}),
+                                        target=job.target,
+                                        created_at=datetime.now()
+                                    )
+                                    db.add(db_indicator)
+                                await db.commit()
+                                logger.info(f"Stored {len(positive_indicators)} positive indicators for {job.target}")
+                            except Exception as e:
+                                await db.rollback()
+                                logger.warning(f"Failed to store positive indicators: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize database for positive indicators: {e}")
+        except Exception as e:
+            logger.warning(f"Error generating positive indicators: {e}")
         
         job.progress = 100
         return findings

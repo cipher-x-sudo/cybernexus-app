@@ -214,6 +214,7 @@ class Finding(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     capability = Column(String(50), nullable=False, index=True)
     severity = Column(String(20), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, resolved, false_positive, accepted_risk
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     evidence = Column(JSONB, default=dict, nullable=True)
@@ -222,15 +223,41 @@ class Finding(Base):
     risk_score = Column(Float, nullable=True)
     target = Column(String(500), nullable=True)
     discovered_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
-    user = relationship("User", back_populates="findings")
+    user = relationship("User", back_populates="findings", foreign_keys=[user_id])
+    resolver = relationship("User", foreign_keys=[resolved_by])
     
     __table_args__ = (
         Index('idx_finding_user_severity', 'user_id', 'severity'),
         Index('idx_finding_user_capability', 'user_id', 'capability'),
+        Index('idx_finding_user_status', 'user_id', 'status'),
         Index('idx_finding_discovered', 'discovered_at'),
+    )
+
+
+class PositiveIndicator(Base):
+    """Positive security indicator model for tracking good practices and improvements."""
+    __tablename__ = "positive_indicators"
+    
+    id = Column(String(255), primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    indicator_type = Column(String(50), nullable=False, index=True)  # strong_config, no_vulnerabilities, improvement, remediated
+    category = Column(String(50), nullable=False, index=True)  # exposure, dark_web, email_security, infrastructure, network
+    points_awarded = Column(Integer, nullable=False, default=0)
+    description = Column(Text, nullable=True)
+    evidence = Column(JSONB, default=dict, nullable=True)
+    target = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    
+    __table_args__ = (
+        Index('idx_positive_user_category', 'user_id', 'category'),
     )
 
 
