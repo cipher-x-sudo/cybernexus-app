@@ -26,6 +26,7 @@ export function JobHistoryCard({ className, limit = 5 }: JobHistoryCardProps) {
         const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job) => ({
           ...job,
           status: job.status as CapabilityJob["status"],
+          time_ago: job.time_ago, // Preserve time_ago field
         }));
         setJobs(mappedJobs);
       } catch (error) {
