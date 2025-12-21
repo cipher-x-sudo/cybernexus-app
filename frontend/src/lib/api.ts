@@ -96,6 +96,7 @@ export interface CapabilityJob {
   completed_at: string | null;
   findings_count: number;
   error: string | null;
+  time_ago?: string; // Optional field for formatted time display
 }
 
 export interface JobDetail extends CapabilityJob {
