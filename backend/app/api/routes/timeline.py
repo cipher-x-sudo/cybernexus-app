@@ -5,11 +5,17 @@ Handles event timeline management and querying.
 Uses custom Doubly Linked List DSA for efficient traversal.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from enum import Enum
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database.database import get_db
+from app.core.database.job_storage import DBJobStorage
+from app.core.database.finding_storage import DBFindingStorage
+from app.api.routes.auth import get_current_active_user, User
 
 router = APIRouter()
 
@@ -181,16 +187,94 @@ async def get_timeline_stats():
 @router.get("/recent", response_model=List[TimelineEvent])
 async def get_recent_events(
     n: int = Query(default=20, ge=1, le=100),
-    severity_filter: Optional[List[EventSeverity]] = Query(default=None)
+    severity_filter: Optional[List[EventSeverity]] = Query(default=None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get most recent N events."""
+    """Get most recent N events. Generates events from database if in-memory store is empty."""
     results = events_db.copy()
     
+    # If in-memory store is empty, generate events from database
+    if not results:
+        try:
+            # Generate events from recent jobs
+            job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+            recent_jobs = await job_storage.list_jobs(limit=50, offset=0)
+            
+            for job in recent_jobs:
+                # Create scan_completed event for completed jobs
+                if job.status.value == "completed" and job.completed_at:
+                    event = {
+                        "id": generate_event_id(),
+                        "type": EventType.SCAN_COMPLETED,
+                        "title": f"Scan completed: {job.capability.value} on {job.target}",
+                        "description": f"Completed {job.capability.value} scan for {job.target}",
+                        "severity": EventSeverity.INFO,
+                        "timestamp": job.completed_at,
+                        "source": job.capability.value,
+                        "related_entities": [job.target],
+                        "metadata": {"job_id": job.id, "capability": job.capability.value}
+                    }
+                    results.append(event)
+                # Create scan_started event for running jobs
+                elif job.status.value == "running" and job.started_at:
+                    event = {
+                        "id": generate_event_id(),
+                        "type": EventType.SCAN_COMPLETED,  # Using scan_completed type
+                        "title": f"Scan started: {job.capability.value} on {job.target}",
+                        "description": f"Started {job.capability.value} scan for {job.target}",
+                        "severity": EventSeverity.INFO,
+                        "timestamp": job.started_at,
+                        "source": job.capability.value,
+                        "related_entities": [job.target],
+                        "metadata": {"job_id": job.id, "capability": job.capability.value}
+                    }
+                    results.append(event)
+            
+            # Generate events from critical findings
+            finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+            critical_findings = await finding_storage.get_critical_findings(limit=50)
+            
+            for finding in critical_findings:
+                # Map finding severity to event severity
+                severity_map = {
+                    "critical": EventSeverity.CRITICAL,
+                    "high": EventSeverity.HIGH,
+                    "medium": EventSeverity.MEDIUM,
+                    "low": EventSeverity.LOW,
+                    "info": EventSeverity.INFO
+                }
+                event_severity = severity_map.get(finding.severity, EventSeverity.INFO)
+                
+                # Determine event type based on capability
+                event_type = EventType.THREAT_DETECTED
+                if "dark" in finding.capability.value.lower() or "web" in finding.capability.value.lower():
+                    event_type = EventType.DARK_WEB_MENTION
+                elif "credential" in finding.capability.value.lower() or "breach" in finding.capability.value.lower():
+                    event_type = EventType.CREDENTIAL_LEAKED
+                
+                event = {
+                    "id": generate_event_id(),
+                    "type": event_type,
+                    "title": finding.title,
+                    "description": finding.description or finding.title,
+                    "severity": event_severity,
+                    "timestamp": finding.discovered_at,
+                    "source": finding.capability.value,
+                    "related_entities": [finding.target] if finding.target else [],
+                    "metadata": {"finding_id": finding.id, "risk_score": finding.risk_score}
+                }
+                results.append(event)
+        except Exception as e:
+            # Log error but don't fail - return empty or existing events
+            import logging
+            logging.getLogger(__name__).warning(f"Error generating timeline events from database: {e}")
+    
     if severity_filter:
-        results = [e for e in results if e["severity"] in severity_filter]
+        results = [e for e in results if e.get("severity") in severity_filter]
     
     # Sort by timestamp descending
-    results.sort(key=lambda e: e["timestamp"], reverse=True)
+    results.sort(key=lambda e: e.get("timestamp", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
     
     return [TimelineEvent(**e) for e in results[:n]]
 

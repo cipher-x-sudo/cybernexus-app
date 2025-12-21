@@ -502,7 +502,7 @@ async def get_job_history(
     return result
 
 
-@router.get("/jobs/recent", response_model=List[JobResponse])
+@router.get("/jobs/recent")
 async def get_recent_jobs(
     limit: int = Query(default=5, ge=1, le=50, description="Number of recent jobs to return"),
     current_user: User = Depends(get_current_active_user),
@@ -512,34 +512,59 @@ async def get_recent_jobs(
     Get recent jobs for the current user.
     Returns the most recently created jobs, ordered by creation date descending.
     """
+    from datetime import datetime, timezone
+    
     # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     jobs = await storage.list_jobs(limit=limit, offset=0)
+    
+    # Get total count
+    total_count = await storage.count_jobs()
     
     # Get findings count for each job from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
     result = []
+    now = datetime.now(timezone.utc)
     for job in jobs:
         # Get findings count for this job
         findings = await finding_storage.get_findings_for_job(job.id)
         findings_count = len(findings)
         
-        result.append(JobResponse(
-            id=job.id,
-            capability=job.capability.value,
-            target=job.target,
-            status=job.status.value,
-            progress=job.progress,
-            created_at=job.created_at.isoformat(),
-            started_at=job.started_at.isoformat() if job.started_at else None,
-            completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            findings_count=findings_count,
-            error=job.error
-        ))
+        # Calculate time_ago
+        if job.completed_at:
+            time_diff = now - job.completed_at
+            if time_diff.days > 0:
+                time_ago = f"{time_diff.days}d ago"
+            elif time_diff.seconds > 3600:
+                time_ago = f"{time_diff.seconds // 3600}h ago"
+            else:
+                time_ago = f"{time_diff.seconds // 60}m ago"
+        elif job.started_at:
+            time_diff = now - job.started_at
+            time_ago = f"Started {time_diff.seconds // 60}m ago"
+        else:
+            time_ago = "Just created"
+        
+        result.append({
+            "id": job.id,
+            "capability": job.capability.value,
+            "target": job.target,
+            "status": job.status.value,
+            "progress": job.progress,
+            "findings_count": findings_count,
+            "time_ago": time_ago,
+            "created_at": job.created_at.isoformat(),
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "error": job.error
+        })
     
-    return result
+    return {
+        "jobs": result,
+        "count": len(result)
+    }
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
