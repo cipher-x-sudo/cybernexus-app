@@ -202,12 +202,23 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
     Creates a new event loop for the thread to avoid conflicts.
     """
     try:
+        # Ensure database is initialized before creating event loop
+        # This makes the engine available for use in any event loop
+        from app.core.database.database import init_db
+        init_db()
+        
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(orchestrator_instance.execute_job(job_id))
-        finally:
+            loop.run_until_complete(orchestrator_instance.execute_job(job_id))        finally:
+            # Clean up any pending tasks before closing the loop
+            pending = asyncio.all_tasks(loop)
+            if pending:
+                for task in pending:
+                    task.cancel()
+                # Wait for tasks to complete cancellation
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             loop.close()
     except Exception as e:
         logger.error(

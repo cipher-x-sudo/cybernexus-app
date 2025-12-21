@@ -238,7 +238,7 @@ class DBFindingStorage:
         # Using SQLAlchemy's JSONB operators
         from sqlalchemy.dialects.postgresql import JSONB
         query = query.where(
-            Finding.evidence.astext.contains(job_id)
+            Finding.evidence['job_id'].astext == job_id
         )
         
         query = query.order_by(Finding.discovered_at.desc())
@@ -297,5 +297,6 @@ class DBFindingStorage:
             risk_score=finding.risk_score or 0.0,
             target=finding.target or ""
         )
+
 
 

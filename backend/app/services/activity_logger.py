@@ -92,3 +92,4 @@ async def get_user_activities(
     return list(result.scalars().all())
 
 
+

@@ -140,3 +140,4 @@ def get_tor_status_cache() -> TorStatusCache:
                 logger.info("Tor status cache initialized")
     return _tor_status_cache
 
+
