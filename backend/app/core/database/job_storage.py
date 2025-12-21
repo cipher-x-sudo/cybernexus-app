@@ -279,6 +279,7 @@ class DBJobStorage:
             completed_at=job.completed_at,
             findings=[],  # Findings loaded separately
             error=job.error,
-            metadata=job.meta_data or {}  # Map from DB meta_data to dataclass metadata
+            metadata=job.meta_data or {},  # Map from DB meta_data to dataclass metadata
+            execution_logs=job.execution_logs or []  # Include execution logs from database
         )
 

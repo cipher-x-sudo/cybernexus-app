@@ -118,6 +118,7 @@ class Job:
     findings: List[Finding] = field(default_factory=list)
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)  # Additional job metadata (e.g., discovered URLs)
+    execution_logs: List[Dict[str, Any]] = field(default_factory=list)  # Execution timeline/logs
     _findings_lock: Lock = field(default_factory=Lock, init=False, repr=False)
     
     def add_finding(self, finding: Finding):

@@ -75,6 +75,10 @@ class JobResponse(BaseModel):
     completed_at: Optional[str]
     findings_count: int
     error: Optional[str]
+    priority: Optional[int] = None
+    config: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    execution_logs: Optional[List[Dict[str, Any]]] = None
 
 
 class FindingResponse(BaseModel):
@@ -600,7 +604,11 @@ async def get_job(
         started_at=job.started_at.isoformat() if job.started_at else None,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
         findings_count=findings_count,
-        error=job.error
+        error=job.error,
+        priority=job.priority,
+        config=job.config or {},
+        metadata=job.meta_data or {},  # Map from DB meta_data to response metadata
+        execution_logs=job.execution_logs or []
     )
 
 
