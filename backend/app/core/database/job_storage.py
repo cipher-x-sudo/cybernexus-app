@@ -68,7 +68,7 @@ class DBJobStorage:
             existing.priority = job.priority.value
             existing.progress = job.progress
             existing.config = job.config or {}
-            existing.metadata = job.metadata or {}
+            existing.meta_data = job.metadata or {}  # Map from dataclass metadata to DB meta_data
             existing.error = job.error
             existing.execution_logs = execution_logs
             existing.started_at = job.started_at
@@ -84,7 +84,7 @@ class DBJobStorage:
                 priority=job.priority.value,
                 progress=job.progress,
                 config=job.config or {},
-                metadata=job.metadata or {},
+                meta_data=job.metadata or {},  # Map from dataclass metadata to DB meta_data
                 error=job.error,
                 execution_logs=execution_logs,
                 created_at=job.created_at,
@@ -133,7 +133,7 @@ class DBJobStorage:
         if 'config' in updates:
             job.config = updates['config']
         if 'metadata' in updates:
-            job.metadata = updates['metadata']
+            job.meta_data = updates['metadata']  # Map to meta_data column
         if 'execution_logs' in updates:
             job.execution_logs = updates['execution_logs']
         
@@ -279,6 +279,6 @@ class DBJobStorage:
             completed_at=job.completed_at,
             findings=[],  # Findings loaded separately
             error=job.error,
-            metadata=job.metadata or {}
+            metadata=job.meta_data or {}  # Map from DB meta_data to dataclass metadata
         )
 

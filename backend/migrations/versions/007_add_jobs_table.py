@@ -34,7 +34,7 @@ def upgrade() -> None:
             sa.Column('priority', sa.Integer(), nullable=False, server_default='2'),
             sa.Column('progress', sa.Integer(), nullable=False, server_default='0'),
             sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-            sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+            sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
             sa.Column('error', sa.Text(), nullable=True),
             sa.Column('execution_logs', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
             sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

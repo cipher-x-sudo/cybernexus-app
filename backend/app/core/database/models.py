@@ -273,7 +273,7 @@ class Job(Base):
     priority = Column(Integer, nullable=False, default=2)  # 0=critical, 1=high, 2=normal, 3=low, 4=background
     progress = Column(Integer, nullable=False, default=0)  # 0-100
     config = Column(JSONB, default=dict, nullable=True)  # Job configuration/parameters
-    metadata = Column(JSONB, default=dict, nullable=True)  # Additional job metadata
+    meta_data = Column(JSONB, default=dict, nullable=True)  # Additional job metadata (renamed from 'metadata' - reserved in SQLAlchemy)
     error = Column(Text, nullable=True)  # Error message if failed
     execution_logs = Column(JSONB, default=list, nullable=True)  # Execution timeline/logs
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
