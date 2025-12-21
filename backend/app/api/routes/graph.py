@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.database import get_db
 from app.core.database.db_storage import DBStorage
-from app.core.database.models import GraphNode
+from app.core.database.models import GraphNode as GraphNodeModel
 from app.api.routes.auth import get_current_active_user, User, is_admin
 from app.services.orchestrator import get_orchestrator
 from sqlalchemy import select
@@ -631,7 +631,7 @@ async def get_graph_for_job(
         # Query all GraphNodes at once for better performance
         if graph_node_ids_to_query:
             result = await db.execute(
-                select(GraphNode).where(GraphNode.id.in_(graph_node_ids_to_query))
+                select(GraphNodeModel).where(GraphNodeModel.id.in_(graph_node_ids_to_query))
             )
             graph_nodes = result.scalars().all()
             for graph_node in graph_nodes:
