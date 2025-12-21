@@ -295,12 +295,18 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
       {edges.map((edge, i) => {
         const sourcePos = nodePositions[edge.source];
         const targetPos = nodePositions[edge.target];
-        if (!sourcePos || !targetPos) return null;
+        if (!sourcePos || !targetPos) {
+          // Debug: log missing positions
+          if (process.env.NODE_ENV === 'development') {
+            console.debug(`Edge ${i} missing position: source=${edge.source} (${!!sourcePos}), target=${edge.target} (${!!targetPos})`);
+          }
+          return null;
+        }
         const highlighted = hoveredNode === edge.source || hoveredNode === edge.target ||
           selectedNode === edge.source || selectedNode === edge.target;
         return (
           <Edge3D
-            key={i}
+            key={`edge-${edge.source}-${edge.target}-${i}`}
             source={sourcePos}
             target={targetPos}
             highlighted={highlighted}
