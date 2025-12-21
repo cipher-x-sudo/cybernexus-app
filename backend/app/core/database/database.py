@@ -69,21 +69,27 @@ def _get_thread_engine():
     return _thread_local.engine, _thread_local.session_maker
 
 
+def _get_async_session_maker():
+    """Get session maker for current thread."""
+    init_db()  # Ensure engine is initialized
+    _, session_maker = _get_thread_engine()
+    return session_maker
+
+
 # Create a module-level accessor for backward compatibility
-# This allows code to use _async_session_maker as if it were a variable
+# This allows code to use _async_session_maker() as a context manager
 class _SessionMakerAccessor:
-    """Accessor that returns thread-local session maker."""
+    """Accessor that returns a context manager for creating sessions."""
     def __call__(self):
-        """Call like _async_session_maker() to get session maker."""
-        init_db()  # Ensure engine is initialized
-        _, session_maker = _get_thread_engine()
-        return session_maker
+        """Call like _async_session_maker() to get a context manager for a session."""
+        session_maker = _get_async_session_maker()
+        # Return the session maker, which when called creates a session that supports async with
+        return session_maker()
     
     def __bool__(self):
         """Check if session maker is available (for 'if _async_session_maker:' checks)."""
         try:
-            init_db()
-            _, session_maker = _get_thread_engine()
+            session_maker = _get_async_session_maker()
             return session_maker is not None
         except Exception:
             return False
