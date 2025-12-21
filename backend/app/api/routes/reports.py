@@ -8,8 +8,11 @@ from datetime import datetime
 from typing import List, Optional
 from enum import Enum
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from pydantic import BaseModel
+from pathlib import Path
+
+from app.services.report_generator import ReportGenerator
 
 router = APIRouter()
 
@@ -79,6 +82,9 @@ class ReportTemplate(BaseModel):
 # In-memory report store
 reports_db: dict = {}
 report_counter = 0
+
+# Initialize report generator
+report_generator = ReportGenerator()
 
 # Available templates
 templates = [
@@ -161,32 +167,66 @@ async def generate_report(report_config: ReportCreate):
     report_id = generate_report_id()
     now = datetime.utcnow()
     
-    report_dict = {
-        "id": report_id,
-        "title": report_config.title,
-        "type": report_config.type,
-        "format": report_config.format,
-        "status": ReportStatus.PENDING,
-        "created_at": now,
-        "completed_at": None,
-        "file_path": None,
-        "sections": report_config.include_sections,
-        "metadata": {
-            "date_range_start": report_config.date_range_start.isoformat() if report_config.date_range_start else None,
-            "date_range_end": report_config.date_range_end.isoformat() if report_config.date_range_end else None,
-            "filters": report_config.filters
+    try:
+        # Prepare report data
+        report_data = {
+            "total_threats": 0,
+            "critical_threats": 0,
+            "high_threats": 0,
+            "assets_discovered": 0,
+            "top_threats": [],
+            "recommendations": [
+                "Continue monitoring for new threats",
+                "Review security configurations regularly",
+                "Keep all systems updated with latest security patches"
+            ]
         }
-    }
-    
-    reports_db[report_id] = report_dict
-    
-    # TODO: Trigger async report generation
-    # For now, simulate immediate completion
-    report_dict["status"] = ReportStatus.COMPLETED
-    report_dict["completed_at"] = datetime.utcnow()
-    report_dict["file_path"] = f"/reports/{report_id}.{report_config.format.value}"
-    
-    return Report(**report_dict)
+        
+        # Generate the actual report file
+        output_format = report_config.format.value if hasattr(report_config.format, 'value') else str(report_config.format)
+        report_result = report_generator.generate_executive_summary(report_data, format=output_format, report_id=report_id)
+        
+        report_dict = {
+            "id": report_id,
+            "title": report_config.title,
+            "type": report_config.type,
+            "format": report_config.format,
+            "status": ReportStatus.COMPLETED,
+            "created_at": now,
+            "completed_at": datetime.utcnow(),
+            "file_path": report_result["path"],
+            "sections": report_config.include_sections,
+            "metadata": {
+                "date_range_start": report_config.date_range_start.isoformat() if report_config.date_range_start else None,
+                "date_range_end": report_config.date_range_end.isoformat() if report_config.date_range_end else None,
+                "filters": report_config.filters
+            }
+        }
+        
+        reports_db[report_id] = report_dict
+        
+        return Report(**report_dict)
+    except Exception as e:
+        # If generation fails, mark as failed
+        report_dict = {
+            "id": report_id,
+            "title": report_config.title,
+            "type": report_config.type,
+            "format": report_config.format,
+            "status": ReportStatus.FAILED,
+            "created_at": now,
+            "completed_at": None,
+            "file_path": None,
+            "sections": report_config.include_sections,
+            "metadata": {
+                "date_range_start": report_config.date_range_start.isoformat() if report_config.date_range_start else None,
+                "date_range_end": report_config.date_range_end.isoformat() if report_config.date_range_end else None,
+                "filters": report_config.filters,
+                "error": str(e)
+            }
+        }
+        reports_db[report_id] = report_dict
+        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
 
 
 @router.get("/{report_id}/download")
@@ -200,17 +240,35 @@ async def download_report(report_id: str):
     if report["status"] != ReportStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Report not ready for download")
     
-    # TODO: Implement actual file download
-    # For now, return report data as JSON
-    return JSONResponse(content={
-        "report_id": report_id,
-        "title": report["title"],
-        "generated_at": report["completed_at"].isoformat() if report["completed_at"] else None,
-        "content": {
-            "sections": report["sections"],
-            "data": "Report content would be here"
+    file_path = report.get("file_path")
+    if not file_path or not Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="Report file not found")
+    
+    # Determine content type based on format
+    report_format = report.get("format")
+    if isinstance(report_format, Enum):
+        report_format = report_format.value
+    
+    content_type_map = {
+        "pdf": "application/pdf",
+        "html": "text/html",
+        "json": "application/json",
+        "markdown": "text/markdown"
+    }
+    
+    content_type = content_type_map.get(report_format, "application/octet-stream")
+    
+    # Generate filename
+    filename = f"{report['title'].replace(' ', '_')}.{report_format}"
+    
+    return FileResponse(
+        path=file_path,
+        media_type=content_type,
+        filename=filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
         }
-    })
+    )
 
 
 @router.delete("/{report_id}")

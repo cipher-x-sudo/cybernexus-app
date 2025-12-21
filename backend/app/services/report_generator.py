@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from loguru import logger
+from weasyprint import HTML, CSS
+from io import BytesIO
 
 from app.config import settings
 
@@ -41,32 +43,62 @@ class ReportGenerator:
         else:
             self._env = None
     
-    def generate_executive_summary(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_executive_summary(self, data: Dict[str, Any], format: str = "pdf", report_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate executive summary report.
+        
+        Args:
+            data: Report data
+            format: Output format ("pdf" or "html")
+            report_id: Optional custom report ID
+            
+        Returns:
+            Report metadata
+        """
+        if not report_id:
+            report_id = f"RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        
+        # Generate HTML content
+        html_content = self._render_executive_summary(data)
+        
+        if format == "pdf":
+            # Generate PDF
+            pdf_path = self.output_dir / f"{report_id}.pdf"
+            HTML(string=html_content).write_pdf(pdf_path)
+            
+            return {
+                "report_id": report_id,
+                "type": "executive_summary",
+                "format": "pdf",
+                "path": str(pdf_path),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        else:
+            # Save HTML
+            html_path = self.output_dir / f"{report_id}.html"
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            
+            return {
+                "report_id": report_id,
+                "type": "executive_summary",
+                "format": "html",
+                "path": str(html_path),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+    
+    def generate_pdf_bytes(self, data: Dict[str, Any]) -> bytes:
+        """Generate PDF report as bytes.
         
         Args:
             data: Report data
             
         Returns:
-            Report metadata
+            PDF bytes
         """
-        report_id = f"RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-        
-        # Generate HTML content
         html_content = self._render_executive_summary(data)
-        
-        # Save HTML
-        html_path = self.output_dir / f"{report_id}.html"
-        with open(html_path, 'w') as f:
-            f.write(html_content)
-        
-        return {
-            "report_id": report_id,
-            "type": "executive_summary",
-            "format": "html",
-            "path": str(html_path),
-            "generated_at": datetime.utcnow().isoformat()
-        }
+        pdf_bytes = BytesIO()
+        HTML(string=html_content).write_pdf(pdf_bytes)
+        return pdf_bytes.getvalue()
     
     def _render_executive_summary(self, data: Dict[str, Any]) -> str:
         """Render executive summary HTML.
@@ -78,76 +110,88 @@ class ReportGenerator:
             HTML content
         """
         # Default template if no custom templates
+        # Using direct color values instead of CSS variables for better PDF compatibility
         return f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CyberNexus Executive Summary</title>
     <style>
-        :root {{
-            --primary: #1e3a5f;
-            --secondary: #4a90d9;
-            --danger: #dc3545;
-            --warning: #ffc107;
-            --success: #28a745;
-            --bg: #f8f9fa;
-            --text: #212529;
+        @page {{
+            size: A4;
+            margin: 2cm;
         }}
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
             line-height: 1.6;
-            color: var(--text);
-            background: var(--bg);
+            color: #212529;
+            background: #ffffff;
             margin: 0;
-            padding: 20px;
+            padding: 0;
         }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
+        .container {{
+            max-width: 100%;
+            margin: 0 auto;
+        }}
         .header {{
-            background: var(--primary);
+            background: #1e3a5f;
             color: white;
             padding: 30px;
             border-radius: 8px;
             margin-bottom: 30px;
         }}
-        .header h1 {{ margin: 0 0 10px 0; }}
-        .header .meta {{ opacity: 0.8; }}
+        .header h1 {{
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }}
+        .header .meta {{
+            opacity: 0.9;
+            font-size: 14px;
+        }}
         .section {{
             background: white;
             padding: 25px;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
         .section h2 {{
-            color: var(--primary);
-            border-bottom: 2px solid var(--secondary);
+            color: #1e3a5f;
+            border-bottom: 2px solid #4a90d9;
             padding-bottom: 10px;
             margin-top: 0;
+            font-size: 20px;
         }}
         .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            width: 100%;
             margin: 20px 0;
+            border: none;
+        }}
+        .stats-grid td {{
+            border: none;
+            padding: 0;
         }}
         .stat-card {{
-            background: var(--bg);
+            background: #f8f9fa;
             padding: 20px;
             border-radius: 8px;
             text-align: center;
+            width: 25%;
         }}
         .stat-card .value {{
-            font-size: 2.5em;
+            font-size: 2em;
             font-weight: bold;
-            color: var(--primary);
+            color: #1e3a5f;
         }}
-        .stat-card .label {{ color: #666; }}
-        .severity-critical {{ color: var(--danger); }}
+        .stat-card .label {{
+            color: #666;
+            margin-top: 10px;
+        }}
+        .severity-critical {{ color: #dc3545; }}
         .severity-high {{ color: #fd7e14; }}
-        .severity-medium {{ color: var(--warning); }}
-        .severity-low {{ color: var(--success); }}
+        .severity-medium {{ color: #ffc107; }}
+        .severity-low {{ color: #28a745; }}
         table {{
             width: 100%;
             border-collapse: collapse;
@@ -158,8 +202,10 @@ class ReportGenerator:
             text-align: left;
             border-bottom: 1px solid #ddd;
         }}
-        th {{ background: var(--primary); color: white; }}
-        tr:hover {{ background: #f5f5f5; }}
+        th {{
+            background: #1e3a5f;
+            color: white;
+        }}
         .badge {{
             display: inline-block;
             padding: 4px 8px;
@@ -167,15 +213,34 @@ class ReportGenerator:
             font-size: 0.85em;
             font-weight: bold;
         }}
-        .badge-critical {{ background: var(--danger); color: white; }}
-        .badge-high {{ background: #fd7e14; color: white; }}
-        .badge-medium {{ background: var(--warning); color: black; }}
-        .badge-low {{ background: var(--success); color: white; }}
+        .badge-critical {{
+            background: #dc3545;
+            color: white;
+        }}
+        .badge-high {{
+            background: #fd7e14;
+            color: white;
+        }}
+        .badge-medium {{
+            background: #ffc107;
+            color: black;
+        }}
+        .badge-low {{
+            background: #28a745;
+            color: white;
+        }}
         .footer {{
             text-align: center;
             padding: 20px;
             color: #666;
             font-size: 0.9em;
+            margin-top: 40px;
+        }}
+        ul {{
+            padding-left: 20px;
+        }}
+        li {{
+            margin-bottom: 8px;
         }}
     </style>
 </head>
@@ -191,24 +256,26 @@ class ReportGenerator:
 
         <div class="section">
             <h2>Overview</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="value">{data.get('total_threats', 0)}</div>
-                    <div class="label">Total Threats</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value severity-critical">{data.get('critical_threats', 0)}</div>
-                    <div class="label">Critical</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value severity-high">{data.get('high_threats', 0)}</div>
-                    <div class="label">High</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value">{data.get('assets_discovered', 0)}</div>
-                    <div class="label">Assets Discovered</div>
-                </div>
-            </div>
+            <table class="stats-grid" style="width: 100%; border: none;">
+                <tr>
+                    <td class="stat-card">
+                        <div class="value">{data.get('total_threats', 0)}</div>
+                        <div class="label">Total Threats</div>
+                    </td>
+                    <td class="stat-card">
+                        <div class="value severity-critical">{data.get('critical_threats', 0)}</div>
+                        <div class="label">Critical</div>
+                    </td>
+                    <td class="stat-card">
+                        <div class="value severity-high">{data.get('high_threats', 0)}</div>
+                        <div class="label">High</div>
+                    </td>
+                    <td class="stat-card">
+                        <div class="value">{data.get('assets_discovered', 0)}</div>
+                        <div class="label">Assets Discovered</div>
+                    </td>
+                </tr>
+            </table>
         </div>
 
         <div class="section">
@@ -312,14 +379,16 @@ class ReportGenerator:
         """
         reports = []
         
-        for report_file in self.output_dir.glob("*.html"):
-            reports.append({
-                "report_id": report_file.stem,
-                "format": "html",
-                "path": str(report_file),
-                "size": report_file.stat().st_size,
-                "created": datetime.fromtimestamp(report_file.stat().st_ctime).isoformat()
-            })
+        # List both HTML and PDF reports
+        for report_file in self.output_dir.glob("*.*"):
+            if report_file.suffix in [".html", ".pdf"]:
+                reports.append({
+                    "report_id": report_file.stem,
+                    "format": report_file.suffix[1:],  # Remove the dot
+                    "path": str(report_file),
+                    "size": report_file.stat().st_size,
+                    "created": datetime.fromtimestamp(report_file.stat().st_ctime).isoformat()
+                })
         
         return sorted(reports, key=lambda x: x["created"], reverse=True)
 
