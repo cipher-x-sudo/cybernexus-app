@@ -337,12 +337,12 @@ export function SecurityScoreDetailModal({
                   </span>
                 </div>
                 {/* Positive Points Section */}
-                {(breakdownData.positive_points?.total || 0) > 0 && (
+                {breakdownData.positive_points && (breakdownData.positive_points.total || 0) > 0 && (
                   <>
                     <div className="h-px bg-white/[0.08]" />
                     <div className="space-y-2">
                       <div className="text-sm text-emerald-400 font-mono font-semibold mb-2">Positive Points</div>
-                      {breakdownData.positive_points.resolved > 0 && (
+                      {(breakdownData.positive_points.resolved || 0) > 0 && (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-white/60 font-mono">Resolved Findings</span>
                           <span className="text-emerald-400 font-mono">
@@ -350,7 +350,7 @@ export function SecurityScoreDetailModal({
                           </span>
                         </div>
                       )}
-                      {breakdownData.positive_points.indicators > 0 && (
+                      {(breakdownData.positive_points.indicators || 0) > 0 && (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-white/60 font-mono">Positive Indicators</span>
                           <span className="text-emerald-400 font-mono">
@@ -361,7 +361,7 @@ export function SecurityScoreDetailModal({
                       <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
                         <span className="text-white/70 font-mono font-semibold">Total Positive Points</span>
                         <span className="text-emerald-400 font-mono font-semibold">
-                          +{breakdownData.positive_points.total}
+                          +{breakdownData.positive_points.total || 0}
                         </span>
                       </div>
                     </div>
