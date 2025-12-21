@@ -46,7 +46,7 @@ export default function ReportsPage() {
       const params = {
         title: reportName,
         type: "executive_summary",
-        format: "pdf",
+        format: "pdf" as const,
       };
 
       await api.generateReport(params);
