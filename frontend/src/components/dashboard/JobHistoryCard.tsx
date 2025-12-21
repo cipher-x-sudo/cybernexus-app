@@ -123,7 +123,7 @@ export function JobHistoryCard({ className, limit = 5 }: JobHistoryCardProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium truncate">
-                    {job.capabilities.length > 0 
+                    {job.capabilities && job.capabilities.length > 0 
                       ? job.capabilities.length === 1 
                         ? job.capabilities[0] 
                         : `${job.capabilities[0]} +${job.capabilities.length - 1}`

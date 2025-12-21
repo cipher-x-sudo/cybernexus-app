@@ -195,7 +195,7 @@ export default function JobDetailsPage() {
               <div>
                 <p className="text-xs font-mono text-white/50 mb-1">Capabilities</p>
                 <p className="text-sm text-white font-medium">
-                  {job.capabilities.length > 0 
+                  {job.capabilities && job.capabilities.length > 0 
                     ? job.capabilities.join(", ")
                     : "Unknown"}
                 </p>
