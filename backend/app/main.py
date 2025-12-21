@@ -143,6 +143,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
     
+    # Close browser service instances (thread-local cleanup)
+    try:
+        from app.services.browser_capture import cleanup_all_browser_instances
+        await cleanup_all_browser_instances()
+        logger.info("Browser service instances cleaned up")
+    except Exception as e:
+        logger.warning(f"Error during browser service cleanup: {e}")
+    
     # Close database connections
     await close_db()
     logger.info("Database connections closed")

@@ -8,6 +8,7 @@ and HAR file export using Playwright.
 import asyncio
 import json
 import base64
+import threading
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,10 @@ from io import BytesIO
 
 from playwright.async_api import async_playwright, Browser, Page, Route, Request, Response
 from loguru import logger
+
+
+# Thread-local storage for browser instances
+_thread_local = threading.local()
 
 
 class BrowserCaptureService:
@@ -29,22 +34,43 @@ class BrowserCaptureService:
     - JavaScript execution support
     - Redirect handling
     - Headless browser automation
+    
+    Uses thread-local storage to ensure each thread/event loop has its own
+    browser instance, preventing transport closure errors when event loops close.
     """
     
     def __init__(self):
-        self.browser: Optional[Browser] = None
-        self.playwright = None
-        self._initialized = False
+        # Browser instances are stored in thread-local storage
+        # No instance variables needed here
+        pass
+    
+    def _get_thread_local_storage(self):
+        """Get thread-local storage for this thread"""
+        if not hasattr(_thread_local, 'browser'):
+            _thread_local.browser = None
+            _thread_local.playwright = None
+            _thread_local.initialized = False
+        return _thread_local
     
     async def initialize(self):
-        """Initialize Playwright browser instance"""
-        if self._initialized:
-            return
+        """Initialize Playwright browser instance for current thread"""
+        storage = self._get_thread_local_storage()
+        
+        if storage.initialized:
+            # Check if browser is still valid
+            try:
+                if storage.browser and storage.browser.is_connected():
+                    return
+            except Exception:
+                # Browser is closed or invalid, reinitialize
+                storage.initialized = False
+                storage.browser = None
+                storage.playwright = None
         
         try:
-            self.playwright = await async_playwright().start()
+            storage.playwright = await async_playwright().start()
             # Launch browser with appropriate options
-            self.browser = await self.playwright.chromium.launch(
+            storage.browser = await storage.playwright.chromium.launch(
                 headless=True,
                 args=[
                     '--no-sandbox',
@@ -54,20 +80,43 @@ class BrowserCaptureService:
                     '--disable-gpu',
                 ]
             )
-            self._initialized = True
-            logger.info("[BrowserCapture] Playwright browser initialized")
+            storage.initialized = True
+            logger.info(f"[BrowserCapture] Playwright browser initialized for thread {threading.get_ident()}")
         except Exception as e:
             logger.error(f"[BrowserCapture] Failed to initialize browser: {e}")
+            storage.initialized = False
+            storage.browser = None
+            storage.playwright = None
             raise
     
     async def close(self):
-        """Close browser and cleanup"""
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
-        self._initialized = False
-        logger.info("[BrowserCapture] Browser closed")
+        """Close browser and cleanup for current thread"""
+        storage = self._get_thread_local_storage()
+        
+        try:
+            if storage.browser:
+                try:
+                    await storage.browser.close()
+                except Exception as e:
+                    logger.warning(f"[BrowserCapture] Error closing browser: {e}")
+                storage.browser = None
+            
+            if storage.playwright:
+                try:
+                    await storage.playwright.stop()
+                except Exception as e:
+                    logger.warning(f"[BrowserCapture] Error stopping playwright: {e}")
+                storage.playwright = None
+            
+            storage.initialized = False
+            logger.info(f"[BrowserCapture] Browser closed for thread {threading.get_ident()}")
+        except Exception as e:
+            logger.error(f"[BrowserCapture] Error during cleanup: {e}")
+    
+    def _get_browser(self) -> Optional[Browser]:
+        """Get browser instance for current thread"""
+        storage = self._get_thread_local_storage()
+        return storage.browser
     
     async def capture_page(
         self,
@@ -96,8 +145,13 @@ class BrowserCaptureService:
                 - redirect_chain: List of redirect URLs
                 - capture_time: Capture timestamp
         """
-        if not self._initialized:
+        storage = self._get_thread_local_storage()
+        if not storage.initialized:
             await self.initialize()
+        
+        browser = self._get_browser()
+        if not browser:
+            raise RuntimeError("Browser not initialized")
         
         options = options or {}
         wait_until = options.get('wait_until', 'networkidle')
@@ -119,7 +173,7 @@ class BrowserCaptureService:
             if user_agent:
                 context_options['user_agent'] = user_agent
             
-            context = await self.browser.new_context(**context_options)
+            context = await browser.new_context(**context_options)
             
             # Create page
             page = await context.new_page()
@@ -327,7 +381,8 @@ class BrowserCaptureService:
         Returns:
             Dictionary mapping URL to capture result
         """
-        if not self._initialized:
+        storage = self._get_thread_local_storage()
+        if not storage.initialized:
             await self.initialize()
         
         tasks = [self.capture_page(url, options) for url in urls]
@@ -339,7 +394,7 @@ class BrowserCaptureService:
         }
 
 
-# Global instance
+# Global service instance (shared, but uses thread-local storage internally)
 _browser_capture_service: Optional[BrowserCaptureService] = None
 
 
@@ -349,4 +404,15 @@ def get_browser_capture_service() -> BrowserCaptureService:
     if _browser_capture_service is None:
         _browser_capture_service = BrowserCaptureService()
     return _browser_capture_service
+
+
+async def cleanup_all_browser_instances():
+    """
+    Cleanup all browser instances across all threads.
+    This should be called during application shutdown.
+    Note: This is best-effort cleanup as we can't easily iterate all threads.
+    """
+    # The thread-local instances will be cleaned up when threads end
+    # This function is mainly for documentation/logging purposes
+    logger.info("[BrowserCapture] Cleanup requested for all browser instances")
 

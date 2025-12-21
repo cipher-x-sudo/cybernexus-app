@@ -191,6 +191,7 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
             # This ensures the engine is created in the correct event loop
             async def init_and_execute():
                 from app.core.database.database import init_db, close_db
+                from app.services.browser_capture import get_browser_capture_service
                 # Initialize database in this event loop's context
                 init_db()
                 try:
@@ -199,6 +200,12 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
                 finally:
                     # Clean up thread-local database engine
                     await close_db()
+                    # Clean up browser service for this thread before event loop closes
+                    try:
+                        browser_service = get_browser_capture_service()
+                        await browser_service.close()
+                    except Exception as e:
+                        logger.warning(f"[API] Error cleaning up browser service in thread: {e}")
             
             loop.run_until_complete(init_and_execute())
         finally:
