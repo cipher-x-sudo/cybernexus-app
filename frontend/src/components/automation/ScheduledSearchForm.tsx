@@ -128,7 +128,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
   };
 
   return (
-    <div className="space-y-6 overflow-visible">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -151,7 +151,7 @@ export default function ScheduledSearchForm({ search, onClose }: ScheduledSearch
         </GlassButton>
       </div>
 
-      <GlassCard className="p-6 overflow-visible">
+      <GlassCard className="p-6">
 
       {error && (
         <GlassCard className="p-4 border-red-500/20">

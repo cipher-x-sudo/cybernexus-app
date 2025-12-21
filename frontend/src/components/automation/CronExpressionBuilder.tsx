@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { GlassCard, GlassButton, GlassInput, GlassSelect } from "@/components/ui";
+import { GlassCard, GlassButton, GlassInput } from "@/components/ui";
 
 interface CronExpressionBuilderProps {
   value: string;
@@ -74,7 +74,7 @@ export default function CronExpressionBuilder({
   };
 
   return (
-    <GlassCard className="p-4 overflow-visible">
+    <GlassCard className="p-4">
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-mono text-white/70 mb-2">
@@ -99,21 +99,30 @@ export default function CronExpressionBuilder({
         </div>
 
         {usePreset ? (
-          <div className="relative">
-            <label className="block text-xs font-mono text-white/70 mb-2">
+          <div>
+            <label htmlFor="preset-select" className="block text-xs font-mono text-white/70 mb-2">
               Select Preset Schedule
             </label>
-            <GlassSelect
+            <select
+              id="preset-select"
               value={selectedPreset || customExpression}
-              onChange={handlePresetChange}
-              options={[
-                { value: "", label: "Select a preset..." },
-                ...presets.map((preset) => ({
-                  value: preset.value,
-                  label: preset.label,
-                })),
-              ]}
-            />
+              onChange={(e) => handlePresetChange(e.target.value)}
+              className="w-full h-11 px-4 py-2 bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] rounded-xl text-white/90 font-mono text-sm transition-all duration-200 focus:outline-none focus:border-amber-500/50 focus:shadow-[0_0_15px_rgba(245,158,11,0.15)] hover:border-amber-500/40 appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-opacity='0.4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+                paddingRight: '2.5rem'
+              }}
+            >
+              <option value="" className="bg-slate-900 text-white/90">Select a preset...</option>
+              {presets.map((preset) => (
+                <option key={preset.value} value={preset.value} className="bg-slate-900 text-white/90">
+                  {preset.label}
+                </option>
+              ))}
+            </select>
           </div>
         ) : (
           <div className="space-y-4">
