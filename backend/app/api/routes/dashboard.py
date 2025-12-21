@@ -36,10 +36,11 @@ def calculate_risk_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
             "high_count": 0
         }
     
-    critical_count = sum(1 for f in findings if f.get("severity") == "critical")
-    high_count = sum(1 for f in findings if f.get("severity") == "high")
-    medium_count = sum(1 for f in findings if f.get("severity") == "medium")
-    low_count = sum(1 for f in findings if f.get("severity") == "low")
+    # Normalize severity to lowercase for comparison
+    critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
+    high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
+    medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
+    low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
     
     # Calculate risk score (0-100, higher is better)
     # Critical: -20 points each, High: -10, Medium: -5, Low: -2
@@ -126,8 +127,8 @@ async def get_dashboard_overview(
         # Calculate risk score
         risk_data = calculate_risk_score(findings_data)
         
-        # Get critical and high findings for dashboard
-        critical_findings = [f for f in findings_data if f.get("severity") in ["critical", "high"]]
+        # Get critical and high findings for dashboard (case-insensitive)
+        critical_findings = [f for f in findings_data if f.get("severity", "").lower() in ["critical", "high"]]
         critical_findings = sorted(critical_findings, key=lambda x: x.get("risk_score", 0), reverse=True)[:10]
         
         # Get recent jobs from database (last 10)
@@ -396,11 +397,11 @@ async def get_risk_breakdown(
         }
         
         for capability, findings in findings_by_capability.items():
-            # Count severities for this category
-            critical_count = sum(1 for f in findings if f.get("severity") == "critical")
-            high_count = sum(1 for f in findings if f.get("severity") == "high")
-            medium_count = sum(1 for f in findings if f.get("severity") == "medium")
-            low_count = sum(1 for f in findings if f.get("severity") == "low")
+            # Count severities for this category (case-insensitive)
+            critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
+            high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
+            medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
+            low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
             
             # Calculate category score (base 100, deduct based on severity)
             category_score = 100
