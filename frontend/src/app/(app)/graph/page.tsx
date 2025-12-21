@@ -91,7 +91,7 @@ export default function GraphPage() {
             setJobInfo({ 
               id: actualJobId, 
               target: jobResult.target,
-              capability: jobResult.capability 
+              capability: jobResult.capabilities && jobResult.capabilities.length > 0 ? jobResult.capabilities[0] : "Unknown"
             });
             // Set focused node to job target if available
             if (jobResult.target) {
