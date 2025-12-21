@@ -74,7 +74,7 @@ export default function CronExpressionBuilder({
   };
 
   return (
-    <GlassCard className="p-4">
+    <GlassCard className="p-4 overflow-visible">
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-mono text-white/70 mb-2">
@@ -99,7 +99,7 @@ export default function CronExpressionBuilder({
         </div>
 
         {usePreset ? (
-          <div>
+          <div className="relative">
             <label className="block text-xs font-mono text-white/70 mb-2">
               Select Preset Schedule
             </label>

@@ -176,7 +176,7 @@ const GlassSelect = React.forwardRef<HTMLDivElement, GlassSelectProps>(
               ref={listRef}
               role="listbox"
               className={cn(
-                "absolute z-50 w-full mt-1",
+                "absolute z-[100] w-full mt-1",
                 "bg-slate-900/95 backdrop-blur-xl",
                 "border border-white/[0.1] rounded-xl",
                 "shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
@@ -229,6 +229,7 @@ const GlassSelect = React.forwardRef<HTMLDivElement, GlassSelectProps>(
 GlassSelect.displayName = "GlassSelect";
 
 export { GlassSelect, type GlassSelectOption };
+
 
 
 
