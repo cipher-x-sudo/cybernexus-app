@@ -669,72 +669,132 @@ async def restart_job(
     db = Depends(get_db)
 ):
     """
-    Restart a job by creating a new job with the same parameters.
-    The new job will be executed in the background.
+    Restart the same job by resetting its status and re-executing it.
+    Resets progress, clears error, and re-queues the job for execution.
     """
-    # Get the original job from database
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-    original_job = await storage.get_job(job_id)
+    from datetime import datetime
     
-    if not original_job:
+    # Get the job from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    job = await storage.get_job(job_id)
+    
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Create a new job with the same parameters
     orchestrator = get_orchestrator()
     
-    # Map priority from JobPriority enum or integer to JobPriority enum
-    if isinstance(original_job.priority, JobPriority):
-        priority = original_job.priority
-    else:
-        # If it's an integer, map it
-        priority_map = {
-            0: JobPriority.CRITICAL,
-            1: JobPriority.HIGH,
-            2: JobPriority.NORMAL,
-            3: JobPriority.LOW,
-            4: JobPriority.BACKGROUND
-        }
-        priority = priority_map.get(original_job.priority, JobPriority.NORMAL)
+    # Check if job exists in orchestrator (in-memory)
+    orchestrator_job = orchestrator.get_job(job_id)
     
-    # Create new job
-    new_job = await orchestrator.create_job(
-        capability=original_job.capability,
-        target=original_job.target,
-        config=original_job.config,
-        priority=priority,
-        user_id=current_user.id
-    )
+    if orchestrator_job:
+        # Job is in memory, reset it directly
+        orchestrator_job.status = JobStatus.PENDING
+        orchestrator_job.progress = 0
+        orchestrator_job.error = None
+        orchestrator_job.started_at = None
+        orchestrator_job.completed_at = None
+        # Add restart log
+        orchestrator._add_execution_log(orchestrator_job, "info", "Job restarted", {
+            "capability": orchestrator_job.capability.value,
+            "target": orchestrator_job.target
+        })
+        # Update status indexes
+        orchestrator._update_job_status(orchestrator_job, JobStatus.PENDING)
+        # Re-add to queue
+        orchestrator._job_queue.push((orchestrator_job.priority.value, datetime.now().timestamp(), job_id))
+        # Save to database
+        await orchestrator._save_job_to_db(orchestrator_job, user_id=current_user.id)
+        job_to_return = orchestrator_job
+    else:
+        # Job only exists in database, reset it there
+        # Get current execution logs and add restart log
+        current_logs = job.execution_logs or []
+        from datetime import datetime
+        restart_log = {
+            "timestamp": datetime.now().isoformat(),
+            "level": "info",
+            "message": "Job restarted",
+            "data": {
+                "capability": job.capability.value,
+                "target": job.target
+            }
+        }
+        current_logs.append(restart_log)
+        
+        await storage.update_job(job_id, {
+            'status': 'pending',
+            'progress': 0,
+            'error': None,
+            'started_at': None,
+            'completed_at': None,
+            'execution_logs': current_logs
+        })
+        # Reload job to get updated data
+        job = await storage.get_job(job_id)
+        job_to_return = job
+        
+        # Add job to orchestrator for execution
+        from app.services.orchestrator import Job as JobDataclass
+        orchestrator_job = JobDataclass(
+            id=job.id,
+            capability=job.capability,
+            target=job.target,
+            status=JobStatus.PENDING,
+            priority=job.priority,
+            config=job.config or {},
+            progress=0,
+            created_at=job.created_at,
+            started_at=None,
+            completed_at=None,
+            findings=[],
+            error=None,
+            metadata=job.metadata or {},
+            execution_logs=job.execution_logs or []
+        )
+        # Add restart log
+        orchestrator._add_execution_log(orchestrator_job, "info", "Job restarted", {
+            "capability": job.capability.value,
+            "target": job.target
+        })
+        # Store in orchestrator
+        orchestrator._jobs.put(job_id, orchestrator_job)
+        # Add to queue
+        orchestrator._job_queue.push((orchestrator_job.priority.value, datetime.now().timestamp(), job_id))
+        # Update indexes
+        status_jobs = orchestrator._jobs_by_status.get(JobStatus.PENDING.value) or []
+        status_jobs.append(job_id)
+        orchestrator._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)
     
     # Start execution in background
     import threading
     thread = threading.Thread(
         target=run_job_in_thread,
-        args=(new_job.id, orchestrator),
+        args=(job_id, orchestrator),
         daemon=True
     )
     thread.start()
     
-    # Get findings count (will be 0 for new job)
+    # Get findings count
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-    findings = await finding_storage.get_findings_for_job(new_job.id)
+    findings = await finding_storage.get_findings_for_job(job_id)
     findings_count = len(findings)
     
     return JobResponse(
-        id=new_job.id,
-        capability=new_job.capability.value,
-        target=new_job.target,
-        status=new_job.status.value,
-        progress=new_job.progress,
-        created_at=new_job.created_at.isoformat(),
-        started_at=new_job.started_at.isoformat() if new_job.started_at else None,
-        completed_at=new_job.completed_at.isoformat() if new_job.completed_at else None,
+        id=job_to_return.id,
+        capability=job_to_return.capability.value,
+        target=job_to_return.target,
+        status=job_to_return.status.value if hasattr(job_to_return.status, 'value') else job_to_return.status,
+        progress=job_to_return.progress,
+        created_at=job_to_return.created_at.isoformat(),
+        started_at=job_to_return.started_at.isoformat() if job_to_return.started_at else None,
+        completed_at=job_to_return.completed_at.isoformat() if job_to_return.completed_at else None,
         findings_count=findings_count,
-        error=new_job.error,
-        priority=new_job.priority.value if hasattr(new_job.priority, 'value') else new_job.priority,
-        config=new_job.config or {},
-        metadata=new_job.metadata or {},
-        execution_logs=new_job.execution_logs or []
+        error=job_to_return.error,
+        priority=job_to_return.priority.value if hasattr(job_to_return.priority, 'value') else job_to_return.priority,
+        config=job_to_return.config or {},
+        metadata=job_to_return.metadata or {},
+        execution_logs=job_to_return.execution_logs or []
     )
 
 
