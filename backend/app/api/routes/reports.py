@@ -13,6 +13,8 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from app.services.report_generator import ReportGenerator
+from app.api.routes.threats import threats_db
+from app.api.routes.entities import entities_db
 
 router = APIRouter()
 
@@ -168,14 +170,53 @@ async def generate_report(report_config: ReportCreate):
     now = datetime.utcnow()
     
     try:
-        # Prepare report data
+        # Fetch real data from threats and entities
+        all_threats = list(threats_db.values())
+        all_entities = list(entities_db.values())
+        
+        # Calculate threat statistics
+        total_threats = len(all_threats)
+        critical_threats = len([t for t in all_threats if t.get("severity") == "critical"])
+        high_threats = len([t for t in all_threats if t.get("severity") == "high"])
+        
+        # Get top threats by score
+        top_threats_list = sorted(
+            all_threats,
+            key=lambda t: t.get("score", 0),
+            reverse=True
+        )[:10]
+        
+        # Format top threats for report
+        formatted_top_threats = [
+            {
+                "title": t.get("title", "Unknown Threat"),
+                "severity": t.get("severity", "medium").lower(),
+                "category": t.get("category", "unknown"),
+                "score": t.get("score", 0)
+            }
+            for t in top_threats_list
+        ]
+        
+        # Generate recommendations based on actual data
+        recommendations = []
+        if critical_threats > 0:
+            recommendations.append(f"Immediately address {critical_threats} critical threat(s)")
+        if high_threats > 0:
+            recommendations.append(f"Prioritize resolution of {high_threats} high-severity threat(s)")
+        if total_threats == 0:
+            recommendations.append("Continue monitoring for new threats")
+        else:
+            recommendations.append("Review and update security configurations regularly")
+            recommendations.append("Keep all systems updated with latest security patches")
+        
+        # Prepare report data with real statistics
         report_data = {
-            "total_threats": 0,
-            "critical_threats": 0,
-            "high_threats": 0,
-            "assets_discovered": 0,
-            "top_threats": [],
-            "recommendations": [
+            "total_threats": total_threats,
+            "critical_threats": critical_threats,
+            "high_threats": high_threats,
+            "assets_discovered": len(all_entities),
+            "top_threats": formatted_top_threats,
+            "recommendations": recommendations if recommendations else [
                 "Continue monitoring for new threats",
                 "Review security configurations regularly",
                 "Keep all systems updated with latest security patches"
