@@ -211,7 +211,8 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(orchestrator_instance.execute_job(job_id))        finally:
+            loop.run_until_complete(orchestrator_instance.execute_job(job_id))
+        finally:
             # Clean up any pending tasks before closing the loop
             pending = asyncio.all_tasks(loop)
             if pending:
