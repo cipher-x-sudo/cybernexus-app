@@ -31,14 +31,6 @@ from app.services.orchestrator import (
     JobPriority
 )
 from app.services.risk_engine import get_risk_engine
-from app.api.routes.auth import get_current_active_user, User, is_admin
-from app.core.database.database import get_db
-from app.core.database.finding_storage import DBFindingStorage
-from app.core.database.job_storage import DBJobStorage
-from app.core.database.models import Job as JobModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from fastapi import Depends
 
 
 router = APIRouter()
@@ -80,33 +72,6 @@ class JobResponse(BaseModel):
     completed_at: Optional[str]
     findings_count: int
     error: Optional[str]
-
-
-class JobDetailResponse(BaseModel):
-    """Detailed job information with all fields"""
-    id: str
-    capability: str
-    target: str
-    status: str
-    priority: int
-    progress: int
-    config: Dict[str, Any]
-    metadata: Dict[str, Any]
-    created_at: str
-    started_at: Optional[str]
-    completed_at: Optional[str]
-    findings_count: int
-    error: Optional[str]
-    execution_logs: List[Dict[str, Any]]
-
-
-class JobHistoryResponse(BaseModel):
-    """Paginated job history response"""
-    jobs: List[JobResponse]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
 
 
 class FindingResponse(BaseModel):
@@ -202,16 +167,24 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
     Creates a new event loop for the thread to avoid conflicts.
     """
     try:
-        # Ensure database is initialized before creating event loop
-        # This makes the engine available for use in any event loop
-        from app.core.database.database import init_db
-        init_db()
-        
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(orchestrator_instance.execute_job(job_id))
+            # Initialize database within this thread's event loop context
+            # This ensures the engine is created in the correct event loop
+            async def init_and_execute():
+                from app.core.database.database import init_db, close_db
+                # Initialize database in this event loop's context
+                init_db()
+                try:
+                    # Execute the job
+                    await orchestrator_instance.execute_job(job_id)
+                finally:
+                    # Clean up thread-local database engine
+                    await close_db()
+            
+            loop.run_until_complete(init_and_execute())
         finally:
             # Clean up any pending tasks before closing the loop
             pending = asyncio.all_tasks(loop)
@@ -229,10 +202,7 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
 
 
 @router.post("/jobs", response_model=JobResponse)
-async def create_job(
-    request: JobCreateRequest,
-    current_user: User = Depends(get_current_active_user)
-):
+async def create_job(request: JobCreateRequest):
     """
     Create and start a capability job.
     
@@ -289,8 +259,7 @@ async def create_job(
                 capability=capability,
                 target=request.target,
                 config=request.config,
-                priority=priority,
-                user_id=current_user.id
+                priority=priority
             )
             job_creation_time = time.time() - job_creation_start
             logger.info(
@@ -381,13 +350,13 @@ async def create_job(
 async def list_jobs(
     capability: Optional[str] = None,
     status: Optional[str] = None,
-    limit: int = Query(default=50, le=200),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    limit: int = Query(default=50, le=200)
 ):
     """
-    List jobs with optional filtering (from database).
+    List jobs with optional filtering.
     """
+    orchestrator = get_orchestrator()
+    
     # Parse filters
     cap_filter = None
     if capability:
@@ -403,22 +372,14 @@ async def list_jobs(
         except ValueError:
             pass
     
-    # Query from database
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    jobs = await storage.list_jobs(
+    jobs = orchestrator.get_jobs(
         capability=cap_filter,
         status=status_filter,
-        limit=limit,
-        offset=0
+        limit=limit
     )
     
-    # Get findings count for each job
-    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    result = []
-    for job in jobs:
-        # Get findings count from database
-        findings = await finding_storage.get_findings_for_job(job.id)
-        result.append(JobResponse(
+    return [
+        JobResponse(
             id=job.id,
             capability=job.capability.value,
             target=job.target,
@@ -427,61 +388,35 @@ async def list_jobs(
             created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            findings_count=len(findings),
+            findings_count=len(job.findings),
             error=job.error
-        ))
-    
-    return result
+        )
+        for job in jobs
+    ]
 
 
-@router.get("/jobs/{job_id}", response_model=JobDetailResponse)
-async def get_job(
-    job_id: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+async def get_job(job_id: str):
     """
-    Get detailed job information including config, metadata, and execution logs.
+    Get job status and details.
     """
-    # Try database first
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    job = await storage.get_job(job_id)
-    
-    # Fallback to in-memory if not in database
-    if not job:
-        orchestrator = get_orchestrator()
-        job = orchestrator.get_job(job_id)
+    orchestrator = get_orchestrator()
+    job = orchestrator.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Get findings count
-    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    findings = await finding_storage.get_findings_for_job(job_id)
-    
-    # Get execution logs from database if available
-    from app.core.database.models import Job as JobModel
-    result = await db.execute(
-        select(JobModel).where(JobModel.id == job_id)
-    )
-    db_job = result.scalar_one_or_none()
-    execution_logs = db_job.execution_logs if db_job and db_job.execution_logs else []
-    
-    return JobDetailResponse(
+    return JobResponse(
         id=job.id,
         capability=job.capability.value,
         target=job.target,
         status=job.status.value,
-        priority=job.priority.value,
         progress=job.progress,
-        config=job.config or {},
-        metadata=job.metadata or {},
         created_at=job.created_at.isoformat(),
         started_at=job.started_at.isoformat() if job.started_at else None,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        findings_count=len(findings),
-        error=job.error,
-        execution_logs=execution_logs
+        findings_count=len(job.findings),
+        error=job.error
     )
 
 
@@ -490,12 +425,10 @@ async def get_job_findings(
     job_id: str,
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return"),
     offset: int = Query(default=0, ge=0, description="Number of findings to skip"),
-    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling"),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    since: Optional[str] = Query(None, description="Return findings after this timestamp (ISO format) or finding ID for incremental polling")
 ):
     """
-    Get findings from a job with pagination and incremental polling support (user-scoped).
+    Get findings from a job with pagination and incremental polling support.
     
     Supports two modes:
     1. Full pagination: Use offset/limit to paginate through all findings
@@ -514,33 +447,20 @@ async def get_job_findings(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Verify job belongs to user (check metadata for user_id)
-    job_user_id = job.metadata.get("user_id") if job.metadata else None
-    if not is_admin(current_user) and job_user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied to this job")
-    
-    # Get findings from database
-    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    all_findings = await storage.get_findings_for_job(job_id)
-    
-    # Apply 'since' filter if provided
+    # Get findings based on 'since' parameter for incremental polling
     if since:
         try:
             # Try parsing as ISO timestamp first
             try:
                 since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
-                filtered_findings = [f for f in all_findings if f.discovered_at > since_timestamp]
+                filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
                 logger.debug(
                     f"[API] get_job_findings: job_id={job_id}, incremental mode (timestamp), "
                     f"since={since}, found={len(filtered_findings)} new findings"
                 )
             except (ValueError, AttributeError):
                 # If not a timestamp, treat as finding ID
-                try:
-                    since_index = next(i for i, f in enumerate(all_findings) if f.id == since)
-                    filtered_findings = all_findings[since_index + 1:]
-                except StopIteration:
-                    filtered_findings = all_findings
+                filtered_findings = job.get_findings_since(since_id=since)
                 logger.debug(
                     f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
                     f"since={since}, found={len(filtered_findings)} new findings"
@@ -550,10 +470,10 @@ async def get_job_findings(
                 f"[API] get_job_findings: Error parsing 'since' parameter '{since}': {e}. "
                 f"Falling back to all findings."
             )
-            filtered_findings = all_findings
+            filtered_findings = job.findings
     else:
         # No 'since' parameter, return all findings (backward compatible)
-        filtered_findings = all_findings
+        filtered_findings = job.findings
     
     # Apply pagination to filtered results
     total_findings = len(filtered_findings)
@@ -813,13 +733,13 @@ async def list_findings(
     severity: Optional[str] = None,
     target: Optional[str] = None,
     min_risk_score: float = Query(default=0, ge=0, le=100),
-    limit: int = Query(default=100, le=500),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    limit: int = Query(default=100, le=500)
 ):
     """
-    List all findings with optional filtering (user-scoped).
+    List all findings with optional filtering.
     """
+    orchestrator = get_orchestrator()
+    
     # Parse capability filter
     cap_filter = None
     if capability:
@@ -828,9 +748,7 @@ async def list_findings(
         except ValueError:
             pass
     
-    # Use database storage
-    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    findings = await storage.get_findings(
+    findings = orchestrator.get_findings(
         capability=cap_filter,
         severity=severity,
         target=target,
@@ -856,16 +774,12 @@ async def list_findings(
 
 
 @router.get("/findings/critical", response_model=List[FindingResponse])
-async def get_critical_findings(
-    limit: int = Query(default=10, le=50),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
+async def get_critical_findings(limit: int = Query(default=10, le=50)):
     """
-    Get critical and high severity findings that need immediate attention (user-scoped).
+    Get critical and high severity findings that need immediate attention.
     """
-    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    findings = await storage.get_critical_findings(limit=limit)
+    orchestrator = get_orchestrator()
+    findings = orchestrator.get_critical_findings(limit=limit)
     
     return [
         FindingResponse(
@@ -884,57 +798,20 @@ async def get_critical_findings(
     ]
 
 
-@router.get("/findings/{finding_id}", response_model=FindingResponse)
-async def get_finding(
-    finding_id: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get a specific finding by ID (user-scoped)"""
-    try:
-        storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-        finding = await storage.get_finding(finding_id)
-        
-        if not finding:
-            raise HTTPException(status_code=404, detail="Finding not found")
-        
-        return FindingResponse(
-            id=finding.id,
-            capability=finding.capability.value,
-            severity=finding.severity,
-            title=finding.title,
-            description=finding.description,
-            evidence=finding.evidence,
-            affected_assets=finding.affected_assets,
-            recommendations=finding.recommendations,
-            discovered_at=finding.discovered_at.isoformat(),
-            risk_score=finding.risk_score
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting finding {finding_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ============================================================================
 # Risk Score Endpoints
 # ============================================================================
 
 @router.get("/risk/{target}", response_model=RiskScoreResponse)
-async def get_risk_score(
-    target: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
+async def get_risk_score(target: str):
     """
-    Get the current risk score for a target (user-scoped).
+    Get the current risk score for a target.
     """
     risk_engine = get_risk_engine()
+    orchestrator = get_orchestrator()
     
-    # Get findings for target from database
-    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    findings = await storage.get_findings_for_target(target)
+    # Get findings for target
+    findings = orchestrator.get_findings_for_target(target)
     
     if not findings:
         raise HTTPException(
@@ -1006,11 +883,7 @@ async def get_top_risks(
 # ============================================================================
 
 @router.post("/quick-scan", response_model=QuickScanResponse)
-async def quick_scan(
-    request: QuickScanRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
+async def quick_scan(request: QuickScanRequest):
     """
     Perform a quick security assessment of a domain.
     
@@ -1023,45 +896,12 @@ async def quick_scan(
     logger.info(f"Starting quick scan for {request.domain}")
     
     try:
-        # Run quick scan (pass user_id to create_job)
-        # Note: quick_scan creates jobs internally, so we need to update it to accept user_id
-        # For now, we'll create jobs manually with user_id
-        capabilities = [
-            Capability.EMAIL_SECURITY,
-            Capability.EXPOSURE_DISCOVERY,
-            Capability.INFRASTRUCTURE_TESTING
-        ]
+        # Run quick scan
+        results = await orchestrator.quick_scan(request.domain)
         
-        jobs = []
-        started_at = datetime.now()
-        for cap in capabilities:
-            job = await orchestrator.create_job(
-                cap, 
-                request.domain, 
-                priority=JobPriority.HIGH,
-                user_id=current_user.id
-            )
-            await orchestrator.execute_job(job.id)
-            jobs.append(job.to_dict())
-        
-        completed_at = datetime.now()
-        total_findings = sum(j["findings_count"] for j in jobs)
-        
-        results = {
-            "started_at": started_at.isoformat(),
-            "completed_at": completed_at.isoformat(),
-            "jobs": jobs,
-            "summary": {
-                "capabilities_run": len(jobs),
-                "total_findings": total_findings,
-                "duration_seconds": (completed_at - started_at).total_seconds()
-            }
-        }
-        
-        # Get risk score from database
-        storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-        findings_dataclass = await storage.get_findings_for_target(request.domain)
-        findings_dicts = [f.to_dict() for f in findings_dataclass]
+        # Get risk score
+        findings = orchestrator.get_findings_for_target(request.domain)
+        findings_dicts = [f.to_dict() for f in findings]
         risk_score = risk_engine.calculate_risk_score(request.domain, findings_dicts)
         
         return QuickScanResponse(
@@ -1100,48 +940,13 @@ async def quick_scan(
 async def get_stats():
     """
     Get overall capability and risk statistics.
-    Enhanced to include capability-specific stats from database.
     """
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
-    # Get base stats
-    base_stats = orchestrator.get_stats()
-    
-    # Get capability-specific statistics
-    capability_stats = {}
-    for capability in Capability:
-        cap_jobs = orchestrator.get_jobs(capability=capability, limit=1000)
-        cap_findings = orchestrator.get_findings(capability=capability, limit=1000)
-        
-        # Find last run time
-        last_run = None
-        if cap_jobs:
-            completed_jobs = [j for j in cap_jobs if j.status == JobStatus.COMPLETED]
-            if completed_jobs:
-                latest = max(completed_jobs, key=lambda j: j.completed_at if j.completed_at else datetime.min)
-                if latest.completed_at:
-                    time_diff = datetime.now() - latest.completed_at
-                    if time_diff.days > 0:
-                        last_run = f"{time_diff.days}d ago"
-                    elif time_diff.seconds > 3600:
-                        last_run = f"{time_diff.seconds // 3600}h ago"
-                    else:
-                        last_run = f"{time_diff.seconds // 60}m ago"
-        
-        capability_stats[capability.value] = {
-            "scans": len(cap_jobs),
-            "findings": len(cap_findings),
-            "last_run": last_run or "Never",
-            "completed_jobs": len([j for j in cap_jobs if j.status == JobStatus.COMPLETED]),
-            "failed_jobs": len([j for j in cap_jobs if j.status == JobStatus.FAILED]),
-            "active_jobs": len([j for j in cap_jobs if j.status == JobStatus.RUNNING])
-        }
-    
     return {
-        "orchestrator": base_stats,
+        "orchestrator": orchestrator.get_stats(),
         "risk": risk_engine.get_global_stats(),
-        "capability_stats": capability_stats,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -1157,324 +962,6 @@ async def get_recent_events(limit: int = Query(default=50, le=200)):
     return {
         "events": events,
         "count": len(events)
-    }
-
-
-@router.get("/jobs/recent")
-async def get_recent_jobs(
-    limit: int = Query(default=10, ge=1, le=100),
-    capability: Optional[Capability] = None,
-    status: Optional[JobStatus] = None,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get recent jobs with optional filtering (from database).
-    
-    Returns jobs with formatted timestamps and findings counts.
-    """
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    jobs = await storage.list_jobs(
-        capability=capability,
-        status=status,
-        limit=limit,
-        offset=0
-    )
-    
-    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    jobs_data = []
-    for job in jobs:
-        # Calculate time ago
-        if job.completed_at:
-            time_diff = datetime.now() - job.completed_at
-            if time_diff.days > 0:
-                time_ago = f"{time_diff.days}d ago"
-            elif time_diff.seconds > 3600:
-                time_ago = f"{time_diff.seconds // 3600}h ago"
-            else:
-                time_ago = f"{time_diff.seconds // 60}m ago"
-        elif job.started_at:
-            time_diff = datetime.now() - job.started_at
-            time_ago = f"Started {time_diff.seconds // 60}m ago"
-        else:
-            time_ago = "Just created"
-        
-        # Get findings count from database
-        findings = await finding_storage.get_findings_for_job(job.id)
-        findings_count = len(findings)
-        
-        jobs_data.append({
-            "id": job.id,
-            "capability": job.capability.value,
-            "target": job.target,
-            "status": job.status.value,
-            "progress": job.progress,
-            "findings_count": findings_count,
-            "time_ago": time_ago,
-            "created_at": job.created_at.isoformat(),
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            "error": job.error if job.error else None
-        })
-    
-    return {
-        "jobs": jobs_data,
-        "count": len(jobs_data)
-    }
-
-
-@router.get("/jobs/history", response_model=JobHistoryResponse)
-async def get_job_history(
-    capability: Optional[str] = Query(None, description="Filter by capability"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    start_date: Optional[str] = Query(None, description="Filter jobs created after this date (ISO format)"),
-    end_date: Optional[str] = Query(None, description="Filter jobs created before this date (ISO format)"),
-    page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get paginated job history with filtering options.
-    """
-    # Parse filters
-    cap_filter = None
-    if capability:
-        try:
-            cap_filter = Capability(capability)
-        except ValueError:
-            pass
-    
-    status_filter = None
-    if status:
-        try:
-            status_filter = JobStatus(status)
-        except ValueError:
-            pass
-    
-    start_date_obj = None
-    if start_date:
-        try:
-            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        except ValueError:
-            pass
-    
-    end_date_obj = None
-    if end_date:
-        try:
-            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-        except ValueError:
-            pass
-    
-    # Calculate offset
-    offset = (page - 1) * page_size
-    
-    # Query database
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    jobs = await storage.list_jobs(
-        capability=cap_filter,
-        status=status_filter,
-        limit=page_size,
-        offset=offset,
-        start_date=start_date_obj,
-        end_date=end_date_obj
-    )
-    
-    total = await storage.count_jobs(
-        capability=cap_filter,
-        status=status_filter,
-        start_date=start_date_obj,
-        end_date=end_date_obj
-    )
-    
-    # Get findings count for each job
-    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    job_responses = []
-    for job in jobs:
-        findings = await finding_storage.get_findings_for_job(job.id)
-        job_responses.append(JobResponse(
-            id=job.id,
-            capability=job.capability.value,
-            target=job.target,
-            status=job.status.value,
-            progress=job.progress,
-            created_at=job.created_at.isoformat(),
-            started_at=job.started_at.isoformat() if job.started_at else None,
-            completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            findings_count=len(findings),
-            error=job.error
-        ))
-    
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
-    
-    return JobHistoryResponse(
-        jobs=job_responses,
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=total_pages
-    )
-
-
-@router.get("/jobs/{job_id}/export")
-async def export_job_results(
-    job_id: str,
-    format: str = Query(default="json", regex="^(json|csv)$"),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Export job results (job details + findings) in JSON or CSV format.
-    """
-    # Get job
-    storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    job = await storage.get_job(job_id)
-    
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Get findings
-    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    findings = await finding_storage.get_findings_for_job(job_id)
-    
-    if format == "json":
-        # Export as JSON
-        export_data = {
-            "job": {
-                "id": job.id,
-                "capability": job.capability.value,
-                "target": job.target,
-                "status": job.status.value,
-                "priority": job.priority.value,
-                "progress": job.progress,
-                "config": job.config,
-                "metadata": job.metadata,
-                "created_at": job.created_at.isoformat(),
-                "started_at": job.started_at.isoformat() if job.started_at else None,
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-                "error": job.error
-            },
-            "findings": [f.to_dict() for f in findings],
-            "exported_at": datetime.now().isoformat()
-        }
-        
-        return Response(
-            content=json.dumps(export_data, indent=2),
-            media_type="application/json",
-            headers={
-                "Content-Disposition": f'attachment; filename="job_{job_id}_export.json"'
-            }
-        )
-    
-    elif format == "csv":
-        # Export as CSV
-        import csv
-        import io
-        
-        output = io.StringIO()
-        writer = csv.writer(output)
-        
-        # Write job info header
-        writer.writerow(["Job Information"])
-        writer.writerow(["ID", job.id])
-        writer.writerow(["Capability", job.capability.value])
-        writer.writerow(["Target", job.target])
-        writer.writerow(["Status", job.status.value])
-        writer.writerow(["Progress", job.progress])
-        writer.writerow(["Created At", job.created_at.isoformat()])
-        writer.writerow(["Started At", job.started_at.isoformat() if job.started_at else ""])
-        writer.writerow(["Completed At", job.completed_at.isoformat() if job.completed_at else ""])
-        writer.writerow([])
-        
-        # Write findings header
-        writer.writerow(["Findings"])
-        writer.writerow(["ID", "Severity", "Title", "Description", "Risk Score", "Discovered At", "Target"])
-        
-        # Write findings
-        for finding in findings:
-            writer.writerow([
-                finding.id,
-                finding.severity,
-                finding.title,
-                finding.description,
-                finding.risk_score,
-                finding.discovered_at.isoformat(),
-                finding.target
-            ])
-        
-        return Response(
-            content=output.getvalue(),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f'attachment; filename="job_{job_id}_export.csv"'
-            }
-        )
-
-
-@router.get("/findings")
-async def get_findings(
-    capability: Optional[Capability] = None,
-    severity: Optional[str] = None,
-    limit: int = Query(default=100, ge=1, le=1000),
-    min_risk_score: float = Query(default=0, ge=0, le=100),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get findings with optional filtering (user-scoped).
-    
-    Returns findings formatted for frontend display.
-    """
-    storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-    
-    # Parse severity filter
-    severity_list = None
-    if severity:
-        severity_list = [s.strip() for s in severity.split(",")]
-    
-    findings = await storage.get_findings(
-        capability=capability,
-        severity=severity_list[0] if severity_list and len(severity_list) == 1 else None,
-        limit=limit * 2 if severity_list and len(severity_list) > 1 else limit,  # Fetch more if filtering
-        min_risk_score=min_risk_score
-    )
-    
-    # Filter by multiple severities if provided
-    if severity_list and len(severity_list) > 1:
-        findings = [f for f in findings if f.severity in severity_list]
-    
-    # Apply limit after filtering
-    findings = findings[:limit]
-    
-    findings_data = []
-    for finding in findings:
-        # Calculate time ago
-        time_diff = datetime.now() - finding.discovered_at
-        if time_diff.days > 0:
-            time_ago = f"{time_diff.days}d ago"
-        elif time_diff.seconds > 3600:
-            time_ago = f"{time_diff.seconds // 3600}h ago"
-        else:
-            time_ago = f"{time_diff.seconds // 60}m ago"
-        
-        findings_data.append({
-            "id": finding.id,
-            "title": finding.title,
-            "severity": finding.severity,
-            "capability": finding.capability.value,
-            "target": finding.target,
-            "description": finding.description,
-            "risk_score": finding.risk_score,
-            "time_ago": time_ago,
-            "discovered_at": finding.discovered_at.isoformat(),
-            "evidence": finding.evidence,
-            "affected_assets": finding.affected_assets,
-            "recommendations": finding.recommendations
-        })
-    
-    return {
-        "findings": findings_data,
-        "count": len(findings_data)
     }
 
 
