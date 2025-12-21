@@ -35,6 +35,7 @@ pycryptodome==3.19.0
 # HTML Parsing
 beautifulsoup4==4.12.2
 lxml==5.1.0
+html5lib==1.1
 
 # Report Generation
 weasyprint>=62.0
