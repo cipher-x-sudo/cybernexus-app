@@ -30,9 +30,23 @@ export function CriticalFindings({ findings: propFindings, className, onFindingR
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<Set<string>>(new Set());
   
-  const handleViewInGraph = (findingId: string, e: React.MouseEvent) => {
+  const handleViewInGraph = async (findingId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/graph?findingId=${findingId}&depth=2`);
+    try {
+      // Get finding to extract job_id from evidence
+      const finding = await api.getFinding(findingId);
+      const jobId = finding.evidence?.job_id;
+      if (jobId) {
+        router.push(`/graph?jobId=${jobId}&depth=2`);
+      } else {
+        // Fallback: still use findingId (graph page will handle the conversion)
+        router.push(`/graph?findingId=${findingId}&depth=2`);
+      }
+    } catch (error) {
+      console.error("Error getting finding for graph:", error);
+      // Fallback: still use findingId
+      router.push(`/graph?findingId=${findingId}&depth=2`);
+    }
   };
 
   const handleResolve = async (findingId: string, e: React.MouseEvent) => {

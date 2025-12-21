@@ -275,26 +275,26 @@ async def get_neighbors(
         raise HTTPException(status_code=500, detail=f"Error retrieving neighbors: {str(e)}")
 
 
-@router.get("/finding/{finding_id}", response_model=GraphData)
-async def get_graph_for_finding(
-    finding_id: str,
+@router.get("/job/{job_id}", response_model=GraphData)
+async def get_graph_for_job(
+    job_id: str,
     depth: int = Query(default=2, ge=1, le=5),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get focused graph data for a specific finding, showing relationships of affected assets."""
+    """Get focused graph data for a specific job, showing relationships of discovered entities."""
     try:
         from urllib.parse import urlparse
         import re
         
-        # Get finding from database
-        from app.core.database.finding_storage import DBFindingStorage
-        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
-        finding = await finding_storage.get_finding(finding_id)
+        # Get job from database
+        from app.core.database.job_storage import DBJobStorage
+        job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        job = await job_storage.get_job(job_id)
         
-        if not finding:
-            # Fallback to full graph if finding not found
-            logger.warning(f"Finding {finding_id} not found, returning empty graph")
+        if not job:
+            # Fallback to empty graph if job not found
+            logger.warning(f"Job {job_id} not found, returning empty graph")
             return GraphData(nodes=[], edges=[])
         
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
@@ -347,9 +347,9 @@ async def get_graph_for_finding(
                     "id": entity_id,
                     "type": entity_type,
                     "value": value,
-                    "severity": finding.severity if finding else "info",
-                    "discovered_at": finding.discovered_at.isoformat() if finding else None,
-                    "source": "finding_graph"
+                    "severity": "info",
+                    "discovered_at": job.created_at.isoformat() if job.created_at else None,
+                    "source": "job_graph"
                 }
                 await storage.save_entity(entity_data)
                 logger.debug(f"Created entity {entity_id} for value {value}")
@@ -358,34 +358,9 @@ async def get_graph_for_finding(
                 logger.warning(f"Failed to create entity for {value}: {e}")
                 return None
         
-        # Process affected_assets - they might be URLs, domains, or entity IDs
-        for asset in finding.affected_assets:
-            if not asset:
-                continue
-            
-            # Try as entity ID first
-            entity = await storage.get_entity(asset)
-            if entity:
-                node_ids.append(asset)
-                continue
-            
-            # Extract domain/IP from URL
-            domain_or_ip = extract_domain_or_ip(asset)
-            if not domain_or_ip:
-                continue
-            
-            # Determine entity type
-            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-            entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
-            
-            # Find or create entity
-            entity_id = await find_or_create_entity(domain_or_ip, entity_type)
-            if entity_id and entity_id not in node_ids:
-                node_ids.append(entity_id)
-        
-        # Process target
-        if finding.target:
-            target_domain_or_ip = extract_domain_or_ip(finding.target)
+        # Extract entities from job target
+        if job.target:
+            target_domain_or_ip = extract_domain_or_ip(job.target)
             if target_domain_or_ip:
                 ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
                 entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
@@ -393,80 +368,222 @@ async def get_graph_for_finding(
                 if entity_id and entity_id not in node_ids:
                     node_ids.append(entity_id)
         
+        # Extract entities from job meta_data
+        if job.metadata:
+            # Check for common keys that might contain entities
+            entity_keys = ['discovered_entities', 'entities', 'assets', 'domains', 'ips', 'ip_addresses', 
+                          'discovered_domains', 'discovered_ips', 'targets', 'related_entities']
+            
+            for key in entity_keys:
+                if key in job.metadata:
+                    value = job.metadata[key]
+                    if isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, str):
+                                domain_or_ip = extract_domain_or_ip(item)
+                                if domain_or_ip:
+                                    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                                    entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                    entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                                    if entity_id and entity_id not in node_ids:
+                                        node_ids.append(entity_id)
+                            elif isinstance(item, dict):
+                                # Handle dict with 'value' or 'domain' or 'ip' keys
+                                entity_value = item.get('value') or item.get('domain') or item.get('ip') or item.get('target')
+                                if entity_value:
+                                    domain_or_ip = extract_domain_or_ip(str(entity_value))
+                                    if domain_or_ip:
+                                        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                                        entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                        entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                                        if entity_id and entity_id not in node_ids:
+                                            node_ids.append(entity_id)
+                    elif isinstance(value, str):
+                        domain_or_ip = extract_domain_or_ip(value)
+                        if domain_or_ip:
+                            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                            entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                            entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                            if entity_id and entity_id not in node_ids:
+                                node_ids.append(entity_id)
+            
+            # Also check for nested structures (e.g., capture data)
+            if 'capture' in job.metadata and isinstance(job.metadata['capture'], dict):
+                capture_data = job.metadata['capture']
+                # Check for domain tree or discovered domains
+                if 'domain_tree' in capture_data:
+                    # Domain tree might be a graph structure, extract nodes
+                    domain_tree = capture_data['domain_tree']
+                    if isinstance(domain_tree, dict) and 'nodes' in domain_tree:
+                        for node in domain_tree['nodes']:
+                            if isinstance(node, dict):
+                                node_value = node.get('id') or node.get('label') or node.get('value')
+                                if node_value:
+                                    domain_or_ip = extract_domain_or_ip(str(node_value))
+                                    if domain_or_ip:
+                                        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                                        entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                                        entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                                        if entity_id and entity_id not in node_ids:
+                                            node_ids.append(entity_id)
+        
+        # Extract entities from execution_logs
+        if job.execution_logs:
+            for log_entry in job.execution_logs:
+                if isinstance(log_entry, dict):
+                    # Look for entity mentions in log messages
+                    message = log_entry.get('message', '') or log_entry.get('log', '') or str(log_entry)
+                    # Try to extract domains/IPs from log messages using regex
+                    # Match common patterns like "discovered domain.com" or "found 1.2.3.4"
+                    domain_pattern = r'\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)\b'
+                    ip_pattern = r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b'
+                    
+                    # Extract domains
+                    domains = re.findall(domain_pattern, message)
+                    for domain in domains:
+                        # Filter out common false positives
+                        if domain and '.' in domain and not domain.startswith('http') and len(domain) > 3:
+                            entity_id = await find_or_create_entity(domain, "domain")
+                            if entity_id and entity_id not in node_ids:
+                                node_ids.append(entity_id)
+                    
+                    # Extract IPs
+                    ips = re.findall(ip_pattern, message)
+                    for ip in ips:
+                        entity_id = await find_or_create_entity(ip, "ip_address")
+                        if entity_id and entity_id not in node_ids:
+                            node_ids.append(entity_id)
+                    
+                    # Also check for structured data in logs
+                    for key in ['domain', 'ip', 'target', 'url', 'host']:
+                        if key in log_entry:
+                            value = log_entry[key]
+                            if isinstance(value, str):
+                                domain_or_ip = extract_domain_or_ip(value)
+                                if domain_or_ip:
+                                    ip_pattern_check = r'^(\d{1,3}\.){3}\d{1,3}$'
+                                    entity_type = "ip_address" if re.match(ip_pattern_check, domain_or_ip) else "domain"
+                                    entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                                    if entity_id and entity_id not in node_ids:
+                                        node_ids.append(entity_id)
+        
+        # Extract entities from job findings
+        from app.core.database.finding_storage import DBFindingStorage
+        finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
+        job_findings = await finding_storage.get_findings_for_job(job_id)
+        
+        for finding in job_findings:
+            # Process affected_assets from findings
+            for asset in finding.affected_assets:
+                if not asset:
+                    continue
+                
+                # Try as entity ID first
+                entity = await storage.get_entity(asset)
+                if entity:
+                    if asset not in node_ids:
+                        node_ids.append(asset)
+                    continue
+                
+                # Extract domain/IP from URL
+                domain_or_ip = extract_domain_or_ip(asset)
+                if not domain_or_ip:
+                    continue
+                
+                # Determine entity type
+                ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                entity_type = "ip_address" if re.match(ip_pattern, domain_or_ip) else "domain"
+                
+                # Find or create entity
+                entity_id = await find_or_create_entity(domain_or_ip, entity_type)
+                if entity_id and entity_id not in node_ids:
+                    node_ids.append(entity_id)
+            
+            # Process finding target
+            if finding.target:
+                target_domain_or_ip = extract_domain_or_ip(finding.target)
+                if target_domain_or_ip:
+                    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                    entity_type = "ip_address" if re.match(ip_pattern, target_domain_or_ip) else "domain"
+                    entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
+                    if entity_id and entity_id not in node_ids:
+                        node_ids.append(entity_id)
+        
         if not node_ids:
             # No nodes to show, return empty graph
-            logger.warning(f"Finding {finding_id} has no associated nodes after processing")
+            logger.warning(f"Job {job_id} has no associated nodes after processing")
             return GraphData(nodes=[], edges=[])
         
         # Refresh graph data after creating entities
         graph_data = await storage.get_graph_data()
         
-        # Add finding as a node and create relationships to affected assets
-        finding_node_id = f"finding-{finding_id}"
+        # Add job as a node and create relationships to discovered entities
+        job_node_id = f"job-{job_id}"
         all_node_ids = set(node_ids)
-        all_node_ids.add(finding_node_id)
+        all_node_ids.add(job_node_id)
         
-        # Create finding entity if it doesn't exist
-        finding_entity = await storage.get_entity(finding_node_id)
-        if not finding_entity:
-            finding_entity = {
-                "id": finding_node_id,
-                "type": "finding",
-                "value": finding.title,
-                "severity": finding.severity,
-                "title": finding.title,
-                "description": finding.description,
-                "capability": finding.capability.value,
-                "risk_score": finding.risk_score,
-                "discovered_at": finding.discovered_at.isoformat(),
+        # Create job entity if it doesn't exist
+        job_entity = await storage.get_entity(job_node_id)
+        if not job_entity:
+            job_entity = {
+                "id": job_node_id,
+                "type": "job",
+                "value": f"{job.capability.value} - {job.target}",
+                "severity": "info",
+                "title": f"{job.capability.value} Job",
+                "description": f"Job targeting {job.target}",
+                "capability": job.capability.value,
+                "status": job.status.value,
+                "target": job.target,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
                 "source": "orchestrator"
             }
-            await storage.save_entity(finding_entity)
-            logger.debug(f"Created finding entity {finding_node_id}")
+            await storage.save_entity(job_entity)
+            logger.debug(f"Created job entity {job_node_id}")
         
-        # Create relationships from finding to affected assets
+        # Create relationships from job to discovered entities
         for asset_node_id in node_ids:
             try:
                 # Check if edge already exists
                 edge_exists = False
                 if "edges" in graph_data:
                     for edge_key, edge_data in graph_data["edges"].items():
-                        if (edge_data.get("source") == finding_node_id and edge_data.get("target") == asset_node_id) or \
-                           (edge_data.get("source") == asset_node_id and edge_data.get("target") == finding_node_id):
+                        if (edge_data.get("source") == job_node_id and edge_data.get("target") == asset_node_id) or \
+                           (edge_data.get("source") == asset_node_id and edge_data.get("target") == job_node_id):
                             edge_exists = True
                             break
                 
                 if not edge_exists:
                     await storage.add_relationship(
-                        finding_node_id,
+                        job_node_id,
                         asset_node_id,
                         relation="targets",
                         weight=1.0
                     )
-                    logger.debug(f"Created edge from finding {finding_node_id} to asset {asset_node_id}")
+                    logger.debug(f"Created edge from job {job_node_id} to asset {asset_node_id}")
             except Exception as e:
-                logger.debug(f"Failed to create edge from finding to asset {asset_node_id}: {e}")
+                logger.debug(f"Failed to create edge from job to asset {asset_node_id}: {e}")
         
         # Refresh graph data after adding edges
         graph_data = await storage.get_graph_data()
         
-        # Get neighbors for all affected nodes
+        # Get neighbors for all discovered nodes
         visited = set()
         nodes = []
         edges = []
         
-        # Add finding node
-        finding_node_data = graph_data.get("nodes", {}).get(finding_node_id, {})
+        # Add job node
+        job_node_data = graph_data.get("nodes", {}).get(job_node_id, {})
         nodes.append(GraphNode(
-            id=finding_node_id,
-            label=finding.title,
-            type="finding",
-            severity=finding.severity,
-            metadata={**finding_entity, "is_finding": True}
+            id=job_node_id,
+            label=f"{job.capability.value} - {job.target}",
+            type="job",
+            severity="info",
+            metadata={**job_entity, "is_job": True, "job_status": job.status.value}
         ))
-        visited.add(finding_node_id)
+        visited.add(job_node_id)
         
-        # Get all nodes (affected assets + their neighbors)
+        # Get all nodes (discovered entities + their neighbors)
         for node_id in node_ids:
             if node_id in visited:
                 continue
@@ -480,7 +597,7 @@ async def get_graph_for_finding(
                     label=entity.get("value", node_data.get("label", node_id)),
                     type=entity.get("type", node_data.get("node_type", "unknown")),
                     severity=entity.get("severity", "info"),
-                    metadata={**entity, "is_finding_asset": True}
+                    metadata={**entity, "is_job_asset": True}
                 ))
                 visited.add(node_id)
             
@@ -523,7 +640,7 @@ async def get_graph_for_finding(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting graph for finding {finding_id}: {e}", exc_info=True)
+        logger.error(f"Error getting graph for job {job_id}: {e}", exc_info=True)
         # Fallback to empty graph
         return GraphData(nodes=[], edges=[])
 

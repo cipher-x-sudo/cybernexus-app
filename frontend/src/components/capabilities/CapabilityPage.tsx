@@ -572,9 +572,23 @@ export function CapabilityPage({
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              window.location.href = `/graph?findingId=${finding.id}&depth=2`;
+                              try {
+                                // Get finding to extract job_id from evidence
+                                const findingData = await api.getFinding(finding.id);
+                                const jobId = findingData.evidence?.job_id;
+                                if (jobId) {
+                                  window.location.href = `/graph?jobId=${jobId}&depth=2`;
+                                } else {
+                                  // Fallback: still use findingId
+                                  window.location.href = `/graph?findingId=${finding.id}&depth=2`;
+                                }
+                              } catch (error) {
+                                console.error("Error getting finding for graph:", error);
+                                // Fallback: still use findingId
+                                window.location.href = `/graph?findingId=${finding.id}&depth=2`;
+                              }
                             }}
                             className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors group"
                             title="View in Graph"

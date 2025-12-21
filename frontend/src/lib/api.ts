@@ -560,9 +560,9 @@ class ApiClient {
   }
 
   /**
-   * Get graph data focused on a specific finding
+   * Get graph data focused on a specific job
    */
-  async getGraphDataForFinding(findingId: string, depth: number = 2) {
+  async getGraphDataForJob(jobId: string, depth: number = 2) {
     return this.request<{ nodes: Array<{
       id: string;
       label: string;
@@ -579,7 +579,7 @@ class ApiClient {
       relation: string;
       weight: number;
       metadata: Record<string, any>;
-    }> }>(`/graph/finding/${findingId}?depth=${depth}`);
+    }> }>(`/graph/job/${jobId}?depth=${depth}`);
   }
 
   /**

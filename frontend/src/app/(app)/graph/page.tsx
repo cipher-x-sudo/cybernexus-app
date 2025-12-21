@@ -30,14 +30,15 @@ export default function GraphPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
-  const [findingInfo, setFindingInfo] = useState<{ id: string; title: string } | null>(null);
+  const [jobInfo, setJobInfo] = useState<{ id: string; target: string; capability: string } | null>(null);
   const [depth, setDepth] = useState<number>(2);
 
   useEffect(() => {
     setMounted(true);
     
     // Read query parameters
-    const findingId = searchParams.get("findingId");
+    const jobId = searchParams.get("jobId");
+    const findingId = searchParams.get("findingId"); // Legacy support - try to get job_id from finding
     const nodeId = searchParams.get("nodeId");
     const depthParam = searchParams.get("depth");
     
@@ -54,22 +55,47 @@ export default function GraphPage() {
         setLoading(true);
         setError(null);
         
-        if (findingId) {
-          // Fetch finding-focused graph
-          const [graphDataResult, findingResult] = await Promise.all([
-            api.getGraphDataForFinding(findingId, depth),
-            api.getFinding(findingId).catch(() => null)
+        // Handle legacy findingId - try to get job_id from finding
+        let actualJobId = jobId;
+        if (!actualJobId && findingId) {
+          try {
+            const findingResult = await api.getFinding(findingId);
+            // Job ID is stored in finding evidence
+            if (findingResult.evidence?.job_id) {
+              actualJobId = findingResult.evidence.job_id;
+              // Redirect to use jobId instead
+              router.replace(`/graph?jobId=${actualJobId}&depth=${depth}`);
+            } else {
+              setError("Finding does not have an associated job. Please use a job ID instead.");
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error("Error fetching finding:", err);
+            setError("Could not find associated job for this finding.");
+            setLoading(false);
+            return;
+          }
+        }
+        
+        if (actualJobId) {
+          // Fetch job-focused graph
+          const [graphDataResult, jobResult] = await Promise.all([
+            api.getGraphDataForJob(actualJobId, depth),
+            api.getJobDetails(actualJobId).catch(() => null)
           ]);
           
           setGraphData(graphDataResult);
           
-          if (findingResult) {
-            setFindingInfo({ id: findingId, title: findingResult.title });
-            // Set focused node to first affected asset if available
-            if (findingResult.affected_assets && findingResult.affected_assets.length > 0) {
-              setFocusedNodeId(findingResult.affected_assets[0]);
-            } else if (findingResult.target) {
-              setFocusedNodeId(findingResult.target);
+          if (jobResult) {
+            setJobInfo({ 
+              id: actualJobId, 
+              target: jobResult.target,
+              capability: jobResult.capability 
+            });
+            // Set focused node to job target if available
+            if (jobResult.target) {
+              setFocusedNodeId(jobResult.target);
             }
           }
         } else if (nodeId) {
@@ -77,13 +103,13 @@ export default function GraphPage() {
           const data = await api.getGraphDataForNode(nodeId, depth);
           setGraphData(data);
           setFocusedNodeId(nodeId);
-          setFindingInfo(null);
+          setJobInfo(null);
         } else {
           // Fetch full graph
           const data = await api.getGraphData({ limit: 1000 });
           setGraphData(data);
           setFocusedNodeId(null);
-          setFindingInfo(null);
+          setJobInfo(null);
         }
       } catch (err: any) {
         console.error("Error fetching graph data:", err);
@@ -96,11 +122,11 @@ export default function GraphPage() {
     fetchGraphData();
 
     // Poll for updates every 60 seconds (only if not in focused mode)
-    if (!findingId && !nodeId) {
+    if (!jobId && !findingId && !nodeId) {
       const interval = setInterval(fetchGraphData, 60000);
       return () => clearInterval(interval);
     }
-  }, [searchParams, depth]);
+  }, [searchParams, depth, router]);
   
   const handleShowFullGraph = () => {
     router.push("/graph");
@@ -108,11 +134,11 @@ export default function GraphPage() {
   
   const handleDepthChange = (newDepth: number) => {
     setDepth(newDepth);
-    const findingId = searchParams.get("findingId");
+    const jobId = searchParams.get("jobId");
     const nodeId = searchParams.get("nodeId");
     
-    if (findingId) {
-      router.push(`/graph?findingId=${findingId}&depth=${newDepth}`);
+    if (jobId) {
+      router.push(`/graph?jobId=${jobId}&depth=${newDepth}`);
     } else if (nodeId) {
       router.push(`/graph?nodeId=${nodeId}&depth=${newDepth}`);
     }
@@ -127,15 +153,15 @@ export default function GraphPage() {
           <p className="text-sm text-white/50">
             Interactive 3D visualization of threat relationships and connections
           </p>
-          {findingInfo && (
+          {jobInfo && (
             <div className="mt-2 flex items-center gap-2">
               <span className="text-xs text-white/40 font-mono">Viewing:</span>
-              <span className="text-xs text-amber-400 font-mono">{findingInfo.title}</span>
+              <span className="text-xs text-amber-400 font-mono">{jobInfo.capability} - {jobInfo.target}</span>
             </div>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {(findingInfo || focusedNodeId) && (
+          {(jobInfo || focusedNodeId) && (
             <button
               onClick={handleShowFullGraph}
               className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 text-sm font-mono transition-all"
