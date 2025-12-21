@@ -1,26 +1,11 @@
-"""
-Email Security Bypass Tester
-
-Inspired by: espoofer
-Purpose: Analyze email configurations for potential SPF/DKIM/DMARC bypass vulnerabilities.
-Note: This performs analysis only, does not send actual spoofing emails.
-"""
-
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
 
 class BypassTester:
-    """
-    Email Security Bypass Tester.
-    
-    Analyzes email configurations for potential bypass vulnerabilities
-    based on known attack patterns from espoofer research.
-    """
     
     def __init__(self):
-        """Initialize Bypass Tester."""
         pass
     
     async def analyze_bypass_vulnerabilities(
@@ -28,15 +13,6 @@ class BypassTester:
         domain: str,
         email_config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Analyze email configuration for bypass vulnerabilities.
-        
-        Args:
-            domain: Target domain
-            email_config: Email security configuration from EmailAudit
-            
-        Returns:
-            Bypass analysis results
-        """
         logger.info(f"Analyzing bypass vulnerabilities for {domain}")
         
         results = {
@@ -47,23 +23,18 @@ class BypassTester:
             "bypass_scenarios": []
         }
         
-        # Analyze SPF bypass vulnerabilities
         spf_vulns = self._analyze_spf_bypasses(email_config.get("spf", {}))
         results["vulnerabilities"].extend(spf_vulns)
         
-        # Analyze DKIM bypass vulnerabilities
         dkim_vulns = self._analyze_dkim_bypasses(email_config.get("dkim", {}))
         results["vulnerabilities"].extend(dkim_vulns)
         
-        # Analyze DMARC bypass vulnerabilities
         dmarc_vulns = self._analyze_dmarc_bypasses(email_config.get("dmarc", {}))
         results["vulnerabilities"].extend(dmarc_vulns)
         
-        # Analyze composition attacks (SPF + DKIM + DMARC interaction)
         composition_vulns = self._analyze_composition_attacks(email_config)
         results["vulnerabilities"].extend(composition_vulns)
         
-        # Calculate overall risk level
         if results["vulnerabilities"]:
             critical_count = sum(1 for v in results["vulnerabilities"] if v.get("severity") == "critical")
             high_count = sum(1 for v in results["vulnerabilities"] if v.get("severity") == "high")
@@ -77,20 +48,11 @@ class BypassTester:
             else:
                 results["risk_level"] = "low"
         
-        # Generate bypass scenarios
         results["bypass_scenarios"] = self._generate_bypass_scenarios(results["vulnerabilities"])
         
         return results
     
     def _analyze_spf_bypasses(self, spf_config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze SPF configuration for bypass vulnerabilities.
-        
-        Based on espoofer test cases:
-        - A1: Non-existent subdomains in MAIL FROM
-        - A2: Empty MAIL FROM addresses
-        - A3: NUL ambiguity
-        - A4: SPF include chain issues
-        """
         vulnerabilities = []
         
         if not spf_config.get("exists"):
@@ -105,7 +67,6 @@ class BypassTester:
             })
             return vulnerabilities
         
-        # Check for +all mechanism (allows all)
         if spf_config.get("all_mechanism") == '+all':
             vulnerabilities.append({
                 "severity": "critical",
@@ -117,7 +78,6 @@ class BypassTester:
                 "recommendation": "Change +all to ~all (softfail) or -all (hardfail)"
             })
         
-        # Check for missing 'all' mechanism
         if spf_config.get("all_mechanism") is None:
             vulnerabilities.append({
                 "severity": "high",
@@ -129,7 +89,6 @@ class BypassTester:
                 "recommendation": "Add explicit 'all' mechanism (-all, ~all, or ?all)"
             })
         
-        # Check for too many includes (potential for include chain issues)
         includes = spf_config.get("includes", [])
         if len(includes) > 10:
             vulnerabilities.append({
@@ -142,7 +101,6 @@ class BypassTester:
                 "recommendation": "Consolidate SPF includes, use SPF macros if possible"
             })
         
-        # Check for softfail (~all) - less secure than hardfail
         if spf_config.get("all_mechanism") == '~all':
             vulnerabilities.append({
                 "severity": "medium",
@@ -157,13 +115,6 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_dkim_bypasses(self, dkim_config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze DKIM configuration for bypass vulnerabilities.
-        
-        Based on espoofer test cases:
-        - B1: DKIM signature on wrong header
-        - B2: Multiple From headers
-        - B3: From header in different case
-        """
         vulnerabilities = []
         
         if not dkim_config.get("selectors_found"):
@@ -178,7 +129,6 @@ class BypassTester:
             })
             return vulnerabilities
         
-        # Check if only one selector found (less resilient)
         selectors = dkim_config.get("selectors_found", [])
         if len(selectors) == 1:
             vulnerabilities.append({
@@ -194,13 +144,6 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_dmarc_bypasses(self, dmarc_config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze DMARC configuration for bypass vulnerabilities.
-        
-        Based on espoofer test cases:
-        - C1: DMARC policy 'none'
-        - C2: DMARC percentage < 100%
-        - C3: Subdomain policy issues
-        """
         vulnerabilities = []
         
         if not dmarc_config.get("exists"):
@@ -215,7 +158,6 @@ class BypassTester:
             })
             return vulnerabilities
         
-        # Check for 'none' policy
         if dmarc_config.get("policy") == 'none':
             vulnerabilities.append({
                 "severity": "high",
@@ -227,7 +169,6 @@ class BypassTester:
                 "recommendation": "Upgrade DMARC policy to 'quarantine' or 'reject'"
             })
         
-        # Check for percentage < 100%
         pct = dmarc_config.get("pct", 100)
         if pct < 100:
             vulnerabilities.append({
@@ -240,7 +181,6 @@ class BypassTester:
                 "recommendation": "Set DMARC pct=100 for full coverage"
             })
         
-        # Check subdomain policy
         subdomain_policy = dmarc_config.get("subdomain_policy")
         if subdomain_policy == 'none' or subdomain_policy is None:
             vulnerabilities.append({
@@ -256,17 +196,12 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_composition_attacks(self, email_config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze composition attacks (interaction between SPF, DKIM, DMARC).
-        
-        Based on espoofer research on composition attacks.
-        """
         vulnerabilities = []
         
         spf = email_config.get("spf", {})
         dkim = email_config.get("dkim", {})
         dmarc = email_config.get("dmarc", {})
         
-        # Check if SPF passes but DKIM fails (composition issue)
         if spf.get("exists") and not dkim.get("selectors_found"):
             if dmarc.get("policy") in ['quarantine', 'reject']:
                 vulnerabilities.append({
@@ -279,7 +214,6 @@ class BypassTester:
                     "recommendation": "Configure both SPF and DKIM for defense in depth"
                 })
         
-        # Check if DMARC is missing but SPF/DKIM exist
         if (spf.get("exists") or dkim.get("selectors_found")) and not dmarc.get("exists"):
             vulnerabilities.append({
                 "severity": "high",
@@ -294,14 +228,6 @@ class BypassTester:
         return vulnerabilities
     
     def _generate_bypass_scenarios(self, vulnerabilities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Generate potential bypass scenarios based on vulnerabilities.
-        
-        Args:
-            vulnerabilities: List of identified vulnerabilities
-            
-        Returns:
-            List of bypass scenarios
-        """
         scenarios = []
         
         for vuln in vulnerabilities:

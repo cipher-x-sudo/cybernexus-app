@@ -1,15 +1,3 @@
-"""
-Custom Graph Implementation
-
-Adjacency List-based Graph for representing entity relationships in CyberNexus.
-Supports directed and undirected graphs, weighted edges, and various traversal algorithms.
-
-Used for:
-- Entity relationship mapping (domains, IPs, emails, etc.)
-- Threat actor infrastructure correlation
-- Attack path visualization
-"""
-
 from typing import Any, Dict, List, Optional, Set, Tuple, Generator
 from collections import deque
 from dataclasses import dataclass, field
@@ -18,7 +6,6 @@ import json
 
 @dataclass
 class GraphEdge:
-    """Represents an edge in the graph."""
     target: str
     weight: float = 1.0
     relation: str = "connected"
@@ -44,7 +31,6 @@ class GraphEdge:
 
 @dataclass
 class GraphNode:
-    """Represents a node in the graph."""
     id: str
     label: str
     node_type: str
@@ -52,13 +38,11 @@ class GraphNode:
     edges: List[GraphEdge] = field(default_factory=list)
     
     def add_edge(self, target: str, weight: float = 1.0, relation: str = "connected", metadata: dict = None):
-        """Add an edge from this node to target."""
         edge = GraphEdge(target=target, weight=weight, relation=relation, metadata=metadata or {})
         self.edges.append(edge)
         return edge
     
     def remove_edge(self, target: str) -> bool:
-        """Remove edge to target. Returns True if edge was found and removed."""
         for i, edge in enumerate(self.edges):
             if edge.target == target:
                 self.edges.pop(i)
@@ -66,7 +50,6 @@ class GraphNode:
         return False
     
     def get_neighbors(self) -> List[str]:
-        """Get all neighbor node IDs."""
         return [edge.target for edge in self.edges]
     
     def to_dict(self) -> dict:
@@ -91,56 +74,23 @@ class GraphNode:
 
 
 class Graph:
-    """
-    Custom Graph implementation using adjacency list.
-    
-    Features:
-    - Directed and undirected graph support
-    - Weighted edges with relationship types
-    - BFS and DFS traversals
-    - Shortest path (Dijkstra, BFS)
-    - Connected components detection
-    - Cycle detection
-    - Serialization/deserialization
-    """
     
     def __init__(self, directed: bool = True):
-        """Initialize graph.
-        
-        Args:
-            directed: If True, creates a directed graph. Otherwise, undirected.
-        """
         self.directed = directed
         self.nodes: Dict[str, GraphNode] = {}
         self._node_count = 0
         self._edge_count = 0
     
     def __len__(self) -> int:
-        """Return number of nodes."""
         return self._node_count
     
     def __contains__(self, node_id: str) -> bool:
-        """Check if node exists in graph."""
         return node_id in self.nodes
     
     def __iter__(self) -> Generator[GraphNode, None, None]:
-        """Iterate over all nodes."""
         yield from self.nodes.values()
     
-    # ==================== Node Operations ====================
-    
     def add_node(self, node_id: str, label: str = None, node_type: str = "default", data: dict = None) -> GraphNode:
-        """Add a node to the graph.
-        
-        Args:
-            node_id: Unique identifier for the node
-            label: Display label for the node
-            node_type: Type classification (domain, ip, email, etc.)
-            data: Additional metadata
-            
-        Returns:
-            The created GraphNode
-        """
         if node_id in self.nodes:
             return self.nodes[node_id]
         
@@ -155,22 +105,18 @@ class Graph:
         return node
     
     def get_node(self, node_id: str) -> Optional[GraphNode]:
-        """Get a node by ID."""
         return self.nodes.get(node_id)
     
     def remove_node(self, node_id: str) -> bool:
-        """Remove a node and all its edges."""
         if node_id not in self.nodes:
             return False
         
-        # Remove all edges pointing to this node
         for node in self.nodes.values():
             edges_to_remove = [e for e in node.edges if e.target == node_id]
             for edge in edges_to_remove:
                 node.edges.remove(edge)
                 self._edge_count -= 1
         
-        # Remove the node itself (and its outgoing edges)
         node = self.nodes[node_id]
         self._edge_count -= len(node.edges)
         del self.nodes[node_id]
@@ -178,26 +124,10 @@ class Graph:
         return True
     
     def get_nodes_by_type(self, node_type: str) -> List[GraphNode]:
-        """Get all nodes of a specific type."""
         return [node for node in self.nodes.values() if node.node_type == node_type]
-    
-    # ==================== Edge Operations ====================
     
     def add_edge(self, source: str, target: str, weight: float = 1.0, 
                  relation: str = "connected", metadata: dict = None) -> bool:
-        """Add an edge between two nodes.
-        
-        Args:
-            source: Source node ID
-            target: Target node ID
-            weight: Edge weight (default 1.0)
-            relation: Relationship type
-            metadata: Additional edge data
-            
-        Returns:
-            True if edge was added successfully
-        """
-        # Create nodes if they don't exist
         if source not in self.nodes:
             self.add_node(source)
         if target not in self.nodes:
@@ -205,20 +135,16 @@ class Graph:
         
         source_node = self.nodes[source]
         
-        # Check if edge already exists
         for edge in source_node.edges:
             if edge.target == target:
-                # Update existing edge
                 edge.weight = weight
                 edge.relation = relation
                 edge.metadata.update(metadata or {})
                 return True
         
-        # Add new edge
         source_node.add_edge(target, weight, relation, metadata)
         self._edge_count += 1
         
-        # If undirected, add reverse edge
         if not self.directed:
             target_node = self.nodes[target]
             target_node.add_edge(source, weight, relation, metadata)
@@ -227,7 +153,6 @@ class Graph:
         return True
     
     def remove_edge(self, source: str, target: str) -> bool:
-        """Remove an edge between two nodes."""
         if source not in self.nodes:
             return False
         
@@ -244,13 +169,11 @@ class Graph:
         return False
     
     def has_edge(self, source: str, target: str) -> bool:
-        """Check if an edge exists."""
         if source not in self.nodes:
             return False
         return any(edge.target == target for edge in self.nodes[source].edges)
     
     def get_edge(self, source: str, target: str) -> Optional[GraphEdge]:
-        """Get edge between two nodes."""
         if source not in self.nodes:
             return None
         for edge in self.nodes[source].edges:
@@ -258,17 +181,7 @@ class Graph:
                 return edge
         return None
     
-    # ==================== Traversal Algorithms ====================
-    
     def bfs(self, start: str) -> Generator[GraphNode, None, None]:
-        """Breadth-First Search traversal.
-        
-        Args:
-            start: Starting node ID
-            
-        Yields:
-            Nodes in BFS order
-        """
         if start not in self.nodes:
             return
         
@@ -286,14 +199,6 @@ class Graph:
                     queue.append(edge.target)
     
     def dfs(self, start: str) -> Generator[GraphNode, None, None]:
-        """Depth-First Search traversal (iterative).
-        
-        Args:
-            start: Starting node ID
-            
-        Yields:
-            Nodes in DFS order
-        """
         if start not in self.nodes:
             return
         
@@ -309,21 +214,11 @@ class Graph:
             node = self.nodes[node_id]
             yield node
             
-            # Add neighbors in reverse order to maintain consistent ordering
             for edge in reversed(node.edges):
                 if edge.target not in visited:
                     stack.append(edge.target)
     
     def get_neighbors(self, node_id: str, depth: int = 1) -> Set[str]:
-        """Get all neighbors up to specified depth.
-        
-        Args:
-            node_id: Starting node
-            depth: Maximum depth to traverse
-            
-        Returns:
-            Set of neighbor node IDs
-        """
         if node_id not in self.nodes:
             return set()
         
@@ -343,18 +238,7 @@ class Graph:
         
         return neighbors
     
-    # ==================== Path Finding ====================
-    
     def shortest_path_bfs(self, start: str, end: str) -> Optional[List[str]]:
-        """Find shortest path using BFS (unweighted).
-        
-        Args:
-            start: Starting node ID
-            end: Target node ID
-            
-        Returns:
-            List of node IDs in path, or None if no path exists
-        """
         if start not in self.nodes or end not in self.nodes:
             return None
         
@@ -379,15 +263,6 @@ class Graph:
         return None
     
     def dijkstra(self, start: str, end: str = None) -> Tuple[Dict[str, float], Dict[str, str]]:
-        """Dijkstra's algorithm for shortest weighted paths.
-        
-        Args:
-            start: Starting node ID
-            end: Optional target node (if specified, stops early when found)
-            
-        Returns:
-            Tuple of (distances dict, predecessors dict)
-        """
         import heapq
         
         if start not in self.nodes:
@@ -397,7 +272,6 @@ class Graph:
         distances[start] = 0
         predecessors = {}
         
-        # Priority queue: (distance, node_id)
         pq = [(0, start)]
         visited = set()
         
@@ -424,17 +298,11 @@ class Graph:
         return distances, predecessors
     
     def get_path(self, start: str, end: str) -> Optional[Tuple[List[str], float]]:
-        """Get shortest weighted path between two nodes.
-        
-        Returns:
-            Tuple of (path list, total weight) or None if no path
-        """
         distances, predecessors = self.dijkstra(start, end)
         
         if end not in predecessors and end != start:
             return None
         
-        # Reconstruct path
         path = []
         current = end
         while current is not None:
@@ -444,14 +312,7 @@ class Graph:
         path.reverse()
         return path, distances.get(end, 0)
     
-    # ==================== Graph Analysis ====================
-    
     def connected_components(self) -> List[Set[str]]:
-        """Find all connected components in the graph.
-        
-        Returns:
-            List of sets, each containing node IDs in a component
-        """
         visited = set()
         components = []
         
@@ -473,7 +334,6 @@ class Graph:
                         if edge.target not in visited:
                             stack.append(edge.target)
                     
-                    # For undirected analysis, also check incoming edges
                     if self.directed:
                         for other_node in self.nodes.values():
                             for edge in other_node.edges:
@@ -485,9 +345,7 @@ class Graph:
         return components
     
     def has_cycle(self) -> bool:
-        """Check if the graph contains a cycle."""
         if not self.directed:
-            # For undirected graphs, use DFS with parent tracking
             visited = set()
             
             def dfs_cycle(node_id: str, parent: str) -> bool:
@@ -510,7 +368,6 @@ class Graph:
             
             return False
         else:
-            # For directed graphs, use color-based DFS
             WHITE, GRAY, BLACK = 0, 1, 2
             colors = {node_id: WHITE for node_id in self.nodes}
             
@@ -535,11 +392,6 @@ class Graph:
             return False
     
     def get_degree(self, node_id: str) -> Tuple[int, int]:
-        """Get in-degree and out-degree of a node.
-        
-        Returns:
-            Tuple of (in_degree, out_degree)
-        """
         if node_id not in self.nodes:
             return (0, 0)
         
@@ -549,10 +401,7 @@ class Graph:
         
         return (in_degree, out_degree)
     
-    # ==================== Serialization ====================
-    
     def to_dict(self) -> dict:
-        """Serialize graph to dictionary."""
         return {
             "directed": self.directed,
             "nodes": {node_id: node.to_dict() for node_id, node in self.nodes.items()}
@@ -560,7 +409,6 @@ class Graph:
     
     @classmethod
     def from_dict(cls, data: dict) -> "Graph":
-        """Deserialize graph from dictionary."""
         graph = cls(directed=data.get("directed", True))
         
         for node_id, node_data in data.get("nodes", {}).items():
@@ -572,28 +420,21 @@ class Graph:
         return graph
     
     def to_json(self) -> str:
-        """Serialize graph to JSON string."""
         return json.dumps(self.to_dict(), default=str)
     
     @classmethod
     def from_json(cls, json_str: str) -> "Graph":
-        """Deserialize graph from JSON string."""
         return cls.from_dict(json.loads(json_str))
-    
-    # ==================== Statistics ====================
     
     @property
     def node_count(self) -> int:
-        """Get number of nodes."""
         return self._node_count
     
     @property
     def edge_count(self) -> int:
-        """Get number of edges."""
         return self._edge_count
     
     def stats(self) -> dict:
-        """Get graph statistics."""
         return {
             "nodes": self._node_count,
             "edges": self._edge_count,

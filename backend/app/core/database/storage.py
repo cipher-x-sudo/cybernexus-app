@@ -1,10 +1,3 @@
-"""
-Custom Storage Layer
-
-In-memory and file-based storage with custom DSA structures for operations.
-Redis removed - fully migrated to PostgreSQL.
-"""
-
 import os
 import json
 import threading
@@ -18,19 +11,7 @@ from app.core.dsa import Graph, AVLTree, HashMap, Trie, BloomFilter
 
 
 class Storage:
-    """
-    In-memory and file-based storage with custom DSA structures for operations.
     
-    Features:
-    - Persistent storage in files
-    - In-memory caching with DSA
-    - Thread-safe operations
-    - Automatic indexing
-    
-    Note: This is a legacy storage class. New code should use DBStorage for PostgreSQL.
-    """
-    
-    # File storage keys
     KEY_ENTITY = "entity:{}"
     KEY_GRAPH = "graph:entity_graph"
     KEY_INDEX_TIMESTAMP = "index:timestamp"
@@ -38,29 +19,20 @@ class Storage:
     KEY_INDEX_VALUE = "index:value"
     
     def __init__(self, data_dir: Path = None):
-        """Initialize storage.
-        
-        Args:
-            data_dir: Base directory for data storage
-        """
         self.data_dir = data_dir or settings.DATA_DIR
         self._ensure_directories()
         
-        # In-memory structures (for fast operations)
         self._entity_graph = Graph(directed=True)
-        self._entity_index = AVLTree()  # Index by timestamp
-        self._type_index = HashMap()    # Index by entity type
-        self._value_trie = Trie()       # Prefix search on values
+        self._entity_index = AVLTree()
+        self._type_index = HashMap()
+        self._value_trie = Trie()
         self._seen_filter = BloomFilter(expected_items=1000000)
         
-        # Thread safety
         self._lock = threading.RLock()
         
-        # Load existing data
         self._load_data()
     
     def _ensure_directories(self):
-        """Create necessary directories."""
         dirs = [
             self.data_dir,
             self.data_dir / "entities",
@@ -72,12 +44,9 @@ class Storage:
             d.mkdir(parents=True, exist_ok=True)
     
     def _load_data(self):
-        """Load existing data from files."""
         self._load_data_from_files()
     
     def _load_data_from_files(self):
-        """Load existing data from files (fallback)."""
-        # Load graph
         graph_file = self.data_dir / "graph" / "entity_graph.json"
         if graph_file.exists():
             try:
@@ -87,7 +56,6 @@ class Storage:
             except Exception:
                 pass
         
-        # Load entities and rebuild indices
         entities_dir = self.data_dir / "entities"
         if entities_dir.exists():
             for entity_file in entities_dir.glob("*.json"):
@@ -99,43 +67,35 @@ class Storage:
                     pass
     
     def _save_graph(self):
-        """Save graph to file."""
         graph_data = self._entity_graph.to_dict()
         self._save_graph_to_file(graph_data)
     
     def _save_graph_to_file(self, graph_data: dict):
-        """Save graph to file (fallback)."""
         graph_file = self.data_dir / "graph" / "entity_graph.json"
         with open(graph_file, 'w') as f:
             json.dump(graph_data, f, default=str)
     
     def _index_entity(self, entity: dict):
-        """Add entity to in-memory indices."""
         entity_id = entity.get("id")
         entity_type = entity.get("type")
         value = entity.get("value", "")
         timestamp = entity.get("created_at", datetime.utcnow().isoformat())
         
-        # Add to type index (in-memory)
         if entity_type:
             entities = self._type_index.get(entity_type, [])
             if entity_id not in entities:
                 entities.append(entity_id)
             self._type_index.put(entity_type, entities)
         
-        # Add to trie for prefix search (in-memory)
         if value:
             self._value_trie.insert(value.lower(), entity_id)
         
-        # Add to bloom filter (in-memory)
         self._seen_filter.add(entity_id)
         if value:
             self._seen_filter.add(value)
         
-        # Add to AVL tree by timestamp (in-memory)
         self._entity_index.insert(timestamp, entity_id)
         
-        # Add to graph
         self._entity_graph.add_node(
             entity_id,
             label=value,
@@ -143,50 +103,27 @@ class Storage:
             data=entity
         )
     
-    # ==================== Entity Operations ====================
-    
     def save_entity(self, entity: dict) -> str:
-        """Save an entity to storage.
-        
-        Args:
-            entity: Entity dictionary with at least 'id' field
-            
-        Returns:
-            Entity ID
-        """
         with self._lock:
             entity_id = entity.get("id")
             if not entity_id:
                 raise ValueError("Entity must have an 'id' field")
             
-            # Save to file
             self._save_entity_to_file(entity_id, entity)
             
-            # Update indices
             self._index_entity(entity)
             
             return entity_id
     
     def _save_entity_to_file(self, entity_id: str, entity: dict):
-        """Save entity to file (fallback)."""
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         with open(entity_file, 'w') as f:
             json.dump(entity, f, default=str, indent=2)
     
     def get_entity(self, entity_id: str) -> Optional[dict]:
-        """Get an entity by ID.
-        
-        Args:
-            entity_id: Entity identifier
-            
-        Returns:
-            Entity dictionary or None
-        """
-        # Quick check with bloom filter (may have false positives)
         if not self._seen_filter.contains(entity_id):
             return None
         
-        # Get from file
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         if entity_file.exists():
             try:
@@ -198,18 +135,9 @@ class Storage:
         return None
     
     def delete_entity(self, entity_id: str) -> bool:
-        """Delete an entity.
-        
-        Args:
-            entity_id: Entity identifier
-            
-        Returns:
-            True if deleted
-        """
         with self._lock:
             deleted = False
             
-            # Delete from file
             entity_file = self.data_dir / "entities" / f"{entity_id}.json"
             if entity_file.exists():
                 try:
@@ -218,60 +146,22 @@ class Storage:
                 except Exception:
                     pass
             
-            # Remove from in-memory structures
-            # Note: Can't remove from bloom filter (it's probabilistic)
             self._entity_graph.remove_node(entity_id)
             
             return deleted
     
     def search_by_prefix(self, prefix: str, limit: int = 100) -> List[str]:
-        """Search entities by value prefix.
-        
-        Args:
-            prefix: Prefix to search for
-            limit: Maximum results
-            
-        Returns:
-            List of entity IDs
-        """
         matches = self._value_trie.get_prefix_matches(prefix.lower(), limit)
         return [entity_id for _, entity_id in matches]
     
     def get_by_type(self, entity_type: str) -> List[str]:
-        """Get all entity IDs of a specific type.
-        
-        Args:
-            entity_type: Type to filter by
-            
-        Returns:
-            List of entity IDs
-        """
         return self._type_index.get(entity_type, [])
     
     def exists(self, value: str) -> bool:
-        """Quick check if a value exists (may have false positives).
-        
-        Args:
-            value: Value to check
-            
-        Returns:
-            True if probably exists, False if definitely not
-        """
         return self._seen_filter.contains(value)
-    
-    # ==================== Graph Operations ====================
     
     def add_relationship(self, source_id: str, target_id: str, 
                         relation: str, weight: float = 1.0, metadata: dict = None):
-        """Add a relationship between entities.
-        
-        Args:
-            source_id: Source entity ID
-            target_id: Target entity ID
-            relation: Relationship type
-            weight: Edge weight
-            metadata: Additional edge data
-        """
         with self._lock:
             self._entity_graph.add_edge(
                 source_id, target_id,
@@ -282,41 +172,15 @@ class Storage:
             self._save_graph()
     
     def get_neighbors(self, entity_id: str, depth: int = 1) -> List[str]:
-        """Get neighboring entity IDs.
-        
-        Args:
-            entity_id: Starting entity
-            depth: Maximum depth
-            
-        Returns:
-            List of neighbor entity IDs
-        """
         return list(self._entity_graph.get_neighbors(entity_id, depth))
     
     def find_path(self, source_id: str, target_id: str) -> Optional[List[str]]:
-        """Find path between two entities.
-        
-        Args:
-            source_id: Source entity ID
-            target_id: Target entity ID
-            
-        Returns:
-            List of entity IDs in path, or None
-        """
         return self._entity_graph.shortest_path_bfs(source_id, target_id)
     
     def get_graph_data(self) -> dict:
-        """Get full graph data for visualization.
-        
-        Returns:
-            Dictionary with nodes and edges
-        """
         return self._entity_graph.to_dict()
     
-    # ==================== Statistics ====================
-    
     def stats(self) -> dict:
-        """Get storage statistics."""
         entity_count = len(list((self.data_dir / "entities").glob("*.json")))
         
         return {

@@ -1,10 +1,3 @@
-"""
-Block Manager Service
-
-Manages blocking rules for IPs, endpoints, and patterns.
-Uses in-memory storage (Redis removed - fully migrated to PostgreSQL).
-"""
-
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -15,18 +8,13 @@ from app.config import settings
 
 
 class BlockManager:
-    """Service for managing network blocking rules."""
     
     def __init__(self):
-        # In-memory storage for blocks (Redis removed)
         self._ip_blocks: Dict[str, Dict[str, Any]] = {}
         self._endpoint_blocks: Dict[str, Dict[str, Any]] = {}
         self._pattern_blocks: Dict[str, Dict[str, Any]] = {}
     
-    # ==================== IP Blocking ====================
-    
     async def block_ip(self, ip: str, reason: str = "", created_by: str = "") -> bool:
-        """Block an IP address."""
         try:
             block_data = {
                 "ip": ip,
@@ -44,7 +32,6 @@ class BlockManager:
             return False
     
     async def unblock_ip(self, ip: str) -> bool:
-        """Unblock an IP address."""
         try:
             if ip in self._ip_blocks:
                 del self._ip_blocks[ip]
@@ -56,7 +43,6 @@ class BlockManager:
             return False
     
     async def is_ip_blocked(self, ip: str) -> bool:
-        """Check if IP is blocked."""
         try:
             return ip in self._ip_blocks
         except Exception as e:
@@ -64,14 +50,11 @@ class BlockManager:
             return False
     
     async def get_blocked_ips(self) -> List[Dict[str, Any]]:
-        """Get all blocked IPs."""
         try:
             return list(self._ip_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked IPs: {e}")
             return []
-    
-    # ==================== Endpoint Blocking ====================
     
     async def block_endpoint(
         self, 
@@ -80,7 +63,6 @@ class BlockManager:
         reason: str = "",
         created_by: str = ""
     ) -> bool:
-        """Block an endpoint pattern."""
         try:
             block_data = {
                 "pattern": pattern,
@@ -90,7 +72,6 @@ class BlockManager:
                 "created_by": created_by
             }
             
-            # Store endpoint block
             pattern_key = pattern.replace("/", "_").replace("*", "star")
             self._endpoint_blocks[pattern_key] = block_data
             
@@ -101,7 +82,6 @@ class BlockManager:
             return False
     
     async def unblock_endpoint(self, pattern: str) -> bool:
-        """Unblock an endpoint pattern."""
         try:
             pattern_key = pattern.replace("/", "_").replace("*", "star")
             if pattern_key in self._endpoint_blocks:
@@ -114,18 +94,14 @@ class BlockManager:
             return False
     
     async def is_endpoint_blocked(self, path: str, method: str) -> bool:
-        """Check if endpoint is blocked."""
         try:
-            # Check all endpoint blocks
             for block_data in self._endpoint_blocks.values():
                 block_pattern = block_data.get("pattern", "")
                 block_method = block_data.get("method", "ALL")
                 
-                # Check method
                 if block_method != "ALL" and block_method != method.upper():
                     continue
                 
-                # Check pattern match (support wildcards)
                 if self._match_pattern(path, block_pattern):
                     return True
             
@@ -135,14 +111,11 @@ class BlockManager:
             return False
     
     async def get_blocked_endpoints(self) -> List[Dict[str, Any]]:
-        """Get all blocked endpoints."""
         try:
             return list(self._endpoint_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked endpoints: {e}")
             return []
-    
-    # ==================== Pattern Blocking ====================
     
     async def block_pattern(
         self,
@@ -151,12 +124,6 @@ class BlockManager:
         reason: str = "",
         created_by: str = ""
     ) -> str:
-        """
-        Block a pattern (user-agent, header, etc.).
-        
-        Returns:
-            Block ID
-        """
         try:
             import uuid
             block_id = str(uuid.uuid4())
@@ -179,7 +146,6 @@ class BlockManager:
             return ""
     
     async def unblock_pattern(self, block_id: str) -> bool:
-        """Unblock a pattern by ID."""
         try:
             if block_id in self._pattern_blocks:
                 del self._pattern_blocks[block_id]
@@ -191,9 +157,7 @@ class BlockManager:
             return False
     
     async def is_pattern_blocked(self, request) -> bool:
-        """Check if request matches blocked pattern."""
         try:
-            # Check all pattern blocks
             for block_data in self._pattern_blocks.values():
                 pattern_type = block_data.get("type", "")
                 pattern_str = block_data.get("pattern", "")
@@ -207,18 +171,13 @@ class BlockManager:
             return False
     
     async def get_blocked_patterns(self) -> List[Dict[str, Any]]:
-        """Get all blocked patterns."""
         try:
             return list(self._pattern_blocks.values())
         except Exception as e:
             logger.error(f"Error getting blocked patterns: {e}")
             return []
     
-    # ==================== Helper Methods ====================
-    
     def _match_pattern(self, path: str, pattern: str) -> bool:
-        """Check if path matches pattern (supports wildcards)."""
-        # Convert pattern to regex
         regex_pattern = pattern.replace("*", ".*").replace("?", ".")
         try:
             return bool(re.match(f"^{regex_pattern}$", path))
@@ -226,13 +185,11 @@ class BlockManager:
             return False
     
     def _check_pattern_match(self, request, pattern_type: str, pattern_str: str) -> bool:
-        """Check if request matches pattern."""
         if pattern_type == "user_agent":
             user_agent = request.headers.get("user-agent", "")
             return self._match_pattern(user_agent.lower(), pattern_str.lower())
         
         elif pattern_type == "header":
-            # Check all headers
             for header_name, header_value in request.headers.items():
                 if self._match_pattern(header_value.lower(), pattern_str.lower()):
                     return True
@@ -248,7 +205,6 @@ class BlockManager:
         return False
     
     async def get_all_blocks(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Get all blocks grouped by type."""
         return {
             "ips": await self.get_blocked_ips(),
             "endpoints": await self.get_blocked_endpoints(),
@@ -256,12 +212,10 @@ class BlockManager:
         }
 
 
-# Global block manager instance
 _block_manager: Optional[BlockManager] = None
 
 
 def get_block_manager() -> BlockManager:
-    """Get or create global block manager instance."""
     global _block_manager
     if _block_manager is None:
         _block_manager = BlockManager()

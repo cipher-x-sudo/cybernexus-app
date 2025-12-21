@@ -1,9 +1,3 @@
-"""
-CyberNexus Services
-
-Business logic and background services.
-"""
-
 from .notification import NotificationService
 from .report_generator import ReportGenerator
 from .orchestrator import Orchestrator, get_orchestrator, Capability, JobStatus, JobPriority

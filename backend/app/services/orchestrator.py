@@ -1,18 +1,3 @@
-"""
-CyberNexus Orchestration Engine
-
-Maps user-facing capabilities to underlying tools. Users never see tool names -
-they interact with high-level security capabilities.
-
-Capabilities → Tools mapping:
-- Exposure Discovery → WebRecon (subdomain enumeration, endpoint discovery)
-- Dark Web Intelligence → DarkWatch (onion site monitoring)
-- Email Security → EmailAudit (SPF/DKIM/DMARC analysis)
-- Infrastructure Testing → ConfigAudit (security headers, vuln scanning)
-- Network Security → TunnelDetector
-- Investigation → Domain correlation
-"""
-
 from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -28,23 +13,19 @@ from loguru import logger
 from fastapi import WebSocket
 
 from app.core.dsa import HashMap, MinHeap, AVLTree
-# Redis removed - fully migrated to PostgreSQL
 
-# Import real collectors
 from app.collectors.web_recon import WebRecon
 from app.collectors.email_audit import EmailAudit
 from app.services.positive_scorer import get_positive_scorer
 from app.collectors.config_audit import ConfigAudit
 from app.collectors.domain_tree import DomainTree
 
-# Import email security services
 from app.services.bypass_tester import BypassTester
 from app.services.browser_capture import get_browser_capture_service
 from app.services.visual_similarity import get_visual_similarity_service
 
 
 class Capability(str, Enum):
-    """User-facing security capabilities"""
     EXPOSURE_DISCOVERY = "exposure_discovery"
     DARK_WEB_INTELLIGENCE = "dark_web_intelligence"
     EMAIL_SECURITY = "email_security"
@@ -54,7 +35,6 @@ class Capability(str, Enum):
 
 
 class JobStatus(str, Enum):
-    """Job execution status"""
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
@@ -64,7 +44,6 @@ class JobStatus(str, Enum):
 
 
 class JobPriority(int, Enum):
-    """Job priority levels"""
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
@@ -74,7 +53,6 @@ class JobPriority(int, Enum):
 
 @dataclass
 class Finding:
-    """A security finding from capability execution"""
     id: str
     capability: Capability
     severity: str  # critical, high, medium, low, info

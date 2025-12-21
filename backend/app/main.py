@@ -1,9 +1,3 @@
-"""
-CyberNexus - Main Application Entry Point
-
-Enterprise Threat Intelligence Platform
-"""
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,12 +21,10 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import BackgroundTasks
 import asyncio
 
-# Shared thread pool executor for Tor status checks
 _tor_check_executor: ThreadPoolExecutor = None
 
 
 def get_tor_check_executor() -> ThreadPoolExecutor:
-    """Get or create the shared thread pool executor for Tor checks."""
     global _tor_check_executor
     if _tor_check_executor is None:
         _tor_check_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tor-status-check")
@@ -41,11 +33,8 @@ def get_tor_check_executor() -> ThreadPoolExecutor:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager for startup and shutdown."""
-    # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     
-    # Configure logging
     logger.remove()
     logger.add(
         sys.stderr,
@@ -54,16 +43,13 @@ async def lifespan(app: FastAPI):
         colorize=True
     )
     
-    # Initialize directories
     init_directories()
     logger.info("Data directories initialized")
     
-    # Initialize database
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Database connection initialized")
     
-    # Run database migrations automatically
     logger.info("Running database migrations...")
     try:
         from alembic.config import Config
@@ -73,14 +59,11 @@ async def lifespan(app: FastAPI):
         logger.info("Database migrations completed successfully")
     except Exception as e:
         logger.error(f"Failed to run migrations: {e}")
-        # Don't fail startup if migrations fail - might be first run or connection issue
         logger.warning("Continuing startup despite migration errors")
     
-    # Initialize Tor status cache and perform initial check
     logger.info("Initializing Tor status cache...")
     tor_cache = get_tor_status_cache()
     
-    # Perform initial Tor connectivity check and cache it
     logger.info("Checking Tor proxy connectivity...")
     tor_status = check_tor_connectivity()
     tor_cache.update_status(tor_status)
@@ -100,16 +83,13 @@ async def lifespan(app: FastAPI):
             f"Error: {tor_status.get('error', 'Unknown')}"
         )
     
-    # Start background task to periodically update Tor status cache
     async def update_tor_status_periodically():
-        """Background task to periodically update Tor status cache."""
-        update_interval = 60  # Update every 60 seconds
+        update_interval = 60
         while True:
             try:
                 await asyncio.sleep(update_interval)
                 if not tor_cache.is_checking():
                     logger.debug("Periodic Tor status cache update triggered")
-                    # Run in thread pool to avoid blocking
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(None, tor_cache.update_status_async)
             except asyncio.CancelledError:
@@ -117,18 +97,13 @@ async def lifespan(app: FastAPI):
                 break
             except Exception as e:
                 logger.error(f"Error in Tor status cache background task: {e}", exc_info=True)
-                # Continue even if there's an error
                 await asyncio.sleep(update_interval)
     
-    # Start the background task
     tor_status_task = asyncio.create_task(update_tor_status_periodically())
     logger.info("Tor status cache background update task started")
     
-    # Initialize DSA structures
     logger.info("Initializing custom DSA structures...")
-    # TODO: Initialize graph, indices, etc.
     
-    # Initialize scheduler service
     logger.info("Initializing scheduler service...")
     try:
         from app.services.scheduler import get_scheduler_service
@@ -137,13 +112,11 @@ async def lifespan(app: FastAPI):
         logger.info("Scheduler service initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize scheduler service: {e}", exc_info=True)
-        # Don't fail startup if scheduler fails - it's not critical
     
     logger.info(f"{settings.APP_NAME} is ready!")
     
     yield
     
-    # Shutdown: Cancel background task
     tor_status_task.cancel()
     try:
         await tor_status_task
@@ -151,7 +124,6 @@ async def lifespan(app: FastAPI):
         pass
     logger.info("Tor status cache background task stopped")
     
-    # Shutdown scheduler service
     try:
         from app.services.scheduler import get_scheduler_service
         scheduler = get_scheduler_service()
@@ -160,10 +132,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Error shutting down scheduler service: {e}")
     
-    # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
     
-    # Close browser service instances (thread-local cleanup)
     try:
         from app.services.browser_capture import cleanup_all_browser_instances
         await cleanup_all_browser_instances()
@@ -171,12 +141,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Error during browser service cleanup: {e}")
     
-    # Close database connections
     await close_db()
     logger.info("Database connections closed")
 
 
-# Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
     description="""
@@ -198,22 +166,17 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS
 def get_cors_origins():
-    """Get CORS origins from settings, handling wildcard and Railway domains."""
     origins_str = settings.CORS_ORIGINS
     logger.debug(f"[CORS] Raw CORS_ORIGINS from settings: '{origins_str}'")
     
-    # If "*" is specified, return ["*"] but set allow_credentials=False
     if origins_str == "*":
         logger.info("[CORS DEBUG HYP-A] Using wildcard '*' - all origins allowed, credentials disabled")
         return ["*"], False
     
-    # Parse comma-separated origins
     origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
-    logger.info(f"[CORS DEBUG HYP-A] Parsed {len(origins)} origins from string: {origins}")
+        logger.info(f"[CORS DEBUG HYP-A] Parsed {len(origins)} origins from string: {origins}")
     
-    # Validate origin format (must be valid URL)
     validated_origins = []
     for origin in origins:
         if origin.startswith(("http://", "https://")):
@@ -221,34 +184,27 @@ def get_cors_origins():
         else:
             logger.warning(f"[CORS DEBUG HYP-A] Invalid CORS origin format (must start with http:// or https://): {origin}")
     
-    # If no valid origins, default to allowing all (but without credentials)
     if not validated_origins:
         logger.warning("[CORS DEBUG HYP-A] No valid origins found, defaulting to '*' (all origins, no credentials)")
         return ["*"], False
     
-    # If we have explicit origins, we can use credentials
     logger.info(f"[CORS DEBUG HYP-A] Using {len(validated_origins)} explicit origins with credentials enabled: {validated_origins}")
     return validated_origins, True
 
 
 def is_origin_allowed(origin: str, allowed_origins: list) -> bool:
-    """Check if an origin is allowed, supporting wildcard patterns."""
     if not origin:
         return False
     
-    # Always allow Railway domains (for Railway deployments)
     if ".railway.app" in origin or ".railway.xyz" in origin:
         return True
     
-    # If wildcard is allowed
     if "*" in allowed_origins:
         return True
     
-    # Exact match
     if origin in allowed_origins:
         return True
     
-    # Check Railway domain patterns (e.g., *.railway.app)
     for allowed in allowed_origins:
         if allowed.startswith("*."):
             domain = allowed[2:]  # Remove "*."
@@ -259,26 +215,21 @@ def is_origin_allowed(origin: str, allowed_origins: list) -> bool:
 
 cors_origins, allow_creds = get_cors_origins()
 
-# Log CORS configuration for debugging
 logger.info(f"CORS configuration: origins={cors_origins}, allow_credentials={allow_creds}, environment={settings.ENVIRONMENT}, debug={settings.CORS_DEBUG}")
 
 
 
-# CORS Request Logging Middleware
 class CORSDebugMiddleware(BaseHTTPMiddleware):
-    """Middleware to log CORS-related requests for debugging."""
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
         method = request.method
         path = request.url.path
         
-        # Log CORS requests for debugging (only if CORS_DEBUG is enabled)
         if settings.CORS_DEBUG and (method == "OPTIONS" or origin):
             is_allowed_val = is_origin_allowed(origin, cors_origins) if origin else None
             logger.debug(f"[CORS] {method} {path} | Origin: '{origin}' | Allowed: {is_allowed_val}")
         
-        # Log OPTIONS requests and CORS-related requests
         if settings.CORS_DEBUG and (method == "OPTIONS" or origin):
             logger.debug(
                 f"CORS Request: {method} {path} | "
@@ -288,7 +239,6 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
         
         response = await call_next(request)
         
-        # Log CORS response headers for debugging (only if CORS_DEBUG is enabled)
         if settings.CORS_DEBUG and (method == "OPTIONS" or origin):
             cors_response_headers = {
                 k: v for k, v in response.headers.items()
@@ -296,7 +246,6 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
             }
             logger.debug(f"[CORS] Response: {method} {path} | Status: {response.status_code} | CORS Headers: {cors_response_headers}")
         
-        # Log CORS response headers
         if settings.CORS_DEBUG and origin:
             cors_headers = {
                 k: v for k, v in response.headers.items()
@@ -308,10 +257,7 @@ class CORSDebugMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# CORS Header Enforcement Middleware
-# Ensures CORS headers are ALWAYS set if CORSMiddleware fails to set them
 class CORSEnforcementMiddleware(BaseHTTPMiddleware):
-    """Middleware to enforce CORS headers on all responses with Origin."""
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
@@ -320,13 +266,11 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
         
         response = await call_next(request)
         
-        # Check if CORS headers are missing
         has_cors_headers = any(
             k.lower().startswith("access-control-") 
             for k in response.headers.keys()
         )
         
-        # Always add CORS headers if request has Origin header and headers are missing
         if origin:
             if not has_cors_headers:
                 logger.warning(
@@ -334,13 +278,11 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
                     f"adding explicitly. Origin: {origin}"
                 )
             
-            # Always set CORS headers if origin is allowed
             if is_origin_allowed(origin, cors_origins):
                 response.headers["Access-Control-Allow-Origin"] = origin
                 if allow_creds:
                     response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-                # When credentials are enabled, must explicitly list headers (cannot use "*")
                 if allow_creds:
                     response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
                 else:
@@ -348,7 +290,6 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
                 if not has_cors_headers:
                     logger.info(f"[CORS ENFORCE] Added CORS headers for {method} {path}")
             else:
-                # Even if not explicitly allowed, allow Railway domains as fallback
                 if ".railway.app" in origin or ".railway.xyz" in origin:
                     logger.info(f"[CORS ENFORCE] Allowing Railway domain as fallback: {origin}")
                     response.headers["Access-Control-Allow-Origin"] = origin
@@ -360,23 +301,6 @@ class CORSEnforcementMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Add CORS middleware - must be added before routes
-# IMPORTANT: FastAPI middleware order - LAST added runs FIRST on response
-# We want execution order on RESPONSE:
-# 1. CORSDebugMiddleware (runs last, logs final headers)
-# 2. CORSEnforcementMiddleware (runs middle, ensures headers are set)
-# 3. CORSMiddleware (runs first, tries to set headers)
-#
-# So we need to add in REVERSE order:
-# - CORSDebugMiddleware added LAST (runs last on response)
-# - CORSEnforcementMiddleware added MIDDLE (runs middle on response)
-# - CORSMiddleware added FIRST (runs first on response)
-
-# Add middleware in REVERSE order of desired execution
-# (Last added = first executed on response)
-
-# 1. CORSMiddleware - tries to set CORS headers (runs FIRST on response)
-# When allow_credentials=True, we cannot use allow_headers=["*"], must be explicit
 allowed_headers = [
     "accept",
     "accept-language",
@@ -391,57 +315,38 @@ allowed_headers = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=allow_creds,  # Must be False if origins=["*"]
-    allow_methods=["*"],  # Allow all methods including OPTIONS
+    allow_credentials=allow_creds,
+    allow_methods=["*"],
     allow_headers=allowed_headers,
     expose_headers=["*"],
-    max_age=3600,  # Cache preflight requests for 1 hour
+    max_age=3600,
 )
 logger.info("[CORS] CORSMiddleware added - will attempt to set CORS headers")
 
-# 2. CORSEnforcementMiddleware - ensures headers are set if CORSMiddleware fails (runs MIDDLE on response)
 app.add_middleware(CORSEnforcementMiddleware)
 logger.info("[CORS] CORSEnforcementMiddleware added - will enforce CORS headers if missing")
 
-# 3. CORSDebugMiddleware - logs final result (runs LAST on response, sees final headers)
 app.add_middleware(CORSDebugMiddleware)
 logger.info("[CORS] CORSDebugMiddleware added - will log CORS request/response details")
 
-# Network Monitoring Middleware
-# IMPORTANT: Middleware order - LAST added runs FIRST on request
-# We want: Blocker -> Logger (blocker checks first, then logger captures)
-# So we add in REVERSE order: Logger first, then Blocker
-
 if settings.NETWORK_ENABLE_LOGGING or settings.NETWORK_ENABLE_BLOCKING:
-    # Initialize tunnel analyzer if tunnel detection is enabled
     tunnel_analyzer = None
     if settings.NETWORK_ENABLE_TUNNEL_DETECTION:
         tunnel_analyzer = get_tunnel_analyzer()
     
-    # Network Logger (added first, runs second on request)
-    # We'll create instance after app is created to set WebSocket reference
     logger.info("[Network] NetworkLoggerMiddleware will be added")
     
-    # Network Blocker (added second, runs first on request - checks blocks before logging)
     if settings.NETWORK_ENABLE_BLOCKING:
         app.add_middleware(NetworkBlockerMiddleware)
         logger.info("[Network] NetworkBlockerMiddleware added")
     
-    # Network Logger (added after blocker, so it runs after blocker checks)
     app.add_middleware(NetworkLoggerMiddleware, tunnel_analyzer=tunnel_analyzer)
     logger.info("[Network] NetworkLoggerMiddleware added")
 
-# Explicit OPTIONS handler as fallback for Railway/proxy issues
-# This ensures preflight requests always get proper CORS headers
 @app.options("/{full_path:path}")
 async def options_handler(request: Request, full_path: str):
-    """
-    Explicit OPTIONS handler as fallback for CORS preflight requests.
-    CORSMiddleware should handle this, but this ensures it works on Railway.
-    """
     origin = request.headers.get("origin")
     
-    # Check if origin is allowed
     if origin and not is_origin_allowed(origin, cors_origins):
         logger.warning(f"CORS: Origin not allowed in OPTIONS handler - {origin}")
         return Response(
@@ -450,15 +355,10 @@ async def options_handler(request: Request, full_path: str):
             headers={"Access-Control-Allow-Origin": "null"}
         )
     
-    # Build CORS headers
-    # When credentials are enabled, must explicitly list headers (cannot use "*")
     requested_headers = request.headers.get("access-control-request-headers", "")
     if allow_creds:
-        # Explicitly allow common headers when credentials are enabled
         allowed_headers_list = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"
-        # If specific headers were requested, include them if they're safe
         if requested_headers:
-            # Add requested headers that aren't already in the list
             requested_list = [h.strip().lower() for h in requested_headers.split(",")]
             existing_list = [h.strip().lower() for h in allowed_headers_list.split(",")]
             for req_header in requested_list:
@@ -474,7 +374,6 @@ async def options_handler(request: Request, full_path: str):
         "Access-Control-Max-Age": "3600",
     }
     
-    # Set origin header
     if "*" in cors_origins:
         cors_headers["Access-Control-Allow-Origin"] = "*"
         cors_headers["Access-Control-Allow-Credentials"] = "false"
@@ -483,7 +382,6 @@ async def options_handler(request: Request, full_path: str):
         if allow_creds:
             cors_headers["Access-Control-Allow-Credentials"] = "true"
     elif origin:
-        # Fallback: allow the origin if it's a valid URL
         cors_headers["Access-Control-Allow-Origin"] = origin
         if allow_creds:
             cors_headers["Access-Control-Allow-Credentials"] = "true"
@@ -493,7 +391,6 @@ async def options_handler(request: Request, full_path: str):
     logger.info(f"[CORS] OPTIONS handler: {full_path} | Origin: {origin} | Headers set")
     return Response(status_code=200, headers=cors_headers)
 
-# Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(entities.router, prefix="/api/v1/entities", tags=["Entities"])
 app.include_router(graph.router, prefix="/api/v1/graph", tags=["Graph"])
@@ -513,7 +410,6 @@ app.include_router(scheduled_searches.router, prefix="/api/v1/scheduled-searches
 
 @app.get("/", tags=["Health"])
 async def root():
-    """Root endpoint - health check."""
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
@@ -525,27 +421,14 @@ async def root():
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 async def health_check(background_tasks: BackgroundTasks):
-    """
-    Detailed health check endpoint.
-    
-    Returns immediately with cached Tor status to avoid blocking.
-    Triggers background update if cache is stale.
-    """
-    # Get cached Tor status (returns immediately, non-blocking)
     tor_cache = get_tor_status_cache()
     tor_status = tor_cache.get_status()
     
-    # Trigger background update if cache is stale or never updated
-    # This runs in a thread pool executor to avoid blocking
     if tor_cache.is_stale(max_age_seconds=60) and not tor_cache.is_checking():
         logger.debug("Tor status cache is stale, triggering background update")
-        # Use shared thread pool executor to run check in background thread
         executor = get_tor_check_executor()
         executor.submit(tor_cache.update_status_async)
-        # Note: We don't wait for completion, executor will handle it
     
-    # Determine overall health status
-    # If Tor is unavailable but not required, mark as "degraded" not "unhealthy"
     overall_status = "healthy"
     if tor_status["status"] != "connected" and settings.TOR_REQUIRED:
         overall_status = "unhealthy"
@@ -577,13 +460,10 @@ async def health_check(background_tasks: BackgroundTasks):
     }
 
 
-# Global exception handler to ensure CORS headers are set even on errors
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler that ensures CORS headers are set."""
     origin = request.headers.get("origin")
     
-    # Build error response
     if isinstance(exc, StarletteHTTPException):
         status_code = exc.status_code
         detail = exc.detail
@@ -597,7 +477,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": detail}
     )
     
-    # Add CORS headers if origin is present
     if origin:
         if is_origin_allowed(origin, cors_origins):
             response.headers["Access-Control-Allow-Origin"] = origin
@@ -609,7 +488,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             else:
                 response.headers["Access-Control-Allow-Headers"] = "*"
         elif ".railway.app" in origin or ".railway.xyz" in origin:
-            # Fallback for Railway domains
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
             response.headers["Access-Control-Allow-Headers"] = "accept, accept-language, content-type, content-length, authorization, x-requested-with, x-csrf-token, x-api-key"

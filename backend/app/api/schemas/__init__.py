@@ -1,5 +1,3 @@
-"""CyberNexus API Schemas"""
-
 from .company import (
     CompanyProfile,
     CompanyProfileCreate,
