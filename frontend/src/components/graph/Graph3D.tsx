@@ -145,9 +145,9 @@ function Edge3D({ source, target, highlighted }: { source: THREE.Vector3; target
     <Line
       points={[source, target]}
       color={highlighted ? "#f59e0b" : "#ffffff"}
-      lineWidth={highlighted ? 2 : 1}
+      lineWidth={highlighted ? 3 : 1.5}
       transparent
-      opacity={highlighted ? 0.8 : 0.2}
+      opacity={highlighted ? 0.9 : 0.4}
     />
   );
 }
