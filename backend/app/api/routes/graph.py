@@ -14,8 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.database import get_db
 from app.core.database.db_storage import DBStorage
+from app.core.database.models import GraphNode
 from app.api.routes.auth import get_current_active_user, User, is_admin
 from app.services.orchestrator import get_orchestrator
+from sqlalchemy import select
 
 router = APIRouter()
 
@@ -619,17 +621,52 @@ async def get_graph_for_job(
                             metadata=neighbor_entity
                         ))
         
+        # Build mapping from GraphNode IDs to Entity IDs
+        # Edges in database use GraphNode IDs (e.g., "node-job-123") but we need entity IDs (e.g., "job-123")
+        node_id_to_entity_id = {}
+        
+        # Build list of GraphNode IDs to query (format: "node-{entity_id}")
+        graph_node_ids_to_query = [f"node-{entity_id}" for entity_id in all_node_ids]
+        
+        # Query all GraphNodes at once for better performance
+        if graph_node_ids_to_query:
+            result = await db.execute(
+                select(GraphNode).where(GraphNode.id.in_(graph_node_ids_to_query))
+            )
+            graph_nodes = result.scalars().all()
+            for graph_node in graph_nodes:
+                if graph_node.entity_id:
+                    node_id_to_entity_id[graph_node.id] = graph_node.entity_id
+        
         # Get edges between all nodes
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
-                source = edge_data.get("source")
-                target = edge_data.get("target")
-                if source in all_node_ids and target in all_node_ids:
+                source_graph_node_id = edge_data.get("source")
+                target_graph_node_id = edge_data.get("target")
+                
+                # Map GraphNode IDs to Entity IDs
+                source_entity_id = node_id_to_entity_id.get(source_graph_node_id)
+                target_entity_id = node_id_to_entity_id.get(target_graph_node_id)
+                
+                # If mapping failed, try removing "node-" prefix as fallback
+                if not source_entity_id and source_graph_node_id and source_graph_node_id.startswith("node-"):
+                    source_entity_id = source_graph_node_id[5:]  # Remove "node-" prefix
+                if not target_entity_id and target_graph_node_id and target_graph_node_id.startswith("node-"):
+                    target_entity_id = target_graph_node_id[5:]  # Remove "node-" prefix
+                
+                # If still no mapping, use original value (might already be entity ID)
+                if not source_entity_id:
+                    source_entity_id = source_graph_node_id
+                if not target_entity_id:
+                    target_entity_id = target_graph_node_id
+                
+                # Only include edge if both entity_ids are in all_node_ids
+                if source_entity_id in all_node_ids and target_entity_id in all_node_ids:
                     relation = edge_data.get("relation", "associated_with")
                     edges.append(GraphEdge(
                         id=edge_key,
-                        source=source,
-                        target=target,
+                        source=source_entity_id,  # Use entity ID
+                        target=target_entity_id,  # Use entity ID
                         relation=RelationType(relation) if hasattr(RelationType, relation.upper().replace("-", "_")) else RelationType.ASSOCIATED_WITH,
                         weight=edge_data.get("weight", 1.0),
                         metadata=edge_data.get("metadata", {})
