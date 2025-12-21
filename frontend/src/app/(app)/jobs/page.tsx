@@ -280,6 +280,16 @@ export default function JobHistoryPage() {
                             View →
                           </button>
                           <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/graph?jobId=${job.id}&depth=2`);
+                            }}
+                            className="text-xs font-mono text-purple-400 hover:text-purple-300 transition-colors"
+                            title="View in Graph"
+                          >
+                            Graph
+                          </button>
+                          <button
                             onClick={(e) => handleRestartJob(e, job.id)}
                             className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
                             title="Restart job"

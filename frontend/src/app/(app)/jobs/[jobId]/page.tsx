@@ -146,6 +146,12 @@ export default function JobDetailsPage() {
             {job.status}
           </span>
           <GlassButton
+            onClick={() => router.push(`/graph?jobId=${jobId}&depth=2`)}
+            className="text-xs"
+          >
+            View in Graph
+          </GlassButton>
+          <GlassButton
             onClick={() => handleExport("json")}
             disabled={exporting}
             className="text-xs"

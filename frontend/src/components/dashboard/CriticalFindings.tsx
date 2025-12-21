@@ -16,6 +16,10 @@ interface Finding {
   status?: "active" | "resolved" | "false_positive" | "accepted_risk";
   resolved_at?: string;
   resolved_time_ago?: string;
+  evidence?: {
+    job_id?: string;
+    [key: string]: any;
+  };
 }
 
 interface CriticalFindingsProps {
@@ -39,13 +43,30 @@ export function CriticalFindings({ findings: propFindings, className, onFindingR
       if (jobId) {
         router.push(`/graph?jobId=${jobId}&depth=2`);
       } else {
-        // Fallback: still use findingId (graph page will handle the conversion)
-        router.push(`/graph?findingId=${findingId}&depth=2`);
+        // If no job_id, show error message
+        alert("This finding is not associated with a job. Please view the job directly from the Jobs page.");
       }
     } catch (error) {
       console.error("Error getting finding for graph:", error);
-      // Fallback: still use findingId
-      router.push(`/graph?findingId=${findingId}&depth=2`);
+      alert("Could not load finding details. Please try again.");
+    }
+  };
+
+  const handleViewJob = async (findingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      // Get finding to extract job_id from evidence
+      const finding = await api.getFinding(findingId);
+      const jobId = finding.evidence?.job_id;
+      if (jobId) {
+        // Navigate to job details page
+        router.push(`/jobs/${jobId}`);
+      } else {
+        alert("This finding is not associated with a job.");
+      }
+    } catch (error) {
+      console.error("Error getting finding for job:", error);
+      alert("Could not load finding details. Please try again.");
     }
   };
 
@@ -258,9 +279,33 @@ export function CriticalFindings({ findings: propFindings, className, onFindingR
                     </button>
                   )}
                   <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        // Get finding to extract job_id from evidence
+                        const findingData = await api.getFinding(finding.id);
+                        const jobId = findingData.evidence?.job_id;
+                        if (jobId) {
+                          router.push(`/jobs/${jobId}`);
+                        } else {
+                          alert("This finding is not associated with a job.");
+                        }
+                      } catch (error) {
+                        console.error("Error getting finding for job:", error);
+                        alert("Could not load finding details. Please try again.");
+                      }
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-blue-500/20 transition-colors group"
+                    title="View Job"
+                  >
+                    <svg className="w-4 h-4 text-white/40 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={(e) => handleViewInGraph(finding.id, e)}
                     className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors group"
-                    title="View in Graph"
+                    title="View Job in Graph"
                   >
                     <svg className="w-4 h-4 text-white/40 group-hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
