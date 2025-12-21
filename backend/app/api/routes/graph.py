@@ -523,45 +523,98 @@ async def get_graph_for_job(
                                     if entity_id and entity_id not in node_ids:
                                         node_ids.append(entity_id)
         
-        # Extract entities from job findings
+        # Build hierarchical graph: keyword → websites → entities
+        # Structure based on job findings and evidence
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         job_findings = await finding_storage.get_findings_for_job(job_id)
         
+        # Create keyword node from job target (search term)
+        keyword_node_id = None
+        if job.target:
+            keyword_value = job.target.strip()
+            keyword_node_id = await find_or_create_entity(keyword_value, "keyword")
+            if keyword_node_id and keyword_node_id not in node_ids:
+                node_ids.append(keyword_node_id)
+        
+        # Track website nodes and their relationships
+        website_to_entities = {}  # website_id -> [entity_ids]
+        keyword_to_websites = []  # [website_ids]
+        
         for finding in job_findings:
-            # Process affected_assets from findings
+            # Extract website URL from finding evidence
+            website_url = None
+            entity_type_from_evidence = None
+            
+            if finding.evidence:
+                # Check for site URL in evidence
+                website_url = finding.evidence.get("site") or finding.evidence.get("url") or finding.evidence.get("source_url")
+                
+                # Get entity type from evidence if available
+                entity_data = finding.evidence.get("entity")
+                if entity_data:
+                    entity_type_from_evidence = entity_data.get("type") or entity_data.get("entity_type")
+            
+            # If no website in evidence, try finding target
+            if not website_url and finding.target:
+                website_url = finding.target
+            
+            # Create website node if we have a URL
+            website_node_id = None
+            if website_url:
+                # Normalize URL - extract domain or keep full URL for .onion sites
+                if ".onion" in website_url:
+                    # Keep full .onion URL
+                    website_value = website_url
+                else:
+                    # Extract domain from URL
+                    website_value = extract_domain_or_ip(website_url)
+                
+                if website_value:
+                    website_node_id = await find_or_create_entity(website_value, "website")
+                    if website_node_id and website_node_id not in node_ids:
+                        node_ids.append(website_node_id)
+                    if website_node_id not in keyword_to_websites:
+                        keyword_to_websites.append(website_node_id)
+                    if website_node_id not in website_to_entities:
+                        website_to_entities[website_node_id] = []
+            
+            # Process affected_assets (entities extracted from website)
             for asset in finding.affected_assets:
                 if not asset:
                     continue
                 
+                entity_id = None
+                entity_type = None
+                
                 # Try as entity ID first
                 entity = await storage.get_entity(asset)
                 if entity:
-                    if asset not in node_ids:
-                        node_ids.append(asset)
-                    continue
+                    entity_type = entity.get("type", "unknown")
+                    entity_id = asset
+                else:
+                    # Extract and detect type
+                    domain_or_ip = extract_domain_or_ip(asset)
+                    if not domain_or_ip:
+                        continue
+                    
+                    # Use entity type from evidence if available, otherwise detect
+                    if entity_type_from_evidence:
+                        entity_type = entity_type_from_evidence
+                    else:
+                        entity_type = detect_entity_type(domain_or_ip)
+                    
+                    entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                 
-                # Extract domain/IP/email from URL
-                domain_or_ip = extract_domain_or_ip(asset)
-                if not domain_or_ip:
-                    continue
-                
-                # Determine entity type
-                entity_type = detect_entity_type(domain_or_ip)
-                
-                # Find or create entity
-                entity_id = await find_or_create_entity(domain_or_ip, entity_type)
                 if entity_id and entity_id not in node_ids:
                     node_ids.append(entity_id)
-            
-            # Process finding target
-            if finding.target:
-                target_domain_or_ip = extract_domain_or_ip(finding.target)
-                if target_domain_or_ip:
-                    entity_type = detect_entity_type(target_domain_or_ip)
-                    entity_id = await find_or_create_entity(target_domain_or_ip, entity_type)
-                    if entity_id and entity_id not in node_ids:
-                        node_ids.append(entity_id)
+                
+                # Link entity to website if we have one
+                if website_node_id and entity_id:
+                    if website_node_id not in website_to_entities:
+                        website_to_entities[website_node_id] = []
+                    if entity_id not in website_to_entities[website_node_id]:
+                        website_to_entities[website_node_id].append(entity_id)
         
         if not node_ids:
             # No nodes to show, return empty graph
@@ -595,28 +648,47 @@ async def get_graph_for_job(
             await storage.save_entity(job_entity)
             logger.debug(f"Created job entity {job_node_id}")
         
-        # Create relationships from job to discovered entities
-        for asset_node_id in node_ids:
-            try:
-                # Check if edge already exists
-                edge_exists = False
-                if "edges" in graph_data:
-                    for edge_key, edge_data in graph_data["edges"].items():
-                        if (edge_data.get("source") == job_node_id and edge_data.get("target") == asset_node_id) or \
-                           (edge_data.get("source") == asset_node_id and edge_data.get("target") == job_node_id):
-                            edge_exists = True
-                            break
-                
-                if not edge_exists:
+        # Create hierarchical relationships: keyword → websites → entities
+        # Link keyword to websites
+        if keyword_node_id:
+            for website_node_id in keyword_to_websites:
+                try:
                     await storage.add_relationship(
-                        job_node_id,
-                        asset_node_id,
-                        relation="targets",
+                        keyword_node_id,
+                        website_node_id,
+                        relation="discovered",
                         weight=1.0
                     )
-                    logger.debug(f"Created edge from job {job_node_id} to asset {asset_node_id}")
+                    logger.debug(f"Created edge from keyword {keyword_node_id} to website {website_node_id}")
+                except Exception as e:
+                    logger.debug(f"Failed to create edge from keyword to website {website_node_id}: {e}")
+        
+        # Link websites to entities
+        for website_node_id, entity_ids in website_to_entities.items():
+            for entity_id in entity_ids:
+                try:
+                    await storage.add_relationship(
+                        website_node_id,
+                        entity_id,
+                        relation="contains",
+                        weight=1.0
+                    )
+                    logger.debug(f"Created edge from website {website_node_id} to entity {entity_id}")
+                except Exception as e:
+                    logger.debug(f"Failed to create edge from website to entity {entity_id}: {e}")
+        
+        # Also link job to keyword for backward compatibility
+        if keyword_node_id:
+            try:
+                await storage.add_relationship(
+                    job_node_id,
+                    keyword_node_id,
+                    relation="searches",
+                    weight=1.0
+                )
+                logger.debug(f"Created edge from job {job_node_id} to keyword {keyword_node_id}")
             except Exception as e:
-                logger.debug(f"Failed to create edge from job to asset {asset_node_id}: {e}")
+                logger.debug(f"Failed to create edge from job to keyword: {e}")
         
         # Refresh graph data after adding edges
         graph_data = await storage.get_graph_data()

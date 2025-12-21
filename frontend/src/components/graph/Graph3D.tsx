@@ -17,6 +17,9 @@ const entityTypes = {
   actor: { color: "#ec4899", shape: "dodecahedron" },
   file_hash: { color: "#06b6d4", shape: "icosahedron" },
   vulnerability: { color: "#eab308", shape: "tetrahedron" },
+  keyword: { color: "#f97316", shape: "box" },
+  website: { color: "#10b981", shape: "cylinder" },
+  job: { color: "#6366f1", shape: "dodecahedron" },
 };
 
 // Graph data types
