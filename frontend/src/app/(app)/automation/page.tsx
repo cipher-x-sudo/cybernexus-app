@@ -278,7 +278,9 @@ export default function AutomationPage() {
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {filteredSearches.map((search) => {
-              const colors = capabilityColors[search.capability] || capabilityColors.exposure_discovery;
+              // Use first capability for icon color, or default to exposure_discovery
+              const firstCapability = search.capabilities[0] || "exposure_discovery";
+              const colors = capabilityColors[firstCapability] || capabilityColors.exposure_discovery;
               return (
                 <div key={search.id} className="p-6 hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-start justify-between">
