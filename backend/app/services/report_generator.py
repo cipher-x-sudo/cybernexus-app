@@ -63,7 +63,7 @@ class ReportGenerator:
         if format == "pdf":
             # Generate PDF
             pdf_path = self.output_dir / f"{report_id}.pdf"
-            HTML(string=html_content).write_pdf(pdf_path)
+            HTML(string=html_content).write_pdf(str(pdf_path))
             
             return {
                 "report_id": report_id,
