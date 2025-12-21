@@ -434,6 +434,74 @@ async def list_jobs(
     return result
 
 
+@router.get("/jobs/history", response_model=List[JobResponse])
+async def get_job_history(
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=200, description="Number of jobs per page"),
+    capability: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """
+    Get job history with pagination support.
+    Uses page/page_size parameters (converts to offset/limit internally).
+    Queries jobs from database, filtered by current user.
+    """
+    # Convert page/page_size to offset/limit
+    offset = (page - 1) * page_size
+    limit = page_size
+    
+    # Parse filters
+    cap_filter = None
+    if capability:
+        try:
+            cap_filter = Capability(capability)
+        except ValueError:
+            pass
+    
+    status_filter = None
+    if status:
+        try:
+            status_filter = JobStatus(status)
+        except ValueError:
+            pass
+    
+    # Query from database
+    storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    jobs = await storage.list_jobs(
+        capability=cap_filter,
+        status=status_filter,
+        limit=limit,
+        offset=offset
+    )
+    
+    # Get findings count for each job from database
+    from app.core.database.finding_storage import DBFindingStorage
+    finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+    
+    result = []
+    for job in jobs:
+        # Get findings count for this job
+        findings = await finding_storage.get_findings_for_job(job.id)
+        findings_count = len(findings)
+        
+        result.append(JobResponse(
+            id=job.id,
+            capability=job.capability.value,
+            target=job.target,
+            status=job.status.value,
+            progress=job.progress,
+            created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            findings_count=findings_count,
+            error=job.error
+        ))
+    
+    return result
+
+
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: str,

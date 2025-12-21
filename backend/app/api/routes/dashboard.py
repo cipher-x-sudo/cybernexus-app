@@ -5,7 +5,7 @@ Provides aggregated data for the main dashboard overview.
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Query, HTTPException, Depends
 from loguru import logger
 
@@ -120,7 +120,7 @@ async def get_dashboard_overview(
             "capability": f.capability.value,
             "target": f.target,
             "risk_score": f.risk_score,
-            "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now().isoformat()
+            "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now(timezone.utc).isoformat()
         } for f in all_findings]
         
         # Calculate risk score
@@ -136,8 +136,9 @@ async def get_dashboard_overview(
         jobs_data = []
         for job in recent_jobs:
             # Calculate time ago
+            now = datetime.now(timezone.utc)
             if job.completed_at:
-                time_diff = datetime.now() - job.completed_at
+                time_diff = now - job.completed_at
                 if time_diff.days > 0:
                     time_ago = f"{time_diff.days}d ago"
                 elif time_diff.seconds > 3600:
@@ -145,7 +146,7 @@ async def get_dashboard_overview(
                 else:
                     time_ago = f"{time_diff.seconds // 60}m ago"
             elif job.started_at:
-                time_diff = datetime.now() - job.started_at
+                time_diff = now - job.started_at
                 time_ago = f"Started {time_diff.seconds // 60}m ago"
             else:
                 time_ago = "Just created"
@@ -186,9 +187,9 @@ async def get_dashboard_overview(
             if cap_jobs:
                 completed_jobs = [j for j in cap_jobs if j.status == JobStatus.COMPLETED]
                 if completed_jobs:
-                    latest = max(completed_jobs, key=lambda j: j.completed_at if j.completed_at else datetime.min)
+                    latest = max(completed_jobs, key=lambda j: j.completed_at if j.completed_at else datetime.min.replace(tzinfo=timezone.utc))
                     if latest.completed_at:
-                        time_diff = datetime.now() - latest.completed_at
+                        time_diff = datetime.now(timezone.utc) - latest.completed_at
                         if time_diff.days > 0:
                             last_run = f"{time_diff.days}d ago"
                         elif time_diff.seconds > 3600:
@@ -241,7 +242,7 @@ async def get_dashboard_overview(
             "capability_stats": capability_stats,
             "threat_map_data": threat_map_data,
             "timeline_stats": timeline_stats,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -253,9 +254,10 @@ def _is_within_24h(timestamp_str: str) -> bool:
     """Check if timestamp is within last 24 hours."""
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        if timestamp.tzinfo:
-            timestamp = timestamp.replace(tzinfo=None)
-        time_diff = datetime.now() - timestamp
+        # Ensure timestamp is timezone-aware
+        if not timestamp.tzinfo:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        time_diff = datetime.now(timezone.utc) - timestamp
         return time_diff <= timedelta(hours=24)
     except:
         return False
@@ -277,9 +279,10 @@ async def get_critical_findings(
         findings = await finding_storage.get_critical_findings(limit=limit)
         
         findings_data = []
+        now = datetime.now(timezone.utc)
         for finding in findings:
             # Calculate time ago
-            time_diff = datetime.now() - finding.discovered_at
+            time_diff = now - finding.discovered_at
             if time_diff.days > 0:
                 time_ago = f"{time_diff.days}d ago"
             elif time_diff.seconds > 3600:
