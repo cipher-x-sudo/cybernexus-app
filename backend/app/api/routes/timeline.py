@@ -104,10 +104,83 @@ async def get_timeline(
     # Support frontend parameter names
     type: Optional[str] = None,
     from_date: Optional[str] = None,
-    to: Optional[str] = None
+    to: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get timeline events with optional filtering."""
+    """Get timeline events with optional filtering. Generates events from database if in-memory store is empty."""
     results = events_db.copy()
+    
+    # If in-memory store is empty, generate events from database (same logic as /recent)
+    if not results:
+        try:
+            # Generate events from recent jobs
+            job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+            recent_jobs = await job_storage.list_jobs(limit=100, offset=0)
+            
+            for job in recent_jobs:
+                if job.status.value == "completed" and job.completed_at:
+                    event = {
+                        "id": generate_event_id(),
+                        "type": EventType.SCAN_COMPLETED.value,
+                        "title": f"Scan completed: {job.capability.value} on {job.target}",
+                        "description": f"Completed {job.capability.value} scan for {job.target}",
+                        "severity": EventSeverity.INFO.value,
+                        "timestamp": job.completed_at,
+                        "source": job.capability.value,
+                        "related_entities": [job.target],
+                        "metadata": {"job_id": job.id, "capability": job.capability.value}
+                    }
+                    results.append(event)
+                elif job.status.value == "running" and job.started_at:
+                    event = {
+                        "id": generate_event_id(),
+                        "type": EventType.SCAN_COMPLETED.value,
+                        "title": f"Scan started: {job.capability.value} on {job.target}",
+                        "description": f"Started {job.capability.value} scan for {job.target}",
+                        "severity": EventSeverity.INFO.value,
+                        "timestamp": job.started_at,
+                        "source": job.capability.value,
+                        "related_entities": [job.target],
+                        "metadata": {"job_id": job.id, "capability": job.capability.value}
+                    }
+                    results.append(event)
+            
+            # Generate events from critical findings
+            finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
+            critical_findings = await finding_storage.get_critical_findings(limit=100)
+            
+            for finding in critical_findings:
+                severity_map = {
+                    "critical": EventSeverity.CRITICAL.value,
+                    "high": EventSeverity.HIGH.value,
+                    "medium": EventSeverity.MEDIUM.value,
+                    "low": EventSeverity.LOW.value,
+                    "info": EventSeverity.INFO.value
+                }
+                event_severity = severity_map.get(finding.severity, EventSeverity.INFO.value)
+                
+                event_type_val = EventType.THREAT_DETECTED.value
+                if "dark" in finding.capability.value.lower() or "web" in finding.capability.value.lower():
+                    event_type_val = EventType.DARK_WEB_MENTION.value
+                elif "credential" in finding.capability.value.lower() or "breach" in finding.capability.value.lower():
+                    event_type_val = EventType.CREDENTIAL_LEAKED.value
+                
+                event = {
+                    "id": generate_event_id(),
+                    "type": event_type_val,
+                    "title": finding.title,
+                    "description": finding.description or finding.title,
+                    "severity": event_severity,
+                    "timestamp": finding.discovered_at,
+                    "source": finding.capability.value,
+                    "related_entities": [finding.target] if finding.target else [],
+                    "metadata": {"finding_id": finding.id, "risk_score": finding.risk_score}
+                }
+                results.append(event)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Error generating timeline events from database: {e}")
     
     # Map frontend parameters to backend parameters
     if type and not event_type:
@@ -130,9 +203,9 @@ async def get_timeline(
     
     # Apply filters
     if event_type:
-        results = [e for e in results if e["type"] == event_type]
+        results = [e for e in results if e.get("type") == event_type.value]
     if severity:
-        results = [e for e in results if e["severity"] == severity]
+        results = [e for e in results if e.get("severity") == severity.value]
     if source:
         results = [e for e in results if e["source"] == source]
     if start_time:
@@ -206,10 +279,10 @@ async def get_recent_events(
                 if job.status.value == "completed" and job.completed_at:
                     event = {
                         "id": generate_event_id(),
-                        "type": EventType.SCAN_COMPLETED,
+                        "type": EventType.SCAN_COMPLETED.value,  # Use .value to get string
                         "title": f"Scan completed: {job.capability.value} on {job.target}",
                         "description": f"Completed {job.capability.value} scan for {job.target}",
-                        "severity": EventSeverity.INFO,
+                        "severity": EventSeverity.INFO.value,  # Use .value to get string
                         "timestamp": job.completed_at,
                         "source": job.capability.value,
                         "related_entities": [job.target],
@@ -220,11 +293,25 @@ async def get_recent_events(
                 elif job.status.value == "running" and job.started_at:
                     event = {
                         "id": generate_event_id(),
-                        "type": EventType.SCAN_COMPLETED,  # Using scan_completed type
+                        "type": EventType.SCAN_COMPLETED.value,  # Use .value to get string
                         "title": f"Scan started: {job.capability.value} on {job.target}",
                         "description": f"Started {job.capability.value} scan for {job.target}",
-                        "severity": EventSeverity.INFO,
+                        "severity": EventSeverity.INFO.value,  # Use .value to get string
                         "timestamp": job.started_at,
+                        "source": job.capability.value,
+                        "related_entities": [job.target],
+                        "metadata": {"job_id": job.id, "capability": job.capability.value}
+                    }
+                    results.append(event)
+                # Also create event for pending/queued jobs
+                elif job.status.value in ["pending", "queued"] and job.created_at:
+                    event = {
+                        "id": generate_event_id(),
+                        "type": EventType.SCAN_COMPLETED.value,
+                        "title": f"Scan queued: {job.capability.value} on {job.target}",
+                        "description": f"Queued {job.capability.value} scan for {job.target}",
+                        "severity": EventSeverity.INFO.value,
+                        "timestamp": job.created_at,
                         "source": job.capability.value,
                         "related_entities": [job.target],
                         "metadata": {"job_id": job.id, "capability": job.capability.value}
@@ -255,10 +342,10 @@ async def get_recent_events(
                 
                 event = {
                     "id": generate_event_id(),
-                    "type": event_type,
+                    "type": event_type.value,  # Use .value to get string
                     "title": finding.title,
                     "description": finding.description or finding.title,
-                    "severity": event_severity,
+                    "severity": event_severity.value,  # Use .value to get string
                     "timestamp": finding.discovered_at,
                     "source": finding.capability.value,
                     "related_entities": [finding.target] if finding.target else [],
