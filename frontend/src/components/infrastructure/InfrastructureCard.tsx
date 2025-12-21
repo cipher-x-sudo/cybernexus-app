@@ -58,8 +58,29 @@ export function InfrastructureCard({
       return "No evidence available";
     }
 
+    // Special handling for security header findings
+    if (finding.category === "headers") {
+      // Missing header
+      if (finding.evidence.missing_header) {
+        return `Missing: ${finding.evidence.missing_header}`;
+      }
+      
+      // Present headers
+      if (finding.evidence.headers && typeof finding.evidence.headers === "object") {
+        const headerNames = Object.keys(finding.evidence.headers);
+        if (headerNames.length > 0) {
+          if (headerNames.length <= 2) {
+            return `Present: ${headerNames.join(", ")}`;
+          }
+          return `Present: ${headerNames.slice(0, 2).join(", ")} +${headerNames.length - 2} more`;
+        }
+      }
+    }
+
+    // Default formatting for other categories
     try {
       const evidenceStr = Object.entries(finding.evidence)
+        .filter(([key]) => key !== "job_id") // Exclude job_id from preview
         .slice(0, 2)
         .map(([key, value]) => {
           if (typeof value === "object") {
