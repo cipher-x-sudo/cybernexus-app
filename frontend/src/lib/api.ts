@@ -87,7 +87,7 @@ export interface CapabilityInfo {
 
 export interface CapabilityJob {
   id: string;
-  capability: string;
+  capabilities: string[];
   target: string;
   status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled";
   progress: number;

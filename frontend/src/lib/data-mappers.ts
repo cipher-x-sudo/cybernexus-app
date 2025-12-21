@@ -81,13 +81,17 @@ export function mapToFindings(findings: any[]): FindingData[] {
  * Map API jobs to component format
  */
 export function mapToJobs(jobs: any[]): JobData[] {
-  return jobs.map((job) => ({
-    capability: formatCapabilityName(job.capability),
-    target: job.target,
-    status: mapJobStatus(job.status),
-    findings: job.findings_count || 0,
-    time: job.time_ago || formatTimeAgo(job.created_at),
-  }));
+  return jobs.map((job) => {
+    // Handle both old (capability) and new (capabilities) formats
+    const capabilityValue = job.capabilities?.[0] || job.capability || "Unknown";
+    return {
+      capability: formatCapabilityName(capabilityValue),
+      target: job.target,
+      status: mapJobStatus(job.status),
+      findings: job.findings_count || 0,
+      time: job.time_ago || formatTimeAgo(job.created_at),
+    };
+  });
 }
 
 /**
@@ -212,14 +216,14 @@ function formatEventMessage(event: any): string {
   const data = event.data || {};
   
   const messages: Record<string, string> = {
-    job_created: `Scan initiated - ${data.capability || "Unknown"}`,
-    job_started: `Scan started - ${data.capability || "Unknown"}`,
-    job_completed: `Scan completed - ${data.capability || "Unknown"}${data.findings_count ? ` (${data.findings_count} findings)` : ""}`,
-    job_failed: `Scan failed - ${data.capability || "Unknown"}`,
+    job_created: `Scan initiated - ${data.capabilities?.[0] || data.capability || "Unknown"}`,
+    job_started: `Scan started - ${data.capabilities?.[0] || data.capability || "Unknown"}`,
+    job_completed: `Scan completed - ${data.capabilities?.[0] || data.capability || "Unknown"}${data.findings_count ? ` (${data.findings_count} findings)` : ""}`,
+    job_failed: `Scan failed - ${data.capabilities?.[0] || data.capability || "Unknown"}`,
     finding: `New finding detected - ${data.title || "Unknown"}`,
   };
   
-  return messages[type] || `${type} - ${data.capability || "Unknown"}`;
+  return messages[type] || `${type} - ${data.capabilities?.[0] || data.capability || "Unknown"}`;
 }
 
 /**

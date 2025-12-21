@@ -233,7 +233,11 @@ export default function JobHistoryPage() {
                         <p className="text-sm font-mono text-white/60">{job.id}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-white font-medium">{job.capability}</p>
+                        <p className="text-sm text-white font-medium">
+                          {job.capabilities.length > 0 
+                            ? job.capabilities.join(", ")
+                            : "Unknown"}
+                        </p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-mono text-white/80 truncate max-w-xs">{job.target}</p>

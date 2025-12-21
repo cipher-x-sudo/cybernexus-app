@@ -193,8 +193,12 @@ export default function JobDetailsPage() {
             <h2 className="font-mono text-lg font-semibold text-white mb-4">Basic Information</h2>
             <div className="space-y-4">
               <div>
-                <p className="text-xs font-mono text-white/50 mb-1">Capability</p>
-                <p className="text-sm text-white font-medium">{job.capability}</p>
+                <p className="text-xs font-mono text-white/50 mb-1">Capabilities</p>
+                <p className="text-sm text-white font-medium">
+                  {job.capabilities.length > 0 
+                    ? job.capabilities.join(", ")
+                    : "Unknown"}
+                </p>
               </div>
               <div>
                 <p className="text-xs font-mono text-white/50 mb-1">Target</p>

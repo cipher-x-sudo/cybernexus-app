@@ -122,7 +122,13 @@ export function JobHistoryCard({ className, limit = 5 }: JobHistoryCardProps) {
                   {getStatusIcon(job.status)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">{job.capability}</p>
+                  <p className="text-sm text-white font-medium truncate">
+                    {job.capabilities.length > 0 
+                      ? job.capabilities.length === 1 
+                        ? job.capabilities[0] 
+                        : `${job.capabilities[0]} +${job.capabilities.length - 1}`
+                      : "Unknown"}
+                  </p>
                   <p className="text-xs text-white/40 font-mono truncate">{job.target}</p>
                 </div>
               </div>
