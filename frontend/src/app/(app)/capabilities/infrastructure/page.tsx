@@ -20,6 +20,7 @@ import {
   TimelineChart,
   TestCoverageChart,
 } from "@/components/infrastructure/InfrastructureCharts";
+import { SecurityHeaderView } from "@/components/infrastructure/SecurityHeaderView";
 import { exportInfrastructure } from "@/lib/export";
 
 export default function InfrastructurePage() {
@@ -593,9 +594,16 @@ export default function InfrastructurePage() {
 
             <div>
               <h4 className="text-xs font-mono text-white/50 mb-2">Evidence</h4>
-              <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
-                {JSON.stringify(selectedFinding.evidence, null, 2)}
-              </pre>
+              {selectedFinding.category === "headers" ? (
+                <SecurityHeaderView
+                  evidence={selectedFinding.evidence}
+                  severity={selectedFinding.severity}
+                />
+              ) : (
+                <pre className="p-3 rounded-lg bg-black/30 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {JSON.stringify(selectedFinding.evidence, null, 2)}
+                </pre>
+              )}
             </div>
 
             {selectedFinding.recommendations.length > 0 && (
