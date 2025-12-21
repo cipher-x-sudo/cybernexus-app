@@ -1521,8 +1521,24 @@ class Orchestrator:
         job.progress = 20
         logger.info(f"Running infrastructure audit for {job.target}")
         
-        # Run real config audit
-        results = await self._config_audit.audit(job.target)
+        # Extract config options from job.config
+        config = job.config or {}
+        audit_config = {
+            "crlf": config.get("crlf", True),
+            "pathTraversal": config.get("pathTraversal", True),
+            "versionDetection": config.get("versionDetection", True),
+            "cveLookup": config.get("cveLookup", True),
+            "bypassTechniques": config.get("bypassTechniques", True),
+            "purgeMethod": config.get("purgeMethod", True),
+            "variableLeakage": config.get("variableLeakage", True),
+            "hopByHopHeaders": config.get("hopByHopHeaders", True),
+            "phpDetection": config.get("phpDetection", True),
+            "cve20177529": config.get("cve20177529", True),
+            "paths": config.get("paths", [])
+        }
+        
+        # Run real config audit with config options
+        results = await self._config_audit.audit(job.target, config=audit_config)
         
         job.progress = 80
         
@@ -1571,19 +1587,31 @@ class Orchestrator:
         # Convert vulnerability findings
         vuln_findings = results.get("findings", [])
         for vuln in vuln_findings:
+            # Extract recommendations from finding if available
+            vuln_recommendations = vuln.get("recommendations", [])
+            if not vuln_recommendations:
+                vuln_recommendations = ["Patch the identified vulnerability", "Review server configuration"]
+            
+            # Build evidence dict
+            evidence = {
+                "check": vuln.get("check"),
+                "evidence": vuln.get("evidence"),
+                "url": vuln.get("url")
+            }
+            
+            # Add any additional evidence fields
+            if isinstance(vuln.get("evidence"), dict):
+                evidence.update(vuln.get("evidence", {}))
+            
             findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.INFRASTRUCTURE_TESTING,
                 severity=vuln.get("severity", "medium"),
                 title=vuln.get("description", "Vulnerability Detected"),
                 description=f"Security vulnerability detected: {vuln.get('description')}",
-                evidence={
-                    "check": vuln.get("check"),
-                    "evidence": vuln.get("evidence"),
-                    "url": vuln.get("url")
-                },
+                evidence=evidence,
                 affected_assets=[vuln.get("url", job.target)],
-                recommendations=["Patch the identified vulnerability", "Review server configuration"],
+                recommendations=vuln_recommendations,
                 discovered_at=datetime.now(),
                 risk_score=self._severity_to_score(vuln.get("severity", "medium"))
             ))
