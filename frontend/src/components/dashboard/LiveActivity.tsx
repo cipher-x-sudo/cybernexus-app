@@ -38,21 +38,31 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
     }
   }, [propEvents]);
 
-  // Poll for new events if live
+  // Fetch events on mount and poll for updates if live
   useEffect(() => {
-    if (!isLive || propEvents) return; // Don't poll if events are provided via props
+    if (!isLive || propEvents) return; // Don't fetch if events are provided via props
 
-    const interval = setInterval(async () => {
+    // Fetch events immediately on mount
+    const fetchEvents = async () => {
       try {
         const { api } = await import("@/lib/api");
         const response = await api.getCapabilityEvents(20);
         if (response.events && response.events.length > 0) {
           setEvents(mapEventsToActivity(response.events));
+        } else {
+          // Clear events if no events returned
+          setEvents([]);
         }
       } catch (error) {
         console.error("Error fetching events:", error);
       }
-    }, 15000); // Every 15 seconds
+    };
+
+    // Fetch immediately on mount
+    fetchEvents();
+
+    // Then start polling for updates every 15 seconds
+    const interval = setInterval(fetchEvents, 15000);
 
     return () => clearInterval(interval);
   }, [isLive, propEvents]);

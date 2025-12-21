@@ -1219,12 +1219,13 @@ async def get_recent_events(
                     "target": job.target
                 })
         
-        # Generate events from critical findings
+        # Generate events from recent findings (all severities, not just critical/high)
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-        critical_findings = await finding_storage.get_critical_findings(limit=limit)
+        # Get recent findings of all severities to show more activity
+        recent_findings = await finding_storage.get_findings(limit=limit * 2)  # Get more to have variety
         
-        for finding in critical_findings:
+        for finding in recent_findings:
             events.append({
                 "id": f"finding-{finding.id}",
                 "type": "finding",
