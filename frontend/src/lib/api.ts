@@ -284,7 +284,7 @@ class ApiClient {
       active_jobs: number;
       recent_jobs: Array<{
         id: string;
-        capability: string;
+        capabilities: string[];
         target: string;
         status: string;
         progress: number;
@@ -309,7 +309,7 @@ class ApiClient {
         severity: string;
         risk_score: number;
         target: string;
-        capability: string;
+        capabilities: string[];
         discovered_at: string;
       }>;
       timeline_stats: {
@@ -329,7 +329,7 @@ class ApiClient {
         id: string;
         title: string;
         severity: string;
-        capability: string;
+        capabilities: string[];
         target: string;
         time_ago: string;
         risk_score: number;
@@ -439,7 +439,7 @@ class ApiClient {
     return this.request<{
       jobs: Array<{
         id: string;
-        capability: string;
+        capabilities: string[];
         target: string;
         status: string;
         progress: number;
@@ -611,7 +611,7 @@ class ApiClient {
   async getFinding(findingId: string) {
     return this.request<{
       id: string;
-      capability: string;
+      capabilities: string[];
       severity: string;
       title: string;
       description: string;
@@ -1379,7 +1379,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
@@ -1403,7 +1403,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
@@ -1436,7 +1436,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
@@ -1472,7 +1472,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
@@ -1498,7 +1498,7 @@ class ApiClient {
       user_id: string;
       name: string;
       description: string | null;
-      capability: string;
+      capabilities: string[];
       target: string;
       config: Record<string, any>;
       schedule_type: string;
