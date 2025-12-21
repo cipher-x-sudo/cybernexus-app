@@ -104,11 +104,12 @@ export function SecurityHeaderView({ evidence, severity = "info" }: SecurityHead
     }
 
     return (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 mb-3">
-          <div className={cn("flex-shrink-0", styles.icon)}>
+      <div className="space-y-4">
+        {/* Header with icon and count */}
+        <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+          <div className={cn("flex-shrink-0 p-2 rounded-lg", styles.bg)}>
             <svg
-              className="w-4 h-4"
+              className={cn("w-5 h-5", styles.icon)}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -121,55 +122,63 @@ export function SecurityHeaderView({ evidence, severity = "info" }: SecurityHead
               />
             </svg>
           </div>
-          <h4 className="text-xs font-mono text-white/50 uppercase tracking-wide">
-            {headerEntries.length} Header{headerEntries.length !== 1 ? "s" : ""} Present
-          </h4>
+          <div>
+            <h4 className="text-sm font-mono font-semibold text-white">
+              {headerEntries.length} Security Header{headerEntries.length !== 1 ? "s" : ""} Present
+            </h4>
+            <p className="text-xs text-white/50 mt-0.5">
+              All headers are properly configured
+            </p>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left py-2 px-3 text-xs font-mono text-white/50">
-                  Header Name
-                </th>
-                <th className="text-left py-2 px-3 text-xs font-mono text-white/50">
-                  Value
-                </th>
-                <th className="w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {headerEntries.map(([headerName, headerValue], index) => {
-                const valueStr = String(headerValue || "");
-                return (
-                  <tr
-                    key={headerName}
-                    className={cn(
-                      "border-b border-white/5 hover:bg-white/5 transition-colors",
-                      index === headerEntries.length - 1 && "border-b-0"
-                    )}
-                  >
-                    <td className="py-3 px-3">
-                      <span className="text-sm font-mono text-white/90 font-semibold">
-                        {headerName}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2 max-w-md">
-                        <span className="text-sm font-mono text-white/70 break-all">
-                          {valueStr}
+        {/* Headers table */}
+        <div className="rounded-lg border border-white/10 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
+                  <th className="text-left py-3 px-4 text-xs font-mono font-semibold text-white/70 uppercase tracking-wide">
+                    Header Name
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-mono font-semibold text-white/70 uppercase tracking-wide">
+                    Value
+                  </th>
+                  <th className="w-12 py-3 px-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {headerEntries.map(([headerName, headerValue], index) => {
+                  const valueStr = String(headerValue || "");
+                  return (
+                    <tr
+                      key={headerName}
+                      className={cn(
+                        "border-b border-white/5 hover:bg-white/5 transition-colors",
+                        index === headerEntries.length - 1 && "border-b-0"
+                      )}
+                    >
+                      <td className="py-3 px-4">
+                        <span className="text-sm font-mono text-white/90 font-semibold">
+                          {headerName}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-2">
-                      <CopyButton text={valueStr} size="sm" />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm font-mono text-white/70 break-words max-w-2xl">
+                            {valueStr}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <CopyButton text={valueStr} size="sm" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );

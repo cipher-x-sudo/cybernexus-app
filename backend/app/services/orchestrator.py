@@ -1576,7 +1576,7 @@ class Orchestrator:
                 title=f"{len(present_headers)} Security Headers Present",
                 description="Some security headers are properly configured",
                 evidence={
-                    "headers": {h.get("header"): h.get("value")[:50] for h in present_headers}
+                    "headers": {h.get("header"): h.get("value") for h in present_headers}
                 },
                 affected_assets=[job.target],
                 recommendations=["Continue monitoring security header configuration"],

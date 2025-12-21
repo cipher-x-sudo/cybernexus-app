@@ -69,10 +69,10 @@ export function InfrastructureCard({
       if (finding.evidence.headers && typeof finding.evidence.headers === "object") {
         const headerNames = Object.keys(finding.evidence.headers);
         if (headerNames.length > 0) {
-          if (headerNames.length <= 2) {
-            return `Present: ${headerNames.join(", ")}`;
+          if (headerNames.length <= 3) {
+            return `${headerNames.length} headers: ${headerNames.join(", ")}`;
           }
-          return `Present: ${headerNames.slice(0, 2).join(", ")} +${headerNames.length - 2} more`;
+          return `${headerNames.length} security headers configured`;
         }
       }
     }
