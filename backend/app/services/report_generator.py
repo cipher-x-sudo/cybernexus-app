@@ -109,138 +109,220 @@ class ReportGenerator:
         Returns:
             HTML content
         """
-        # Default template if no custom templates
-        # Using direct color values instead of CSS variables for better PDF compatibility
+        # Default template with dark cyberpunk theme matching website
         return f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>CyberNexus Executive Summary</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         @page {{
             size: A4;
             margin: 2cm;
+            background: #0a0e1a;
+        }}
+        * {{
+            box-sizing: border-box;
         }}
         body {{
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             line-height: 1.6;
-            color: #212529;
-            background: #ffffff;
+            color: rgba(255, 255, 255, 0.95);
+            background: #0a0e1a;
             margin: 0;
             padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }}
+        h1, h2, h3, h4, h5, h6 {{
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-weight: 600;
+            letter-spacing: -0.02em;
         }}
         .container {{
             max-width: 100%;
             margin: 0 auto;
+            background: #0a0e1a;
         }}
         .header {{
-            background: #1e3a5f;
-            color: white;
-            padding: 30px;
-            border-radius: 8px;
+            background: #1a2035;
+            color: rgba(255, 255, 255, 0.95);
+            padding: 35px;
+            border-radius: 12px;
             margin-bottom: 30px;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
         }}
         .header h1 {{
-            margin: 0 0 10px 0;
-            font-size: 24px;
+            margin: 0 0 12px 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: #f59e0b;
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
         }}
         .header .meta {{
-            opacity: 0.9;
+            opacity: 0.8;
             font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Inter', sans-serif;
         }}
         .section {{
-            background: white;
-            padding: 25px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
         }}
         .section h2 {{
-            color: #1e3a5f;
-            border-bottom: 2px solid #4a90d9;
-            padding-bottom: 10px;
+            color: #f59e0b;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+            padding-bottom: 12px;
             margin-top: 0;
-            font-size: 20px;
+            margin-bottom: 20px;
+            font-size: 22px;
+            font-weight: 600;
         }}
         .stats-grid {{
             width: 100%;
             margin: 20px 0;
             border: none;
+            border-collapse: separate;
+            border-spacing: 12px;
         }}
         .stats-grid td {{
             border: none;
             padding: 0;
         }}
         .stat-card {{
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 24px;
+            border-radius: 10px;
             text-align: center;
             width: 25%;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
         }}
         .stat-card .value {{
-            font-size: 2em;
-            font-weight: bold;
-            color: #1e3a5f;
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #f59e0b;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 8px;
         }}
         .stat-card .label {{
-            color: #666;
-            margin-top: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }}
-        .severity-critical {{ color: #dc3545; }}
-        .severity-high {{ color: #fd7e14; }}
-        .severity-medium {{ color: #ffc107; }}
-        .severity-low {{ color: #28a745; }}
+        .severity-critical {{ color: #ef4444 !important; }}
+        .severity-high {{ color: #f97316 !important; }}
+        .severity-medium {{ color: #eab308 !important; }}
+        .severity-low {{ color: #3b82f6 !important; }}
         table {{
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 20px 0;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            overflow: hidden;
         }}
         th, td {{
-            padding: 12px;
+            padding: 14px 16px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }}
         th {{
-            background: #1e3a5f;
-            color: white;
+            background: #1a2035;
+            color: #f59e0b;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+        }}
+        tbody tr {{
+            background: rgba(255, 255, 255, 0.02);
+        }}
+        tbody tr:nth-child(even) {{
+            background: rgba(255, 255, 255, 0.04);
+        }}
+        tbody tr:hover {{
+            background: rgba(255, 255, 255, 0.06);
+        }}
+        td {{
+            color: rgba(255, 255, 255, 0.9);
         }}
         .badge {{
             display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85em;
-            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }}
         .badge-critical {{
-            background: #dc3545;
+            background: #ef4444;
             color: white;
         }}
         .badge-high {{
-            background: #fd7e14;
+            background: #f97316;
             color: white;
         }}
         .badge-medium {{
-            background: #ffc107;
-            color: black;
+            background: #eab308;
+            color: #0a0e1a;
         }}
         .badge-low {{
-            background: #28a745;
+            background: #3b82f6;
+            color: white;
+        }}
+        .badge-info {{
+            background: #8b5cf6;
             color: white;
         }}
         .footer {{
             text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 40px;
+            padding: 30px 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85em;
+            margin-top: 50px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }}
+        .footer p {{
+            margin: 6px 0;
         }}
         ul {{
-            padding-left: 20px;
+            padding-left: 24px;
+            list-style: none;
         }}
         li {{
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            padding-left: 20px;
+            position: relative;
+            color: rgba(255, 255, 255, 0.85);
+        }}
+        li:before {{
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #f59e0b;
+            font-weight: bold;
+        }}
+        .empty-state {{
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
         }}
     </style>
 </head>
@@ -280,26 +362,14 @@ class ReportGenerator:
 
         <div class="section">
             <h2>Top Threats</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Threat</th>
-                        <th>Severity</th>
-                        <th>Category</th>
-                        <th>Score</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join([f'''
+            {'<table><thead><tr><th>Threat</th><th>Severity</th><th>Category</th><th>Score</th></tr></thead><tbody>' + ''.join([f'''
                     <tr>
                         <td>{t.get('title', 'Unknown')}</td>
                         <td><span class="badge badge-{t.get('severity', 'medium')}">{t.get('severity', 'Medium').upper()}</span></td>
                         <td>{t.get('category', 'N/A')}</td>
                         <td>{t.get('score', 0)}</td>
                     </tr>
-                    ''' for t in data.get('top_threats', [])])}
-                </tbody>
-            </table>
+                    ''' for t in data.get('top_threats', [])]) + '</tbody></table>' if data.get('top_threats') else '<div class="empty-state">No threats identified at this time.</div>'}
         </div>
 
         <div class="section">
