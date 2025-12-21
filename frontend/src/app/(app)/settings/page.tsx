@@ -588,28 +588,24 @@ function AutomationSection() {
             {/* Scheduled Searches */}
             {scheduledSearches.length > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-mono text-sm text-white/70">Active Scheduled Searches</h3>
-                  <Link href="/automation">
-                    <GlassButton variant="ghost" size="sm">
-                      View All →
-                    </GlassButton>
-                  </Link>
-                </div>
+                <h3 className="font-mono text-sm text-white/70 mb-3">Active Scheduled Searches</h3>
                 <div className="space-y-2">
-                  {scheduledSearches.slice(0, 3).map((search: any) => (
+                  {scheduledSearches.map((search: any) => (
                     <div
                       key={search.id}
                       className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]"
                     >
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm font-mono text-white">{search.name}</p>
                           <p className="text-xs text-white/50">
                             {search.capabilities?.map((c: string) => capabilityNames[c] || c).join(", ")}
                           </p>
+                          <p className="text-xs text-white/40 mt-1">
+                            Target: {search.target}
+                          </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right ml-4">
                           <Badge
                             variant={search.enabled ? "success" : "default"}
                             size="sm"
@@ -621,17 +617,18 @@ function AutomationSection() {
                               Next: {formatRelativeTime(new Date(search.next_run_at))}
                             </p>
                           )}
+                          {search.last_run_at && (
+                            <p className="text-xs text-white/40 mt-1">
+                              Last: {formatRelativeTime(new Date(search.last_run_at))}
+                            </p>
+                          )}
+                          <p className="text-xs text-white/40 mt-1">
+                            Runs: {search.run_count || 0}
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
-                  {scheduledSearches.length > 3 && (
-                    <Link href="/automation">
-                      <GlassButton variant="ghost" size="sm" className="w-full">
-                        View {scheduledSearches.length - 3} more scheduled searches →
-                      </GlassButton>
-                    </Link>
-                  )}
                 </div>
               </div>
             )}
@@ -646,11 +643,6 @@ function AutomationSection() {
                 )}
               </div>
               <div className="flex gap-3">
-                <Link href="/automation">
-                  <GlassButton variant="secondary" size="sm">
-                    View All Searches
-                  </GlassButton>
-                </Link>
                 <GlassButton
                   variant="secondary"
                   size="sm"
