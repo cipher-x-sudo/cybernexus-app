@@ -183,7 +183,7 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
                 try:
                     # Execute the job
                     await orchestrator_instance.execute_job(job_id)
-        finally:
+                finally:
                     # Clean up thread-local database engine
                     await close_db()
             
