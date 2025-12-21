@@ -7,7 +7,7 @@ Provides methods to query and manage findings stored in PostgreSQL database.
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, delete
+from sqlalchemy import select, and_, or_, func, delete, column
 from loguru import logger
 
 from app.core.database.models import Finding, PositiveIndicator
@@ -164,7 +164,7 @@ class DBFindingStorage:
     
     async def get_critical_findings(self, limit: int = 10) -> List[FindingDataclass]:
         """
-        Get critical and high severity findings.
+        Get critical and high severity findings (only unresolved).
         
         Args:
             limit: Maximum results
@@ -174,6 +174,15 @@ class DBFindingStorage:
         """
         query = select(Finding).where(
             Finding.severity.in_(["critical", "high"])
+        )
+        
+        # Only show unresolved findings (status is 'active' or doesn't exist)
+        # Filter out resolved, false_positive, and accepted_risk findings
+        query = query.where(
+            or_(
+                Finding.status == "active",
+                Finding.status.is_(None)
+            )
         )
         
         # Apply user filter if not admin
