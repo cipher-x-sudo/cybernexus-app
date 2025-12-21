@@ -605,9 +605,9 @@ async def get_job(
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
         findings_count=findings_count,
         error=job.error,
-        priority=job.priority,
+        priority=job.priority.value if hasattr(job.priority, 'value') else job.priority,
         config=job.config or {},
-        metadata=job.meta_data or {},  # Map from DB meta_data to response metadata
+        metadata=job.metadata or {},  # JobDataclass uses 'metadata', not 'meta_data'
         execution_logs=job.execution_logs or []
     )
 
