@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { GlassCard, GlassButton, GlassInput, GlassTextarea } from "@/components/ui";
+import AutomationConfigStep from "@/components/company/AutomationConfigStep";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -32,6 +33,11 @@ const steps: WizardStep[] = [
   },
   {
     id: 4,
+    title: "Automation",
+    description: "Configure automated scans",
+  },
+  {
+    id: 5,
     title: "Review & Complete",
     description: "Review your information",
   },
@@ -66,6 +72,23 @@ interface CompanyProfileData {
     value: string;
     description: string;
   }>;
+  
+  // Automation
+  automation_config: {
+    enabled: boolean;
+    schedule: {
+      cron: string;
+      timezone: string;
+    };
+    capabilities: {
+      [key: string]: {
+        enabled: boolean;
+        targets?: string[];
+        keywords?: string[];
+        config?: any;
+      };
+    };
+  } | null;
   
   // Metadata
   timezone: string;
@@ -108,6 +131,7 @@ export default function CompanyProfileWizard({
     additional_domains: [],
     ip_ranges: [],
     key_assets: [],
+    automation_config: null,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     locale: navigator.language || "en-US",
     ...initialData,
@@ -191,7 +215,7 @@ export default function CompanyProfileWizard({
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(4)) {
+    if (!validateStep(5)) {
       setCurrentStep(1); // Go to first step with errors
       return;
     }
@@ -212,6 +236,7 @@ export default function CompanyProfileWizard({
         additional_domains: formData.additional_domains.filter((d) => d.trim()),
         ip_ranges: formData.ip_ranges.filter((ip) => ip.trim()),
         key_assets: formData.key_assets.filter((a) => a.name.trim() && a.value.trim()),
+        automation_config: formData.automation_config,
         timezone: formData.timezone,
         locale: formData.locale,
       };
@@ -225,6 +250,16 @@ export default function CompanyProfileWizard({
         await api.patchCompanyProfile(submitData);
       } else {
         await api.createCompanyProfile(submitData);
+      }
+      
+      // Sync automation if enabled
+      if (formData.automation_config?.enabled) {
+        try {
+          await api.syncCompanyAutomation();
+        } catch (syncError) {
+          console.error("Failed to sync automation:", syncError);
+          // Don't fail the whole submission if sync fails
+        }
       }
       
       // Clear draft on success
@@ -617,8 +652,23 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Step 4: Review & Complete */}
+        {/* Step 4: Automation */}
         {currentStep === 4 && (
+          <AutomationConfigStep
+            value={formData.automation_config}
+            onChange={(config) => setFormData((prev) => ({ ...prev, automation_config: config }))}
+            profileData={{
+              name: formData.name,
+              primary_domain: formData.primary_domain,
+              additional_domains: formData.additional_domains,
+              key_assets: formData.key_assets,
+              timezone: formData.timezone,
+            }}
+          />
+        )}
+
+        {/* Step 5: Review & Complete */}
+        {currentStep === 5 && (
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
@@ -701,6 +751,30 @@ export default function CompanyProfileWizard({
                   )}
                 </div>
               </div>
+
+              {/* Automation */}
+              {formData.automation_config?.enabled && (
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <h4 className="font-mono text-sm text-white/70 mb-3">Automation</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-white/60">Status:</span>{" "}
+                      <span className="text-amber-400">Enabled</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Schedule:</span>{" "}
+                      <span className="text-white">{formData.automation_config.schedule.cron}</span>{" "}
+                      <span className="text-white/40">({formData.automation_config.schedule.timezone})</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Capabilities:</span>{" "}
+                      <span className="text-white">
+                        {Object.keys(formData.automation_config.capabilities).length} enabled
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

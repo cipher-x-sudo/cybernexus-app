@@ -72,6 +72,7 @@ class CompanyProfile(Base):
     logo_url = Column(String(500), nullable=True)
     timezone = Column(String(50), default="UTC", nullable=True)
     locale = Column(String(10), default="en-US", nullable=True)
+    automation_config = Column(JSONB, nullable=True)  # Automation configuration for scheduled scans
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     

@@ -842,6 +842,20 @@ class ApiClient {
     });
   }
 
+  /**
+   * Sync company automation config to scheduled searches
+   */
+  async syncCompanyAutomation() {
+    return this.request<{
+      success: boolean;
+      message: string;
+      scheduled_search_ids: string[];
+      capabilities_synced: string[];
+    }>("/company/automation/sync", {
+      method: "POST",
+    });
+  }
+
   // ============================================================================
   // Email Security Specific Methods
   // ============================================================================

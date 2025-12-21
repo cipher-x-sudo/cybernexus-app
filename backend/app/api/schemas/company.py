@@ -4,7 +4,7 @@ Company Profile Schemas
 Pydantic models for company profile data.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 import re
@@ -25,6 +25,30 @@ class KeyAsset(BaseModel):
     type: str  # e.g., "domain", "ip", "server", "application"
     value: str
     description: Optional[str] = None
+
+
+class AutomationCapabilityConfig(BaseModel):
+    """Configuration for a single capability in automation."""
+    enabled: bool = True
+    targets: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None  # For dark web intelligence
+    config: Optional[Dict[str, Any]] = None  # Capability-specific configuration
+
+
+class AutomationSchedule(BaseModel):
+    """Schedule configuration for automation."""
+    cron: str = Field(..., description="Cron expression (e.g., '0 9 * * *' for daily at 9 AM)")
+    timezone: str = Field(default="UTC", description="Timezone for schedule execution")
+
+
+class AutomationConfig(BaseModel):
+    """Automation configuration for company profile."""
+    enabled: bool = Field(default=True, description="Whether automation is enabled")
+    schedule: AutomationSchedule
+    capabilities: Dict[str, AutomationCapabilityConfig] = Field(
+        default_factory=dict,
+        description="Configuration for each capability (exposure_discovery, darkweb_intelligence, email_audit, infrastructure_testing, investigation)"
+    )
 
 
 class CompanyProfileBase(BaseModel):
@@ -51,6 +75,7 @@ class CompanyProfileBase(BaseModel):
     logo_url: Optional[str] = None
     timezone: Optional[str] = "UTC"
     locale: Optional[str] = "en-US"
+    automation_config: Optional[AutomationConfig] = None
     
     @field_validator("primary_domain", "additional_domains", mode="before")
     @classmethod
@@ -130,6 +155,7 @@ class CompanyProfileUpdate(BaseModel):
     logo_url: Optional[str] = None
     timezone: Optional[str] = None
     locale: Optional[str] = None
+    automation_config: Optional[AutomationConfig] = None
     
     @field_validator("primary_domain", "additional_domains", mode="before")
     @classmethod
@@ -153,3 +179,12 @@ class CompanyProfile(CompanyProfileBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+
+
+class AutomationSyncResponse(BaseModel):
+    """Response from automation sync endpoint."""
+    success: bool
+    message: str
+    scheduled_search_ids: List[str] = Field(default_factory=list)
+    capabilities_synced: List[str] = Field(default_factory=list)
+
