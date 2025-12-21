@@ -185,39 +185,66 @@ class SchedulerService:
                     logger.warning(f"Scheduled search {scheduled_search_id} is disabled, skipping")
                     return
                 
+                # Get capabilities list (support both old single capability and new multiple capabilities)
+                if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
+                    capabilities_list = scheduled_search.capabilities if isinstance(scheduled_search.capabilities, list) else [scheduled_search.capabilities]
+                elif hasattr(scheduled_search, 'capability') and scheduled_search.capability:
+                    # Backward compatibility: convert single capability to list
+                    capabilities_list = [scheduled_search.capability]
+                else:
+                    logger.error(f"Scheduled search {scheduled_search_id} has no capabilities")
+                    return
+                
                 logger.info(
                     f"Executing scheduled search '{scheduled_search.name}' "
-                    f"(capability: {scheduled_search.capability}, target: {scheduled_search.target})"
+                    f"(capabilities: {capabilities_list}, target: {scheduled_search.target})"
                 )
                 
                 # Get orchestrator
                 orchestrator = get_orchestrator()
                 
-                # Map capability string to Capability enum
-                try:
-                    capability = Capability(scheduled_search.capability)
-                except ValueError:
-                    logger.error(f"Invalid capability: {scheduled_search.capability}")
+                # Execute all capabilities in parallel
+                jobs_created = []
+                for cap_str in capabilities_list:
+                    try:
+                        capability = Capability(cap_str)
+                    except ValueError:
+                        logger.error(f"Invalid capability: {cap_str}, skipping")
+                        continue
+                    
+                    # Get capability-specific config if available
+                    cap_config = scheduled_search.config or {}
+                    if isinstance(cap_config, dict) and cap_str in cap_config:
+                        cap_config = cap_config[cap_str]
+                    
+                    # Prepare metadata to track that this was created by scheduler
+                    metadata = {
+                        "scheduled_search_id": scheduled_search_id,
+                        "scheduled_search_name": scheduled_search.name,
+                        "capability": cap_str
+                    }
+                    
+                    # Merge metadata into config
+                    if isinstance(cap_config, dict):
+                        cap_config = {**cap_config, "metadata": metadata}
+                    else:
+                        cap_config = {"metadata": metadata}
+                    
+                    # Create job via orchestrator
+                    # Use background priority for scheduled searches
+                    job = await orchestrator.create_job(
+                        capability=capability,
+                        target=scheduled_search.target,
+                        config=cap_config,
+                        priority=JobPriority.BACKGROUND,
+                        user_id=scheduled_search.user_id
+                    )
+                    
+                    jobs_created.append(job.id)
+                
+                if not jobs_created:
+                    logger.error(f"No jobs created for scheduled search {scheduled_search_id}")
                     return
-                
-                # Create job via orchestrator
-                # Use background priority for scheduled searches
-                job = await orchestrator.create_job(
-                    capability=capability,
-                    target=scheduled_search.target,
-                    config=scheduled_search.config or {},
-                    priority=JobPriority.BACKGROUND,
-                    user_id=scheduled_search.user_id
-                )
-                
-                # Add metadata to track that this was created by scheduler
-                job.metadata = job.metadata or {}
-                job.metadata["scheduled_search_id"] = scheduled_search_id
-                job.metadata["scheduled_search_name"] = scheduled_search.name
-                
-                # Save updated metadata to database
-                # Note: Using private method to update job metadata after creation
-                await orchestrator._save_job_to_db(job, user_id=scheduled_search.user_id)
                 
                 # Update scheduled search record
                 scheduled_search.last_run_at = datetime.now(timezone.utc)
