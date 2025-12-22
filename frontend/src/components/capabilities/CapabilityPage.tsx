@@ -407,7 +407,6 @@ export function CapabilityPage({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -480,14 +479,12 @@ export function CapabilityPage({
             </div>
           </div>
 
-          {/* Error message */}
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono animate-fade-in">
               {error}
             </div>
           )}
 
-          {/* Progress bar */}
           {isScanning && (
             <div className="space-y-2 animate-fade-in">
               <div className="flex justify-between text-xs font-mono">
@@ -514,9 +511,7 @@ export function CapabilityPage({
         </form>
       </GlassCard>
 
-      {/* Results */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Findings List */}
         <div className="lg:col-span-2">
           <GlassCard className="p-6" hover={false}>
             <div className="flex items-center justify-between mb-4">
@@ -608,7 +603,6 @@ export function CapabilityPage({
           </GlassCard>
         </div>
 
-        {/* Finding Details */}
         <div>
           <GlassCard className="p-6 sticky top-6" hover={false}>
             <h2 className="font-mono text-lg font-semibold text-white mb-4">Details</h2>

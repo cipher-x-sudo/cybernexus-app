@@ -1,10 +1,3 @@
-"""
-Network Monitoring API Routes
-
-Provides endpoints for network logs, statistics, blocking, and export.
-Uses database storage with user scoping.
-"""
-
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, Response, Depends
@@ -23,10 +16,6 @@ from app.services.tunnel_analyzer import get_tunnel_analyzer
 router = APIRouter()
 
 
-# ============================================================================
-# Request/Response Models
-# ============================================================================
-
 class BlockIPRequest(BaseModel):
     ip: str
     reason: str = ""
@@ -41,14 +30,14 @@ class BlockEndpointRequest(BaseModel):
 
 
 class BlockPatternRequest(BaseModel):
-    pattern_type: str  # user_agent, header, path, query
+    pattern_type: str
     pattern: str
     reason: str = ""
     created_by: str = ""
 
 
 class ExportRequest(BaseModel):
-    format: str = "json"  # json, csv, har
+    format: str = "json"
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
@@ -72,7 +61,6 @@ async def get_logs(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get network logs with filtering (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
@@ -107,7 +95,6 @@ async def get_log(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get a single log entry by ID (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         log = await storage.get_log(request_id)
@@ -130,7 +117,6 @@ async def search_logs(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Search logs by query string (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         logs = await storage.search_logs(q, limit=limit)
@@ -140,10 +126,6 @@ async def search_logs(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Statistics Endpoints
-# ============================================================================
-
 @router.get("/stats")
 async def get_stats(
     start_time: Optional[str] = Query(default=None),
@@ -151,7 +133,6 @@ async def get_stats(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get network statistics (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
@@ -164,7 +145,6 @@ async def get_stats(
         
         stats = await storage.get_stats(start_dt, end_dt)
         
-        # Add tunnel analyzer stats
         analyzer = get_tunnel_analyzer()
         tunnel_stats = analyzer.get_detector_stats()
         stats["tunnel_detector"] = tunnel_stats
@@ -175,10 +155,6 @@ async def get_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Tunnel Detection Endpoints
-# ============================================================================
-
 @router.get("/tunnels")
 async def get_tunnels(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -186,7 +162,6 @@ async def get_tunnels(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get tunnel detections (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         detections = await storage.get_tunnel_detections(limit=limit, min_confidence=min_confidence)
@@ -196,13 +171,8 @@ async def get_tunnels(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Blocking Endpoints
-# ============================================================================
-
 @router.post("/blocks/ip")
 async def block_ip(request: BlockIPRequest):
-    """Block an IP address."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.block_ip(
@@ -224,7 +194,6 @@ async def block_ip(request: BlockIPRequest):
 
 @router.delete("/blocks/ip/{ip}")
 async def unblock_ip(ip: str):
-    """Unblock an IP address."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_ip(ip)
@@ -242,7 +211,6 @@ async def unblock_ip(ip: str):
 
 @router.get("/blocks/ip")
 async def get_blocked_ips():
-    """Get all blocked IPs."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_ips()
@@ -254,7 +222,6 @@ async def get_blocked_ips():
 
 @router.post("/blocks/endpoint")
 async def block_endpoint(request: BlockEndpointRequest):
-    """Block an endpoint pattern."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.block_endpoint(
@@ -281,7 +248,6 @@ async def block_endpoint(request: BlockEndpointRequest):
 
 @router.delete("/blocks/endpoint/{pattern}")
 async def unblock_endpoint(pattern: str):
-    """Unblock an endpoint pattern."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_endpoint(pattern)
@@ -299,7 +265,6 @@ async def unblock_endpoint(pattern: str):
 
 @router.get("/blocks/endpoint")
 async def get_blocked_endpoints():
-    """Get all blocked endpoints."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_endpoints()
@@ -311,7 +276,6 @@ async def get_blocked_endpoints():
 
 @router.post("/blocks/pattern")
 async def block_pattern(request: BlockPatternRequest):
-    """Block a pattern (user-agent, header, etc.)."""
     try:
         block_manager = get_block_manager()
         block_id = await block_manager.block_pattern(
@@ -357,7 +321,6 @@ async def unblock_pattern(block_id: str):
 
 @router.get("/blocks/pattern")
 async def get_blocked_patterns():
-    """Get all blocked patterns."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_patterns()
@@ -369,7 +332,6 @@ async def get_blocked_patterns():
 
 @router.get("/blocks")
 async def get_all_blocks():
-    """Get all blocks (IPs, endpoints, patterns)."""
     try:
         block_manager = get_block_manager()
         blocks = await block_manager.get_all_blocks()
@@ -379,16 +341,11 @@ async def get_all_blocks():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Rate Limiting Endpoints
-# ============================================================================
-
 @router.get("/rate-limit/{ip}")
 async def get_rate_limit_status(
     ip: str,
     endpoint: Optional[str] = Query(default=None)
 ):
-    """Get rate limit status for an IP."""
     try:
         rate_limiter = get_rate_limiter()
         status = await rate_limiter.get_rate_limit_status(ip, endpoint)
@@ -398,17 +355,12 @@ async def get_rate_limit_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Export Endpoints
-# ============================================================================
-
 @router.post("/export")
 async def export_logs(
     request: ExportRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Export logs in specified format (user-scoped)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
@@ -426,7 +378,6 @@ async def export_logs(
             filters=request.filters
         )
         
-        # Determine content type
         content_type = "application/json"
         if request.format == "csv":
             content_type = "text/csv"

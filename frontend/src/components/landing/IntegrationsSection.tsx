@@ -98,7 +98,6 @@ export function IntegrationsSection() {
       <div className="absolute inset-0 gradient-mesh opacity-30" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             Integrations
@@ -115,7 +114,6 @@ export function IntegrationsSection() {
           </p>
         </div>
 
-        {/* Category tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-12">
           {categories.map((category) => (
             <button
@@ -133,7 +131,6 @@ export function IntegrationsSection() {
           ))}
         </div>
 
-        {/* Integration cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredIntegrations.map((integration, index) => (
             <GlassCard
@@ -181,7 +178,6 @@ export function IntegrationsSection() {
           ))}
         </div>
 
-        {/* API callout */}
         <div className="mt-16 text-center">
           <GlassCard className="inline-block" padding="lg">
             <div className="flex flex-col md:flex-row items-center gap-6">

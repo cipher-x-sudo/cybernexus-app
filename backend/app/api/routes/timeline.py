@@ -1,10 +1,3 @@
-"""
-Timeline Routes
-
-Handles event timeline management and querying.
-Uses custom Doubly Linked List DSA for efficient traversal.
-"""
-
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from enum import Enum
@@ -21,7 +14,6 @@ router = APIRouter()
 
 
 class EventType(str, Enum):
-    """Types of timeline events."""
     THREAT_DETECTED = "threat_detected"
     ENTITY_DISCOVERED = "entity_discovered"
     SCAN_COMPLETED = "scan_completed"
@@ -34,7 +26,6 @@ class EventType(str, Enum):
 
 
 class EventSeverity(str, Enum):
-    """Event severity levels."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -43,7 +34,6 @@ class EventSeverity(str, Enum):
 
 
 class TimelineEvent(BaseModel):
-    """Timeline event model."""
     id: str
     type: EventType
     title: str

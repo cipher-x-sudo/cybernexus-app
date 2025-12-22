@@ -37,12 +37,10 @@ export default function Loading() {
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0a0e1a] flex flex-col items-center justify-center">
-      {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[150px] animate-pulse" />
       </div>
 
-      {/* Logo */}
       <div className="relative z-10 flex flex-col items-center">
         <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-8 animate-pulse-glow">
           <svg
@@ -67,7 +65,6 @@ export default function Loading() {
           Threat Intelligence Platform
         </p>
 
-        {/* Progress bar */}
         <div className="w-64 h-1 bg-white/10 rounded-full overflow-hidden mb-4">
           <div
             className="h-full bg-gradient-to-r from-amber-500 to-orange-600 transition-all duration-100 ease-out"
@@ -75,13 +72,11 @@ export default function Loading() {
           />
         </div>
 
-        {/* Loading step text */}
         <p className="text-white/40 text-sm font-mono h-5">
           {loadingSteps[currentStep]}
         </p>
       </div>
 
-      {/* Scan lines effect */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.02]">
         <div
           className="w-full h-full"

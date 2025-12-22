@@ -129,10 +129,8 @@ export function RiskScore({
       </div>
 
       <div className="flex items-center gap-6">
-        {/* Circular Progress */}
         <div className="relative">
           <svg className={cn("w-32 h-32 transform -rotate-90", getGlowColor(animatedScore))} viewBox="0 0 100 100">
-            {/* Background circle */}
             <circle
               cx="50"
               cy="50"
@@ -142,7 +140,6 @@ export function RiskScore({
               strokeWidth="8"
               className="text-white/[0.05]"
             />
-            {/* Progress circle */}
             <circle
               cx="50"
               cy="50"
@@ -166,7 +163,6 @@ export function RiskScore({
           </div>
         </div>
 
-        {/* Score Details */}
         <div className="flex-1 space-y-3">
           <div>
             <div className="text-sm text-white/50 font-mono mb-1">Status</div>

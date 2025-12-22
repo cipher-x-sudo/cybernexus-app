@@ -1,9 +1,3 @@
-"""
-WebSocket Routes
-
-Handles real-time communication for live updates and notifications.
-"""
-
 import asyncio
 import json
 from datetime import datetime
@@ -15,8 +9,6 @@ router = APIRouter()
 
 
 class ConnectionManager:
-    """Manages WebSocket connections."""
-    
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
         self.subscriptions: Dict[str, Set[str]] = {
@@ -28,25 +20,21 @@ class ConnectionManager:
         }
     
     async def connect(self, websocket: WebSocket, client_id: str):
-        """Accept a new WebSocket connection."""
         await websocket.accept()
         self.active_connections[client_id] = websocket
         self.subscriptions["all"].add(client_id)
         logger.info(f"Client {client_id} connected. Total connections: {len(self.active_connections)}")
     
     def disconnect(self, client_id: str):
-        """Remove a WebSocket connection."""
         if client_id in self.active_connections:
             del self.active_connections[client_id]
         
-        # Remove from all subscriptions
         for channel in self.subscriptions.values():
             channel.discard(client_id)
         
         logger.info(f"Client {client_id} disconnected. Total connections: {len(self.active_connections)}")
     
     def subscribe(self, client_id: str, channel: str):
-        """Subscribe a client to a channel."""
         if channel in self.subscriptions:
             self.subscriptions[channel].add(client_id)
             logger.debug(f"Client {client_id} subscribed to {channel}")

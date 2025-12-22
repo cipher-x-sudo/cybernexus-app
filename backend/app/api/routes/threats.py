@@ -1,10 +1,3 @@
-"""
-Threats Routes
-
-Handles threat management, ranking, and alerting.
-Uses custom Heap DSA for priority-based ranking.
-"""
-
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
@@ -21,17 +14,14 @@ from jose import JWTError, jwt
 
 router = APIRouter()
 
-# Global notification service instance
 _notification_service = NotificationService()
 
-# Optional authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 async def get_optional_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[UserModel]:
-    """Get current user if authenticated, otherwise None."""
     if not token:
         return None
     try:

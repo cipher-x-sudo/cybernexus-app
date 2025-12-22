@@ -51,7 +51,6 @@ export function InvestigationFindings({
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-4">
-        {/* Controls */}
         <div className="flex items-center gap-4 flex-wrap">
           <select
             value={filter}
@@ -78,7 +77,6 @@ export function InvestigationFindings({
           </div>
         </div>
 
-        {/* Findings Grid */}
         <div className="space-y-6 max-h-[600px] overflow-y-auto">
           {Object.entries(groupedFindings).map(([group, groupFindings]) => (
             <div key={group}>
@@ -156,7 +154,6 @@ export function InvestigationFindings({
           ))}
         </div>
 
-        {/* Selected Finding Details */}
         {selectedFinding && (
           <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg space-y-3">
             <div className="flex items-center justify-between">

@@ -41,7 +41,6 @@ export function HARViewer({ harData, className }: HARViewerProps) {
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-4">
-        {/* Search */}
         <input
           type="text"
           placeholder="Search requests..."
@@ -50,7 +49,6 @@ export function HARViewer({ harData, className }: HARViewerProps) {
           className="w-full px-3 py-2 bg-white/[0.03] border border-white/[0.08] rounded-lg text-white placeholder-white/30 text-sm"
         />
 
-        {/* Entries List */}
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {filteredEntries.map((entry: any, idx: number) => {
             const request = entry.request || {};
@@ -96,12 +94,10 @@ export function HARViewer({ harData, className }: HARViewerProps) {
           })}
         </div>
 
-        {/* Entry Details */}
         {selectedEntry && (
           <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg space-y-4">
             <h3 className="font-mono font-semibold text-white">Request Details</h3>
 
-            {/* Request Section */}
             <div>
               <button
                 onClick={() => toggleSection("request")}
@@ -136,7 +132,6 @@ export function HARViewer({ harData, className }: HARViewerProps) {
               )}
             </div>
 
-            {/* Response Section */}
             <div>
               <button
                 onClick={() => toggleSection("response")}
@@ -187,7 +182,6 @@ export function HARViewer({ harData, className }: HARViewerProps) {
               )}
             </div>
 
-            {/* Timings Section */}
             {selectedEntry.timings && (
               <div>
                 <button

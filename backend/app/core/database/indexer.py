@@ -1,9 +1,3 @@
-"""
-Custom Indexer
-
-Indexing layer using AVL Trees and Tries for fast lookups.
-"""
-
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
@@ -11,67 +5,32 @@ from app.core.dsa import AVLTree, Trie, HashMap
 
 
 class Indexer:
-    """
-    Multi-index manager using custom DSA.
-    
-    Supports:
-    - Primary key index (AVL Tree)
-    - Text prefix index (Trie)
-    - Secondary indices (HashMap)
-    - Range queries
-    """
-    
     def __init__(self):
-        """Initialize indexer."""
         self._primary_index = AVLTree()
         self._text_index = Trie()
         self._secondary_indices: Dict[str, AVLTree] = {}
-        self._reverse_index = HashMap()  # Value -> keys mapping
+        self._reverse_index = HashMap()
     
     def create_index(self, name: str):
-        """Create a new secondary index.
-        
-        Args:
-            name: Index name
-        """
         if name not in self._secondary_indices:
             self._secondary_indices[name] = AVLTree()
     
     def drop_index(self, name: str) -> bool:
-        """Drop a secondary index.
-        
-        Args:
-            name: Index name
-            
-        Returns:
-            True if dropped
-        """
         if name in self._secondary_indices:
             del self._secondary_indices[name]
             return True
         return False
     
     def index(self, key: Any, value: Any, secondary_keys: Dict[str, Any] = None):
-        """Index a key-value pair.
-        
-        Args:
-            key: Primary key
-            value: Value to store
-            secondary_keys: Optional secondary index keys
-        """
-        # Primary index
         self._primary_index.insert(key, value)
         
-        # Text index if value is string
         if isinstance(value, str):
             self._text_index.insert(value.lower(), key)
         elif isinstance(value, dict):
-            # Index searchable text fields
             for field in ['value', 'title', 'description', 'label']:
                 if field in value and isinstance(value[field], str):
                     self._text_index.insert(value[field].lower(), key)
         
-        # Secondary indices
         if secondary_keys:
             for index_name, index_value in secondary_keys.items():
                 if index_name in self._secondary_indices:

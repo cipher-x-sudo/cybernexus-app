@@ -1,9 +1,3 @@
-"""
-Notifications Routes
-
-Handles HTTP endpoints for user notifications with read/unread status.
-"""
-
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -38,13 +32,11 @@ class Notification(BaseModel):
 
 
 class NotificationListResponse(BaseModel):
-    """Response model for notification list."""
     notifications: List[Notification]
     unread_count: int
 
 
 class UnreadCountResponse(BaseModel):
-    """Response model for unread count."""
     unread_count: int
 
 
@@ -57,27 +49,21 @@ async def get_notifications(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get notifications for the current user."""
     try:
-        # Build query
         query = select(NotificationModel).where(
             NotificationModel.user_id == current_user.id
         )
         
-        # Apply filters
         if unread_only:
             query = query.where(NotificationModel.read == False)
         
         if channel:
             query = query.where(NotificationModel.channel == channel)
         
-        # Order by created_at descending (newest first)
         query = query.order_by(NotificationModel.created_at.desc())
         
-        # Apply limit
         query = query.limit(limit)
         
-        # Execute query
         result = await db.execute(query)
         notifications = result.scalars().all()
         

@@ -1,9 +1,3 @@
-"""
-Database-Backed Storage Layer
-
-PostgreSQL-based storage with user scoping. Replaces Redis storage.
-"""
-
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,21 +13,7 @@ from app.core.dsa import Graph
 
 
 class DBStorage:
-    """
-    Database-backed storage with user scoping.
-    
-    All operations are scoped to a user_id, except for admins who can access all data.
-    """
-    
     def __init__(self, db: AsyncSession, user_id: Optional[str] = None, is_admin: bool = False):
-        """
-        Initialize database storage.
-        
-        Args:
-            db: Database session
-            user_id: User ID for scoping (None for admin access to all)
-            is_admin: Whether user is admin (can access all data)
-        """
         self.db = db
         self.user_id = user_id
         self.is_admin = is_admin
@@ -44,36 +24,21 @@ class DBStorage:
             return None
         return Entity.user_id == self.user_id
     
-    # ==================== Entity Operations ====================
-    
     async def save_entity(self, entity: dict, user_id: Optional[str] = None) -> str:
-        """
-        Save an entity to storage.
-        
-        Args:
-            entity: Entity dictionary with at least 'id' field
-            user_id: User ID (overrides instance user_id if provided)
-            
-        Returns:
-            Entity ID
-        """
         entity_id = entity.get("id")
         if not entity_id:
             raise ValueError("Entity must have an 'id' field")
         
-        # Use provided user_id or instance user_id
         owner_id = user_id or self.user_id
         if not owner_id:
             raise ValueError("user_id must be provided")
         
-        # Check if entity exists
         result = await self.db.execute(
             select(Entity).where(Entity.id == entity_id)
         )
         existing = result.scalar_one_or_none()
         
         if existing:
-            # Update existing entity (only if user owns it or is admin)
             if not self.is_admin and existing.user_id != owner_id:
                 raise PermissionError("Cannot update entity owned by another user")
             

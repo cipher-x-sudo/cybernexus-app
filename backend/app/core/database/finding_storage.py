@@ -1,9 +1,3 @@
-"""
-Database Finding Storage Service
-
-Provides methods to query and manage findings stored in PostgreSQL database.
-"""
-
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,45 +9,22 @@ from app.services.orchestrator import Finding as FindingDataclass, Capability
 
 
 class DBFindingStorage:
-    """Service for querying findings from database."""
-    
     def __init__(self, db: AsyncSession, user_id: Optional[str] = None, is_admin: bool = False):
-        """
-        Initialize database finding storage.
-        
-        Args:
-            db: Database session
-            user_id: User ID for scoping (None for admin access to all)
-            is_admin: Whether user is admin (can access all data)
-        """
         self.db = db
         self.user_id = user_id
         self.is_admin = is_admin
     
     async def save_finding(self, finding: FindingDataclass, user_id: Optional[str] = None) -> str:
-        """
-        Save a finding to database.
-        
-        Args:
-            finding: Finding dataclass instance
-            user_id: User ID (overrides instance user_id if provided)
-            
-        Returns:
-            Finding ID
-        """
-        # Use provided user_id or instance user_id
         owner_id = user_id or self.user_id
         if not owner_id:
             raise ValueError("user_id must be provided")
         
-        # Check if finding already exists
         result = await self.db.execute(
             select(Finding).where(Finding.id == finding.id)
         )
         existing = result.scalar_one_or_none()
         
         if existing:
-            # Update existing finding
             existing.capability = finding.capability.value
             existing.severity = finding.severity
             existing.title = finding.title
@@ -65,7 +36,6 @@ class DBFindingStorage:
             existing.target = finding.target
             existing.discovered_at = finding.discovered_at
         else:
-            # Create new finding
             db_finding = Finding(
                 id=finding.id,
                 user_id=owner_id,

@@ -86,11 +86,9 @@ export function FeaturesSection() {
 
   return (
     <section id="features" ref={sectionRef} className="py-24 lg:py-32 relative">
-      {/* Background */}
       <div className="absolute inset-0 gradient-mesh opacity-50" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 lg:mb-20">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             Powerful Features
@@ -107,7 +105,6 @@ export function FeaturesSection() {
           </p>
         </div>
 
-        {/* Features Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {features.map((feature, index) => (
             <div
@@ -134,7 +131,6 @@ export function FeaturesSection() {
                     {feature.description}
                   </p>
 
-                  {/* Learn more link */}
                   <div className="mt-5 pt-5 border-t border-white/[0.05]">
                     <a
                       href="/dashboard"

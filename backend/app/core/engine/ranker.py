@@ -1,9 +1,3 @@
-"""
-Threat Ranking Engine
-
-Priority-based threat ranking using Heap data structure.
-"""
-
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 from enum import Enum
@@ -12,7 +6,6 @@ from app.core.dsa import MaxHeap, HashMap
 
 
 class SeverityLevel(Enum):
-    """Threat severity levels with numeric weights."""
     CRITICAL = 5
     HIGH = 4
     MEDIUM = 3
@@ -21,34 +14,14 @@ class SeverityLevel(Enum):
 
 
 class ThreatRanker:
-    """
-    Threat Ranking Engine using Max-Heap.
-    
-    Features:
-    - Priority-based threat ranking
-    - Multi-factor scoring
-    - Dynamic priority updates
-    - Top-N threat retrieval
-    """
-    
     def __init__(self):
-        """Initialize threat ranker."""
         self._threat_heap = MaxHeap()
-        self._threats = HashMap()  # threat_id -> threat_data
-        self._scores = HashMap()   # threat_id -> score
+        self._threats = HashMap()
+        self._scores = HashMap()
     
     def calculate_score(self, threat: Dict[str, Any]) -> float:
-        """Calculate threat priority score.
-        
-        Args:
-            threat: Threat data dictionary
-            
-        Returns:
-            Priority score (higher = more urgent)
-        """
         score = 0.0
         
-        # Factor 1: Base severity (0-50 points)
         severity = threat.get("severity", "info").lower()
         severity_weights = {
             "critical": 50,
@@ -59,12 +32,10 @@ class ThreatRanker:
         }
         score += severity_weights.get(severity, 5)
         
-        # Factor 2: CVSS-like score if provided (0-10 scaled to 0-30)
         cvss = threat.get("cvss_score", threat.get("score", 0))
         if cvss:
             score += (cvss / 10) * 30
         
-        # Factor 3: Recency (0-10 points)
         created_at = threat.get("created_at")
         if created_at:
             if isinstance(created_at, str):

@@ -1,9 +1,3 @@
-"""
-Correlation Engine
-
-Graph-based threat correlation and relationship discovery.
-"""
-
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
@@ -11,67 +5,27 @@ from app.core.dsa import Graph, HashMap, AVLTree
 
 
 class Correlator:
-    """
-    Threat Correlation Engine.
-    
-    Uses graph algorithms to:
-    - Find related entities
-    - Discover hidden connections
-    - Identify attack patterns
-    - Cluster related threats
-    """
-    
     def __init__(self, graph: Graph = None):
-        """Initialize correlator.
-        
-        Args:
-            graph: Existing graph or create new one
-        """
         self.graph = graph or Graph(directed=True)
         self._entity_attributes = HashMap()
         self._correlation_cache = HashMap()
     
     def add_entity(self, entity_id: str, entity_type: str, 
                    attributes: Dict[str, Any] = None):
-        """Add an entity to the correlation graph.
-        
-        Args:
-            entity_id: Unique entity identifier
-            entity_type: Type of entity (domain, ip, email, etc.)
-            attributes: Entity attributes for correlation
-        """
         self.graph.add_node(entity_id, label=entity_id, node_type=entity_type)
         self._entity_attributes.put(entity_id, attributes or {})
     
     def add_relationship(self, source: str, target: str, 
                         relation: str, confidence: float = 1.0):
-        """Add a relationship between entities.
-        
-        Args:
-            source: Source entity ID
-            target: Target entity ID
-            relation: Relationship type
-            confidence: Confidence score (0-1)
-        """
         self.graph.add_edge(source, target, weight=confidence, relation=relation)
     
     def find_correlations(self, entity_id: str, depth: int = 2) -> List[Dict[str, Any]]:
-        """Find correlated entities.
-        
-        Args:
-            entity_id: Starting entity
-            depth: Maximum correlation depth
-            
-        Returns:
-            List of correlated entities with scores
-        """
         if entity_id not in self.graph:
             return []
         
-        # BFS to find related entities
         correlations = []
         visited = {entity_id}
-        current_depth = [(entity_id, 0, 1.0)]  # (node, depth, cumulative_score)
+        current_depth = [(entity_id, 0, 1.0)]
         
         while current_depth:
             next_depth = []

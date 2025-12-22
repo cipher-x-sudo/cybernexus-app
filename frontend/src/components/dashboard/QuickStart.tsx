@@ -82,7 +82,6 @@ export function QuickStart({ onScan, className }: QuickStartProps) {
           </GlassButton>
         </div>
 
-        {/* Advanced options toggle */}
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -99,7 +98,6 @@ export function QuickStart({ onScan, className }: QuickStartProps) {
           <span className="font-mono">Advanced options</span>
         </button>
 
-        {/* Advanced options */}
         {showAdvanced && (
           <div className="space-y-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-fade-in">
             <div className="grid grid-cols-2 gap-3">
@@ -139,7 +137,6 @@ export function QuickStart({ onScan, className }: QuickStartProps) {
         )}
       </form>
 
-      {/* What will be checked */}
       <div className="mt-4 pt-4 border-t border-white/[0.05]">
         <p className="text-xs text-white/40 mb-2 font-mono">This scan will check:</p>
         <div className="flex flex-wrap gap-2">

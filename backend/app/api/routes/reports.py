@@ -1,9 +1,3 @@
-"""
-Reports Routes
-
-Handles report generation and management.
-"""
-
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
@@ -22,7 +16,6 @@ router = APIRouter()
 
 
 class ReportType(str, Enum):
-    """Types of reports."""
     EXECUTIVE_SUMMARY = "executive_summary"
     THREAT_ASSESSMENT = "threat_assessment"
     VULNERABILITY_REPORT = "vulnerability_report"
@@ -34,7 +27,6 @@ class ReportType(str, Enum):
 
 
 class ReportFormat(str, Enum):
-    """Report output formats."""
     PDF = "pdf"
     HTML = "html"
     JSON = "json"
@@ -42,7 +34,6 @@ class ReportFormat(str, Enum):
 
 
 class ReportStatus(str, Enum):
-    """Report generation status."""
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"

@@ -48,7 +48,6 @@ export function LandingNav() {
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
-          {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
               <svg
@@ -70,7 +69,6 @@ export function LandingNav() {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-8">
             {navLinks.map((link) => (
               <a
@@ -83,7 +81,6 @@ export function LandingNav() {
             ))}
           </div>
 
-          {/* CTA Buttons */}
           <div className="hidden lg:flex items-center space-x-3">
             <GlassButton variant="ghost" size="sm" onClick={handleSignIn}>
               Sign In
@@ -93,7 +90,6 @@ export function LandingNav() {
             </GlassButton>
           </div>
 
-          {/* Mobile Menu Button */}
           <button
             className="lg:hidden p-2 text-white/70 hover:text-white"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -123,7 +119,6 @@ export function LandingNav() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-white/[0.05]">
             <div className="flex flex-col space-y-4">

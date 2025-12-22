@@ -107,10 +107,8 @@ export function TimelineView({
     <GlassCard className={cn("p-6", className)} hover={false} padding="none">
       <h3 className="font-mono font-semibold text-white mb-6">Scan Timeline</h3>
       <div className="relative">
-        {/* Timeline line */}
         <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-white/10" />
 
-        {/* Events */}
         <div className="space-y-6">
           {events.map((event, index) => {
             const isSelected = event.finding?.id === selectedFindingId;
@@ -126,7 +124,6 @@ export function TimelineView({
                 )}
                 onClick={() => isFinding && event.finding && onFindingClick?.(event.finding)}
               >
-                {/* Timeline dot */}
                 <div className="relative z-10 flex-shrink-0">
                   <div
                     className={cn(
@@ -147,7 +144,6 @@ export function TimelineView({
                   </div>
                 </div>
 
-                {/* Event content */}
                 <div className="flex-1 min-w-0 pt-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="font-mono font-semibold text-white text-sm">

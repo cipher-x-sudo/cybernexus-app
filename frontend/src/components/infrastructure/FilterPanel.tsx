@@ -62,7 +62,6 @@ export function FilterPanel({
   return (
     <GlassCard className={cn("p-4", className)} hover={false} padding="none">
       <div className="space-y-4">
-        {/* Search */}
         <div>
           <label className="block text-xs font-mono text-white/60 mb-2">Search</label>
           <GlassInput
@@ -87,7 +86,6 @@ export function FilterPanel({
             />
           </div>
 
-          {/* Category Filter */}
           <div>
             <label className="block text-xs font-mono text-white/60 mb-2">Category</label>
             <GlassSelect
@@ -99,9 +97,7 @@ export function FilterPanel({
           </div>
         </div>
 
-        {/* Sort Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Sort By */}
           <div>
             <label className="block text-xs font-mono text-white/60 mb-2">Sort By</label>
             <GlassSelect
@@ -112,7 +108,6 @@ export function FilterPanel({
             />
           </div>
 
-          {/* Sort Direction */}
           <div>
             <label className="block text-xs font-mono text-white/60 mb-2">Direction</label>
             <GlassSelect

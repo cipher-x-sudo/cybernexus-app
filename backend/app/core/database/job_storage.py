@@ -1,9 +1,3 @@
-"""
-Database Job Storage Service
-
-Provides methods to query and manage jobs stored in PostgreSQL database.
-"""
-
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,50 +25,34 @@ class DBJobStorage:
         self.is_admin = is_admin
     
     async def save_job(self, job: JobDataclass, user_id: Optional[str] = None) -> str:
-        """
-        Save a job to database.
-        
-        Args:
-            job: Job dataclass instance
-            user_id: User ID (overrides instance user_id if provided)
-            
-        Returns:
-            Job ID
-        """
-        # Use provided user_id or instance user_id
         owner_id = user_id or self.user_id
         if not owner_id:
             raise ValueError("user_id must be provided")
         
-        # Check if job already exists
         result = await self.db.execute(
             select(Job).where(Job.id == job.id)
         )
         existing = result.scalar_one_or_none()
         
-        # Convert execution logs from list of dicts to JSONB format
         execution_logs = []
         if hasattr(job, 'execution_logs') and job.execution_logs:
             execution_logs = job.execution_logs
         elif hasattr(job, 'metadata') and job.metadata:
-            # Try to extract logs from metadata if available
             execution_logs = job.metadata.get('execution_logs', [])
         
         if existing:
-            # Update existing job
             existing.capability = job.capability.value
             existing.target = job.target
             existing.status = job.status.value
             existing.priority = job.priority.value
             existing.progress = job.progress
             existing.config = job.config or {}
-            existing.meta_data = job.metadata or {}  # Map from dataclass metadata to DB meta_data
+            existing.meta_data = job.metadata or {}
             existing.error = job.error
             existing.execution_logs = execution_logs
             existing.started_at = job.started_at
             existing.completed_at = job.completed_at
         else:
-            # Create new job
             db_job = Job(
                 id=job.id,
                 user_id=owner_id,

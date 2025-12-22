@@ -67,7 +67,6 @@ export function FAQSection() {
       <div className="absolute inset-0 gradient-mesh opacity-30" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center mb-16">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             FAQ
@@ -83,7 +82,6 @@ export function FAQSection() {
           </p>
         </div>
 
-        {/* FAQ Accordion */}
         <div className="space-y-8">
           {faqs.map((category) => (
             <div key={category.category}>
@@ -142,7 +140,6 @@ export function FAQSection() {
           ))}
         </div>
 
-        {/* Still have questions */}
         <div className="mt-16 text-center">
           <div className="glass rounded-2xl p-8 inline-block">
             <p className="text-white mb-4">Still have questions?</p>

@@ -112,7 +112,6 @@ export function InfrastructureCard({
       padding="md"
     >
       <div className="space-y-3">
-        {/* Header with severity and category */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant={finding.severity} size="sm">
@@ -129,12 +128,10 @@ export function InfrastructureCard({
           )}
         </div>
 
-        {/* Title */}
         <h3 className="font-mono font-semibold text-white text-sm leading-tight line-clamp-2">
           {finding.title}
         </h3>
 
-        {/* Description */}
         <p className="text-xs text-white/60 line-clamp-3 leading-relaxed">
           {finding.description}
         </p>
@@ -146,7 +143,6 @@ export function InfrastructureCard({
           </p>
         </div>
 
-        {/* Footer with timestamp and affected assets */}
         <div className="flex items-center justify-between text-xs">
           <span className="text-white/40 font-mono">{finding.timestamp}</span>
           {finding.affectedAssets.length > 0 && (

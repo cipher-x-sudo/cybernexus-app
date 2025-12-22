@@ -1,9 +1,3 @@
-"""
-Dark Web API Routes
-
-Advanced dark web intelligence endpoints for accessing DarkWatch collector features.
-"""
-
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -20,12 +14,7 @@ from app.collectors.dark_watch import (
 router = APIRouter()
 
 
-# ============================================================================
-# Response Models
-# ============================================================================
-
 class SiteNodeResponse(BaseModel):
-    """Site node in network graph"""
     id: str
     url: str
     title: str
@@ -35,19 +24,16 @@ class SiteNodeResponse(BaseModel):
 
 
 class SiteEdgeResponse(BaseModel):
-    """Edge in site network graph"""
     source: str
     target: str
 
 
 class SiteNetworkResponse(BaseModel):
-    """Site relationship network"""
     nodes: List[SiteNodeResponse]
     edges: List[SiteEdgeResponse]
 
 
 class OnionSiteResponse(BaseModel):
-    """Onion site information"""
     site_id: str
     onion_url: str
     title: str
@@ -65,7 +51,6 @@ class OnionSiteResponse(BaseModel):
 
 
 class ExtractedEntityResponse(BaseModel):
-    """Extracted entity information"""
     type: str
     value: str
     context: str
@@ -75,7 +60,6 @@ class ExtractedEntityResponse(BaseModel):
 
 
 class BrandMentionResponse(BaseModel):
-    """Brand mention information"""
     mention_id: str
     keyword: str
     context: str

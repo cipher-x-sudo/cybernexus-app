@@ -229,7 +229,6 @@ export default function AutomationConfigStep({
 
   return (
     <div className="space-y-6">
-      {/* Enable/Disable Toggle */}
       <GlassCard className="p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -262,7 +261,6 @@ export default function AutomationConfigStep({
 
       {config.enabled && (
         <>
-          {/* Schedule Configuration */}
           <GlassCard className="p-6">
             <h3 className="text-lg font-mono text-white mb-4">Schedule</h3>
             <SchedulePicker
@@ -275,7 +273,6 @@ export default function AutomationConfigStep({
             />
           </GlassCard>
 
-          {/* Capability Selection */}
           <GlassCard className="p-6">
             <div className="mb-4">
               <h3 className="text-lg font-mono text-white mb-1">Select Capabilities</h3>
@@ -299,7 +296,6 @@ export default function AutomationConfigStep({
                         : "bg-white/[0.02] border-white/[0.08]"
                     )}
                   >
-                    {/* Capability Header */}
                     <div className="flex items-start gap-3 mb-3">
                       <input
                         type="checkbox"
@@ -316,10 +312,8 @@ export default function AutomationConfigStep({
                       </div>
                     </div>
 
-                    {/* Configuration when enabled */}
                     {isEnabled && capConfig && (
                       <div className="ml-8 space-y-3 mt-4 pt-4 border-t border-white/[0.08]">
-                        {/* Targets */}
                         {capConfig.targets !== undefined && (
                           <div>
                             <div className="flex items-center justify-between mb-2">
@@ -370,7 +364,6 @@ export default function AutomationConfigStep({
                           </div>
                         )}
 
-                        {/* Keywords (for dark web) */}
                         {capability.supportsKeywords && capConfig.keywords !== undefined && (
                           <div>
                             <div className="flex items-center justify-between mb-2">
@@ -423,7 +416,6 @@ export default function AutomationConfigStep({
             </div>
           </GlassCard>
 
-          {/* Preview Summary */}
           {enabledCount > 0 && (
             <GlassCard className="p-6 bg-amber-500/5 border-amber-500/20">
               <h3 className="text-lg font-mono text-amber-400 mb-3">Automation Summary</h3>

@@ -37,7 +37,6 @@ const securityFeatures = [
 export function SecuritySection() {
   return (
     <section id="security" className="py-24 lg:py-32 relative overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-amber-500/5 rounded-full blur-[150px]" />
       </div>
@@ -61,7 +60,6 @@ export function SecuritySection() {
               industry-leading standards.
             </p>
 
-            {/* Security features list */}
             <div className="grid grid-cols-2 gap-4">
               {securityFeatures.map((feature, index) => (
                 <div key={index} className="flex items-center gap-3">
@@ -84,7 +82,6 @@ export function SecuritySection() {
             </div>
           </div>
 
-          {/* Right: Certifications */}
           <div className="grid grid-cols-2 gap-4">
             {certifications.map((cert, index) => (
               <GlassCard
@@ -102,7 +99,6 @@ export function SecuritySection() {
           </div>
         </div>
 
-        {/* Bottom banner */}
         <div className="mt-16 lg:mt-24">
           <GlassCard className="text-center" padding="lg" glow>
             <div className="flex flex-col md:flex-row items-center justify-center gap-6">

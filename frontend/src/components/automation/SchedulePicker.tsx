@@ -143,7 +143,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
 
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Frequency Selector */}
       <div>
         <label className="block text-sm font-mono text-white/70 mb-2">Frequency</label>
         <div className="grid grid-cols-4 gap-2">
@@ -166,7 +165,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </div>
       </div>
 
-      {/* Time Picker */}
       {frequency !== "custom" && (
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -204,7 +202,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </div>
       )}
 
-      {/* Weekly - Day of Week */}
       {frequency === "weekly" && (
         <div>
           <label className="block text-sm font-mono text-white/70 mb-2">Day of Week</label>
@@ -227,7 +224,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </div>
       )}
 
-      {/* Monthly - Day of Month */}
       {frequency === "monthly" && (
         <div>
           <label className="block text-sm font-mono text-white/70 mb-2">Day of Month</label>
@@ -247,7 +243,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </div>
       )}
 
-      {/* Custom Cron */}
       {frequency === "custom" && (
         <div>
           <label className="block text-sm font-mono text-white/70 mb-2">
@@ -269,7 +264,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </div>
       )}
 
-      {/* Timezone */}
       <div>
         <label className="block text-sm font-mono text-white/70 mb-2">Timezone</label>
         <select
@@ -293,7 +287,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         </select>
       </div>
 
-      {/* Next Runs Preview */}
       {nextRuns.length > 0 && (
         <div className="p-3 rounded-lg bg-white/[0.03] border border-white/[0.08]">
           <div className="text-xs font-mono text-white/50 mb-1">Schedule Preview</div>

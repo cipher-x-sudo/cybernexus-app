@@ -326,7 +326,6 @@ export default function CompanyProfileWizard({
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {/* Progress Bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           {steps.map((step, index) => (
@@ -366,7 +365,6 @@ export default function CompanyProfileWizard({
         </div>
       </div>
 
-      {/* Step Content */}
       <GlassCard padding="lg">
         {errors.submit && (
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -374,7 +372,6 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Step 1: Basic Information */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <GlassInput
@@ -434,7 +431,6 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Step 2: Contact Details */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <GlassInput
@@ -503,7 +499,6 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Step 3: Domains & Assets */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <GlassInput
@@ -652,7 +647,6 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Step 4: Automation */}
         {currentStep === 4 && (
           <AutomationConfigStep
             value={formData.automation_config}
@@ -667,7 +661,6 @@ export default function CompanyProfileWizard({
           />
         )}
 
-        {/* Step 5: Review & Complete */}
         {currentStep === 5 && (
           <div className="space-y-6">
             <div className="text-center mb-6">
@@ -694,7 +687,6 @@ export default function CompanyProfileWizard({
                 </div>
               </div>
 
-              {/* Contact */}
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                 <h4 className="font-mono text-sm text-white/70 mb-3">Contact Details</h4>
                 <div className="space-y-2 text-sm">
@@ -752,7 +744,6 @@ export default function CompanyProfileWizard({
                 </div>
               </div>
 
-              {/* Automation */}
               {formData.automation_config?.enabled && (
                 <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                   <h4 className="font-mono text-sm text-white/70 mb-3">Automation</h4>
@@ -779,7 +770,6 @@ export default function CompanyProfileWizard({
           </div>
         )}
 
-        {/* Navigation */}
         <div className="flex justify-between mt-8 pt-6 border-t border-white/[0.05]">
           <div>
             {onCancel && (

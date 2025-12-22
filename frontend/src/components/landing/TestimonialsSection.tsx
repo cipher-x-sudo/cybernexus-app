@@ -59,13 +59,11 @@ export function TestimonialsSection() {
 
   return (
     <section className="py-24 lg:py-32 relative overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-amber-500/5 rounded-full blur-[150px]" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             Testimonials
@@ -79,9 +77,7 @@ export function TestimonialsSection() {
           </h2>
         </div>
 
-        {/* Testimonial Carousel */}
         <div className="relative max-w-4xl mx-auto">
-          {/* Quote icon */}
           <div className="absolute -top-4 -left-4 text-amber-500/20">
             <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
               <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
@@ -122,7 +118,6 @@ export function TestimonialsSection() {
             ))}
           </div>
 
-          {/* Navigation dots */}
           <div className="flex justify-center gap-2 mt-8">
             {testimonials.map((_, index) => (
               <button
@@ -139,7 +134,6 @@ export function TestimonialsSection() {
           </div>
         </div>
 
-        {/* Company logos */}
         <div className="mt-20 pt-12 border-t border-white/[0.05]">
           <p className="text-center text-sm text-white/40 font-mono mb-8">
             Trusted by leading organizations

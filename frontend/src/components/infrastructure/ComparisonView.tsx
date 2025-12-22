@@ -50,7 +50,6 @@ export function ComparisonView({ scanResults, className }: ComparisonViewProps) 
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Comparison Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {comparisonStats.map((scan) => (
           <GlassCard key={scan.id} className="p-4" hover={false} padding="none">
@@ -82,7 +81,6 @@ export function ComparisonView({ scanResults, className }: ComparisonViewProps) 
         <TrendsChart comparisonData={trendsData} />
       )}
 
-      {/* Detailed Comparison Table */}
       <GlassCard className="p-6" hover={false} padding="none">
         <h3 className="font-mono font-semibold text-white mb-4">Detailed Comparison</h3>
         <div className="overflow-x-auto">

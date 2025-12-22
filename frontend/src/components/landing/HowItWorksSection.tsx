@@ -85,7 +85,6 @@ export function HowItWorksSection() {
       className="py-24 lg:py-32 relative"
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 lg:mb-20">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             How It Works
@@ -103,12 +102,9 @@ export function HowItWorksSection() {
           </p>
         </div>
 
-        {/* Timeline */}
         <div className="relative">
-          {/* Vertical line */}
           <div className="absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-amber-500/50 via-amber-500/20 to-transparent" />
 
-          {/* Steps */}
           <div className="space-y-16 lg:space-y-24">
             {steps.map((step, index) => (
               <div

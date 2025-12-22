@@ -91,13 +91,10 @@ export function Footer() {
 
   return (
     <footer className="relative pt-24 pb-12 border-t border-white/[0.05]">
-      {/* Background */}
       <div className="absolute inset-0 gradient-mesh opacity-20" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Top section */}
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 mb-16">
-          {/* Left: Branding & Newsletter */}
           <div>
             <Link href="/" className="flex items-center space-x-2 mb-6">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
@@ -124,7 +121,6 @@ export function Footer() {
               respond to cyber threats in real-time.
             </p>
 
-            {/* Newsletter */}
             <div>
               <h4 className="font-mono font-semibold text-white mb-4">
                 Stay updated
@@ -187,13 +183,11 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom section */}
         <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-white/30" suppressHydrationWarning>
             © {new Date().getFullYear()} CyberNexus. All rights reserved.
           </p>
 
-          {/* Social links */}
           <div className="flex items-center gap-4">
             {socialLinks.map((social) => (
               <a

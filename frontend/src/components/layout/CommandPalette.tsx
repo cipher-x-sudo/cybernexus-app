@@ -24,7 +24,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const commands: CommandItem[] = [
-    // Navigation
     {
       id: "nav-dashboard",
       title: "Go to Dashboard",
@@ -97,7 +96,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       action: () => router.push("/darkweb"),
       category: "Navigation",
     },
-    // Actions
     {
       id: "action-scan",
       title: "Start New Scan",
@@ -225,15 +223,12 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Modal */}
       <div className="relative w-full max-w-xl mx-4 glass rounded-2xl border border-white/[0.1] shadow-2xl overflow-hidden animate-scale-in">
-        {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-white/[0.05]">
           <svg
             className="w-5 h-5 text-white/40"
@@ -261,7 +256,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
           </kbd>
         </div>
 
-        {/* Results */}
         <div className="max-h-80 overflow-y-auto p-2">
           {Object.entries(groupedCommands).map(([category, items]) => (
             <div key={category} className="mb-2">
@@ -331,7 +325,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-4 py-3 border-t border-white/[0.05] flex items-center gap-4 text-xs text-white/30">
           <div className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.1]">

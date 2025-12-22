@@ -159,7 +159,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
@@ -167,7 +166,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed top-0 left-0 h-full w-64 z-50",
@@ -203,9 +201,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </Link>
           </div>
 
-          {/* Main navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {/* Main items */}
             {mainNavItems.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -276,7 +272,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               )}
             </div>
 
-            {/* Analysis section */}
             <div className="pt-4">
               <div className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
                 Analysis
@@ -304,7 +299,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
           </nav>
 
-          {/* Bottom navigation */}
           <div className="p-4 border-t border-white/[0.05]">
             {bottomNavItems.map((item) => {
               const isActive = pathname === item.href;

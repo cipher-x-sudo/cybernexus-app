@@ -1,10 +1,3 @@
-"""
-Graph Routes
-
-Handles graph queries, traversals, and relationship management.
-Uses database-backed storage with user scoping.
-"""
-
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
@@ -23,7 +16,6 @@ router = APIRouter()
 
 
 class RelationType(str, Enum):
-    """Types of relationships between entities."""
     RESOLVES_TO = "resolves_to"
     CONTAINS = "contains"
     COMMUNICATES_WITH = "communicates_with"
@@ -37,7 +29,6 @@ class RelationType(str, Enum):
 
 
 class GraphNode(BaseModel):
-    """Graph node representation."""
     id: str
     label: str
     type: str

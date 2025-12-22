@@ -263,7 +263,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
     <div className={cn("relative w-full h-full min-h-[200px]", className)}>
       <canvas ref={canvasRef} className="w-full h-full" />
 
-      {/* Legend */}
       <div className="absolute bottom-4 left-4 flex items-center gap-4">
         {[
           { label: "Critical", color: "bg-red-500" },

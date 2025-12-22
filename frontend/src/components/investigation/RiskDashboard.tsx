@@ -43,13 +43,10 @@ export function RiskDashboard({
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-6">
-        {/* Risk Score Gauge */}
         <div className="text-center">
           <h3 className="text-lg font-mono font-semibold text-white mb-4">Risk Score</h3>
           <div className="relative w-48 h-24 mx-auto">
-            {/* Gauge Background */}
             <svg viewBox="0 0 200 100" className="w-full h-full">
-              {/* Background arc */}
               <path
                 d="M 20 80 A 80 80 0 0 1 180 80"
                 fill="none"
@@ -57,7 +54,6 @@ export function RiskDashboard({
                 strokeWidth="20"
                 strokeLinecap="round"
               />
-              {/* Risk arc */}
               <path
                 d="M 20 80 A 80 80 0 0 1 180 80"
                 fill="none"
@@ -68,7 +64,6 @@ export function RiskDashboard({
                 transform="rotate(-90 100 100)"
               />
             </svg>
-            {/* Score Text */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
                 <div className={cn("text-4xl font-bold", getRiskColor(riskScore))}>
@@ -99,7 +94,6 @@ export function RiskDashboard({
           </div>
         </div>
 
-        {/* Risk Factors */}
         {riskFactors.length > 0 && (
           <div>
             <h4 className="text-sm font-mono font-semibold text-white mb-2">Risk Factors</h4>
@@ -116,7 +110,6 @@ export function RiskDashboard({
           </div>
         )}
 
-        {/* Recommendations */}
         <div>
           <h4 className="text-sm font-mono font-semibold text-white mb-2">Recommendations</h4>
           <div className="space-y-2 text-sm text-white/70">

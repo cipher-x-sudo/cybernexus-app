@@ -210,22 +210,18 @@ export function CapabilityCards({ className, compact = false, stats: propStats }
               )}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Icon */}
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3", colors.iconBg)}>
                 <IconComponent icon={cap.icon} className={cn("w-5 h-5", colors.text)} />
               </div>
 
-              {/* Question (primary) */}
               <p className="text-sm font-medium text-white mb-1 line-clamp-2">
                 {cap.question}
               </p>
 
-              {/* Name (secondary) */}
               <p className="text-xs text-white/40 font-mono mb-3">
                 {cap.name}
               </p>
 
-              {/* Stats */}
               {cap.stats && !compact && (
                 <div className="flex items-center gap-3 text-xs">
                   {cap.stats.findings > 0 && (
@@ -241,7 +237,6 @@ export function CapabilityCards({ className, compact = false, stats: propStats }
                 </div>
               )}
 
-              {/* Arrow indicator */}
               <div className={cn(
                 "absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100",
                 "transform translate-x-2 group-hover:translate-x-0",

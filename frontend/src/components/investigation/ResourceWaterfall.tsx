@@ -113,7 +113,6 @@ export function ResourceWaterfall({ harData, className }: ResourceWaterfallProps
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-4">
-        {/* Controls */}
         <div className="flex items-center gap-4 flex-wrap">
           <select
             value={filter}
@@ -166,7 +165,6 @@ export function ResourceWaterfall({ harData, className }: ResourceWaterfallProps
               <div className="w-20 text-xs text-white/50 text-right">Size</div>
             </div>
 
-            {/* Resource Bars */}
             {filteredResources.map((resource, idx) => {
               const leftPercent = (resource.startTime / maxTime) * 100;
               const widthPercent = ((resource.endTime - resource.startTime) / maxTime) * 100;
@@ -206,7 +204,6 @@ export function ResourceWaterfall({ harData, className }: ResourceWaterfallProps
           </div>
         </div>
 
-        {/* Selected Request Details */}
         {selectedRequest && (
           <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg">
             <h3 className="font-mono font-semibold text-white mb-2">Request Details</h3>

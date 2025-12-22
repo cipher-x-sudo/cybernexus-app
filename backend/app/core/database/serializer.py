@@ -1,9 +1,3 @@
-"""
-Custom Serializer
-
-Handles serialization/deserialization of DSA structures.
-"""
-
 import json
 import pickle
 import gzip
@@ -13,26 +7,8 @@ from datetime import datetime
 
 
 class Serializer:
-    """
-    Serialization utilities for DSA structures.
-    
-    Supports:
-    - JSON (human-readable)
-    - Pickle (Python-native)
-    - Compressed formats
-    """
-    
     @staticmethod
     def to_json(obj: Any, pretty: bool = False) -> str:
-        """Serialize object to JSON string.
-        
-        Args:
-            obj: Object to serialize
-            pretty: Use pretty printing
-            
-        Returns:
-            JSON string
-        """
         def default_serializer(o):
             if hasattr(o, 'to_dict'):
                 return o.to_dict()
@@ -50,25 +26,10 @@ class Serializer:
     
     @staticmethod
     def from_json(json_str: str) -> Any:
-        """Deserialize object from JSON string.
-        
-        Args:
-            json_str: JSON string
-            
-        Returns:
-            Deserialized object
-        """
         return json.loads(json_str)
     
     @staticmethod
     def save_json(obj: Any, path: Union[str, Path], compress: bool = False):
-        """Save object to JSON file.
-        
-        Args:
-            obj: Object to save
-            path: File path
-            compress: Use gzip compression
-        """
         path = Path(path)
         json_str = Serializer.to_json(obj, pretty=not compress)
         

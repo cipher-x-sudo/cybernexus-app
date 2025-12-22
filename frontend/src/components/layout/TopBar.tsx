@@ -20,13 +20,11 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
   const router = useRouter();
   const { logout, user } = useAuth();
   
-  // Get real notifications
   const { notifications, unreadCount, markAsRead, loading } = useNotifications({
     limit: 10,
     autoPoll: true,
   });
 
-  // Close profile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -53,7 +51,6 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
     setProfileMenuOpen(false);
   };
 
-  // Get user initials
   const getUserInitials = () => {
     if (user?.full_name) {
       const names = user.full_name.split(" ");
@@ -71,9 +68,7 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 h-16 bg-[#0a0e1a]/80 backdrop-blur-xl border-b border-white/[0.05]">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
-        {/* Left side */}
         <div className="flex items-center gap-4">
-          {/* Menu button (mobile) */}
           <button
             onClick={onMenuClick}
             className="lg:hidden p-2 rounded-lg text-white/60 hover:bg-white/[0.05] hover:text-white transition-colors"
@@ -83,7 +78,6 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
             </svg>
           </button>
 
-          {/* Search / Command palette trigger */}
           <button
             onClick={onCommandPaletteOpen}
             className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white/40 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all w-64 lg:w-80"
@@ -99,9 +93,7 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
           </button>
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-3">
-          {/* Notifications */}
           <div className="relative">
             <button
               onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -110,13 +102,11 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              {/* Notification dot - only show if there are unread notifications */}
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
               )}
             </button>
 
-            {/* Notification dropdown */}
             {notificationsOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-[#0a0e1a] rounded-xl border border-white/[0.08] shadow-xl overflow-hidden">
                 <div className="p-4 border-b border-white/[0.05]">
@@ -191,7 +181,6 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
             )}
           </div>
 
-          {/* Profile */}
           <div className="relative" ref={profileMenuRef}>
             <button
               onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -202,7 +191,6 @@ export function TopBar({ onMenuClick, onCommandPaletteOpen }: TopBarProps) {
               </div>
             </button>
 
-            {/* Profile dropdown menu */}
             {profileMenuOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-[#0a0e1a] rounded-xl border border-white/[0.08] shadow-xl overflow-hidden z-50 backdrop-blur-xl">
                 <div className="p-4 border-b border-white/[0.05]">

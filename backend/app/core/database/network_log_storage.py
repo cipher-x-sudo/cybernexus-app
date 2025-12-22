@@ -1,9 +1,3 @@
-"""
-Database Network Log Storage Service
-
-Provides methods to query and manage network logs stored in PostgreSQL database.
-"""
-
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,48 +13,25 @@ from app.config import settings
 
 
 class DBNetworkLogStorage:
-    """Service for querying network logs from database."""
-    
     def __init__(self, db: AsyncSession, user_id: Optional[str] = None, is_admin: bool = False):
-        """
-        Initialize database network log storage.
-        
-        Args:
-            db: Database session
-            user_id: User ID for scoping (None for admin access to all)
-            is_admin: Whether user is admin (can access all data)
-        """
         self.db = db
         self.user_id = user_id
         self.is_admin = is_admin
         self.ttl_days = settings.NETWORK_LOG_TTL_DAYS
     
     async def save_log(self, log_entry: Dict[str, Any], user_id: Optional[str] = None) -> str:
-        """
-        Save a network log entry to database.
-        
-        Args:
-            log_entry: Log entry dictionary
-            user_id: User ID (overrides instance user_id if provided)
-            
-        Returns:
-            Log entry ID
-        """
         request_id = log_entry.get("id")
         if not request_id:
             raise ValueError("Log entry must have an 'id' field")
         
-        # Use provided user_id or instance user_id
         owner_id = user_id or self.user_id
         
-        # Check if log already exists
         result = await self.db.execute(
             select(NetworkLog).where(NetworkLog.request_id == request_id)
         )
         existing = result.scalar_one_or_none()
         
         if existing:
-            # Update existing log
             existing.ip = log_entry.get("ip")
             existing.method = log_entry.get("method")
             existing.path = log_entry.get("path")

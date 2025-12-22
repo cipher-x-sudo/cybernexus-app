@@ -54,7 +54,6 @@ export function TeamSection() {
   return (
     <section id="team" className="py-24 lg:py-32 relative">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-amber-400 font-mono text-sm uppercase tracking-wider mb-4">
             Our Team
@@ -71,7 +70,6 @@ export function TeamSection() {
           </p>
         </div>
 
-        {/* Team grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {team.map((member, index) => (
             <div
@@ -81,12 +79,10 @@ export function TeamSection() {
               onMouseLeave={() => setHoveredIndex(null)}
             >
               <div className="glass rounded-2xl p-6 h-full transition-all duration-300 group-hover:border-amber-500/40">
-                {/* Avatar */}
                 <div className="relative mb-6">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-mono font-bold text-2xl">
                     {member.avatar}
                   </div>
-                  {/* LinkedIn icon */}
                   <a
                     href={member.linkedin}
                     className={cn(
@@ -114,7 +110,6 @@ export function TeamSection() {
                   {member.role}
                 </p>
 
-                {/* Bio - revealed on hover */}
                 <div
                   className={cn(
                     "overflow-hidden transition-all duration-300",
@@ -130,7 +125,6 @@ export function TeamSection() {
           ))}
         </div>
 
-        {/* Careers CTA */}
         <div className="mt-16 text-center">
           <p className="text-white/50 mb-4">Want to join our team?</p>
           <a

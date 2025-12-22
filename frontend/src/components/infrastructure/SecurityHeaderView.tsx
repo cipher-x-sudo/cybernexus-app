@@ -105,7 +105,6 @@ export function SecurityHeaderView({ evidence, severity = "info" }: SecurityHead
 
     return (
       <div className="space-y-4">
-        {/* Header with icon and count */}
         <div className="flex items-center gap-3 pb-3 border-b border-white/10">
           <div className={cn("flex-shrink-0 p-2 rounded-lg", styles.bg)}>
             <svg
@@ -132,7 +131,6 @@ export function SecurityHeaderView({ evidence, severity = "info" }: SecurityHead
           </div>
         </div>
 
-        {/* Headers table */}
         <div className="rounded-lg border border-white/10 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">

@@ -188,7 +188,6 @@ export function SecurityScoreDetailModal({
 
         {breakdownData && !loading && (
           <div className="space-y-6">
-            {/* Header Score Summary */}
             <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/[0.08] rounded-lg">
               <div className="flex items-center gap-4">
                 <div className={cn("text-4xl font-mono font-bold", getScoreColor(breakdownData.overall_score))}>
@@ -214,7 +213,6 @@ export function SecurityScoreDetailModal({
               </div>
             </div>
 
-            {/* Category Breakdown */}
             <div>
               <h3 className="text-lg font-mono font-semibold text-white mb-4">Category Breakdown</h3>
               <div className="space-y-3">
@@ -273,7 +271,6 @@ export function SecurityScoreDetailModal({
               </div>
             </div>
 
-            {/* Severity Distribution */}
             <div>
               <h3 className="text-lg font-mono font-semibold text-white mb-4">Severity Distribution</h3>
               <div className="grid grid-cols-4 gap-3">
@@ -294,7 +291,6 @@ export function SecurityScoreDetailModal({
               </div>
             </div>
 
-            {/* Calculation Details */}
             <div>
               <h3 className="text-lg font-mono font-semibold text-white mb-4">Calculation Details</h3>
               <div className="p-4 bg-white/[0.03] border border-white/[0.08] rounded-lg space-y-3">
@@ -336,7 +332,6 @@ export function SecurityScoreDetailModal({
                     -{breakdownData.calculation.total_deduction}
                   </span>
                 </div>
-                {/* Positive Points Section */}
                 {breakdownData.positive_points && (breakdownData.positive_points.total || 0) > 0 && (
                   <>
                     <div className="h-px bg-white/[0.08]" />
@@ -380,7 +375,6 @@ export function SecurityScoreDetailModal({
               </div>
             </div>
 
-            {/* Recommendations */}
             {breakdownData.recommendations.length > 0 && (
               <div>
                 <h3 className="text-lg font-mono font-semibold text-white mb-4">Recommendations</h3>

@@ -248,7 +248,6 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-4">
-        {/* Controls */}
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <input
@@ -272,13 +271,11 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
           </select>
         </div>
 
-        {/* Graph Visualization */}
         <div className="relative">
           <div
             ref={containerRef}
             className="w-full h-[600px] border border-white/[0.08] rounded-lg bg-black/20"
           />
-          {/* Zoom Controls */}
           <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
             <button
               onClick={() => {
@@ -340,7 +337,6 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
           </div>
         </div>
 
-        {/* Node Details */}
         {selectedNode && (
           <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg">
             <h3 className="font-mono font-semibold text-white mb-2">{selectedNode.label}</h3>
@@ -363,7 +359,6 @@ export function DomainTreeView({ nodes, edges, className }: DomainTreeViewProps)
           </div>
         )}
 
-        {/* Legend */}
         <div className="flex items-center gap-4 text-xs text-white/50 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-orange-500/20 border border-orange-500/40" />

@@ -35,7 +35,6 @@ export function ComparisonView({ comparisonData, className }: ComparisonViewProp
       <div className="space-y-6">
         <h3 className="text-lg font-mono font-semibold text-white">Investigation Comparison</h3>
 
-        {/* Visual Similarity */}
         {comparisonData.visual_similarity && (
           <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg">
             <h4 className="text-sm font-mono font-semibold text-white mb-2">Visual Similarity</h4>
@@ -60,7 +59,6 @@ export function ComparisonView({ comparisonData, className }: ComparisonViewProp
           </div>
         )}
 
-        {/* Domain Differences */}
         <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg">
           <h4 className="text-sm font-mono font-semibold text-white mb-3">Domain Changes</h4>
           <div className="grid grid-cols-3 gap-4">
@@ -113,7 +111,6 @@ export function ComparisonView({ comparisonData, className }: ComparisonViewProp
           </div>
         </div>
 
-        {/* Findings Comparison */}
         <div className="p-4 bg-white/[0.02] border border-white/[0.08] rounded-lg">
           <h4 className="text-sm font-mono font-semibold text-white mb-3">Findings Comparison</h4>
           <div className="grid grid-cols-2 gap-4">

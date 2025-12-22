@@ -1,10 +1,3 @@
-"""
-Scheduled Searches API Routes
-
-Handles listing of scheduled automated searches.
-Scheduled searches are created automatically via company automation sync.
-"""
-
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
@@ -20,12 +13,7 @@ from app.core.database.models import ScheduledSearch as ScheduledSearchModel
 router = APIRouter()
 
 
-# ============================================================================
-# Response Models
-# ============================================================================
-
 class ScheduledSearchResponse(BaseModel):
-    """Scheduled search response"""
     id: str
     user_id: str
     name: str
@@ -47,24 +35,17 @@ class ScheduledSearchResponse(BaseModel):
         from_attributes = True
 
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
 def get_capabilities_list(scheduled_search: ScheduledSearchModel) -> List[str]:
-    """Get capabilities list from scheduled search (supports both old and new format)."""
     if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
         if isinstance(scheduled_search.capabilities, list):
             return scheduled_search.capabilities
         return [scheduled_search.capabilities]
     elif hasattr(scheduled_search, 'capability') and scheduled_search.capability:
-        # Backward compatibility: convert single capability to list
         return [scheduled_search.capability]
     return []
 
 
 def scheduled_search_to_response(scheduled_search: ScheduledSearchModel) -> ScheduledSearchResponse:
-    """Convert ScheduledSearchModel to ScheduledSearchResponse."""
     capabilities_list = get_capabilities_list(scheduled_search)
     return ScheduledSearchResponse(
         id=scheduled_search.id,
