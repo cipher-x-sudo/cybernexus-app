@@ -44,9 +44,6 @@ export interface ReportData {
   createdAt: Date;
 }
 
-/**
- * Map dashboard overview to risk score props
- */
 export function mapToRiskScore(overview: any): RiskScoreData {
   return {
     score: overview.risk_score !== undefined && overview.risk_score !== null ? overview.risk_score : 100,
@@ -57,9 +54,6 @@ export function mapToRiskScore(overview: any): RiskScoreData {
   };
 }
 
-/**
- * Map API findings to component format
- */
 export function mapToFindings(findings: any[]): FindingData[] {
   return findings.map((f) => ({
     id: f.id,
@@ -71,12 +65,8 @@ export function mapToFindings(findings: any[]): FindingData[] {
   }));
 }
 
-/**
- * Map API jobs to component format
- */
 export function mapToJobs(jobs: any[]): JobData[] {
   return jobs.map((job) => {
-    // Handle both old (capability) and new (capabilities) formats
     const capabilityValue = job.capabilities?.[0] || job.capability || "Unknown";
     return {
       capability: formatCapabilityName(capabilityValue),
@@ -88,9 +78,6 @@ export function mapToJobs(jobs: any[]): JobData[] {
   });
 }
 
-/**
- * Map API events to component format
- */
 export function mapToEvents(events: any[]): EventData[] {
   return events.map((event, index) => ({
     id: event.id || event.timestamp || `event-${index}`,
@@ -100,9 +87,6 @@ export function mapToEvents(events: any[]): EventData[] {
   }));
 }
 
-/**
- * Map capability stats to card format
- */
 export function mapToCapabilityStats(
   capabilityStats: Record<string, any>
 ): Record<string, CapabilityStat> {
@@ -119,9 +103,6 @@ export function mapToCapabilityStats(
   return mapped;
 }
 
-/**
- * Map backend reports to frontend report format
- */
 export function mapToReports(reports: any[]): ReportData[] {
   return reports.map((report) => ({
     id: report.id,
@@ -132,9 +113,6 @@ export function mapToReports(reports: any[]): ReportData[] {
   }));
 }
 
-/**
- * Map backend report type to frontend report type
- */
 function mapReportType(backendType: string): string {
   const typeMap: Record<string, string> = {
     executive_summary: "executive",
@@ -149,22 +127,16 @@ function mapReportType(backendType: string): string {
   return typeMap[backendType] || backendType;
 }
 
-/**
- * Map backend report status to frontend report status
- */
 function mapReportStatus(backendStatus: string): "completed" | "generating" | "pending" | "failed" {
   const statusMap: Record<string, "completed" | "generating" | "pending" | "failed"> = {
     completed: "completed",
     generating: "generating",
-    pending: "generating", // Show pending as generating in UI
+    pending: "generating",
     failed: "failed",
   };
   return statusMap[backendStatus] || "pending";
 }
 
-/**
- * Format capability name for display
- */
 function formatCapabilityName(capability: string): string {
   const names: Record<string, string> = {
     exposure_discovery: "Exposure Discovery",
@@ -177,9 +149,6 @@ function formatCapabilityName(capability: string): string {
   return names[capability] || capability.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
-/**
- * Map job status to component format
- */
 function mapJobStatus(status: string): "completed" | "running" | "failed" | "pending" {
   const statusMap: Record<string, "completed" | "running" | "failed" | "pending"> = {
     completed: "completed",
@@ -192,12 +161,7 @@ function mapJobStatus(status: string): "completed" | "running" | "failed" | "pen
   return statusMap[status] || "pending";
 }
 
-/**
- * Format event message from event data
- * Handles both timeline events (with title/description) and orchestrator events (with data object)
- */
 function formatEventMessage(event: any): string {
-  // Check if this is a timeline event (has title/description directly)
   if (event.title) {
     return event.title;
   }
@@ -205,7 +169,6 @@ function formatEventMessage(event: any): string {
     return event.description;
   }
   
-  // Otherwise, treat as orchestrator event (has data object)
   const type = event.type || "";
   const data = event.data || {};
   
@@ -220,9 +183,6 @@ function formatEventMessage(event: any): string {
   return messages[type] || `${type} - ${data.capabilities?.[0] || data.capability || "Unknown"}`;
 }
 
-/**
- * Format time ago from timestamp
- */
 function formatTimeAgo(timestamp: string | null | undefined): string {
   if (!timestamp) return "Unknown";
   

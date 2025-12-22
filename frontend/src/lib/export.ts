@@ -68,16 +68,11 @@ export function exportInfrastructureCSV(
   URL.revokeObjectURL(url);
 }
 
-/**
- * Export findings as PDF (basic implementation using browser print)
- * For a full PDF implementation, you would need a library like jsPDF or pdfkit
- */
 export function exportInfrastructurePDF(
   findings: InfrastructureFinding[],
   stats: InfrastructureStats,
   target: string
 ): void {
-  // Create a printable HTML document
   const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -183,7 +178,6 @@ export function exportInfrastructurePDF(
 </html>
   `;
 
-  // Open in new window and trigger print
   const printWindow = window.open("", "_blank");
   if (printWindow) {
     printWindow.document.write(htmlContent);
@@ -194,9 +188,6 @@ export function exportInfrastructurePDF(
   }
 }
 
-/**
- * Export all formats
- */
 export function exportInfrastructure(
   format: "json" | "csv" | "pdf",
   findings: InfrastructureFinding[],

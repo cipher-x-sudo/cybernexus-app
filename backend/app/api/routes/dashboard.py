@@ -1,9 +1,3 @@
-"""
-Dashboard API Routes
-
-Provides aggregated data for the main dashboard overview.
-"""
-
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Query, HTTPException, Depends
@@ -25,16 +19,6 @@ def calculate_risk_score(
     resolved_findings: Optional[Dict[str, int]] = None,
     positive_indicators: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
-    """Calculate risk score from findings, including positive points.
-    
-    Args:
-        findings: List of active finding dictionaries
-        resolved_findings: Dictionary with counts of resolved findings by severity
-        positive_indicators: List of positive indicator dictionaries
-        
-    Returns:
-        Dictionary with risk_score, risk_level, counts, and positive points breakdown
-    """
     critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
     high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
     medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")

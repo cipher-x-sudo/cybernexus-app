@@ -1,9 +1,3 @@
-"""
-Company Profile Routes
-
-Handles company profile CRUD operations - user-scoped.
-"""
-
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -25,7 +19,6 @@ router = APIRouter()
 
 
 def _model_to_dict(profile: CompanyProfileModel) -> dict:
-    """Convert CompanyProfile model to dict."""
     return {
         "id": profile.id,
         "name": profile.name,

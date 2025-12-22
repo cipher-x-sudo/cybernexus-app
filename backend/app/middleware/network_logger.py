@@ -1,11 +1,3 @@
-"""
-Network Logging Middleware
-
-Captures all API requests and responses for real-time monitoring.
-Integrates with TunnelDetector for tunnel pattern detection.
-Uses database storage with user scoping.
-"""
-
 import uuid
 import time
 import json
@@ -24,59 +16,46 @@ from app.core.database.database import get_db
 from app.core.database.network_log_storage import DBNetworkLogStorage
 
 
-# Global reference to middleware instance for WebSocket handler
 _global_middleware_instance = None
 
 
 class NetworkLoggerMiddleware(BaseHTTPMiddleware):
-    """Middleware to capture and log all API requests/responses."""
-    
     def __init__(self, app, tunnel_analyzer=None):
         super().__init__(app)
         global _global_middleware_instance
         _global_middleware_instance = self
         self.tunnel_analyzer = tunnel_analyzer
-        self.websocket_clients = set()  # Will be set by WebSocket handler
+        self.websocket_clients = set()
         
     async def dispatch(self, request: Request, call_next):
-        """Process request and capture logs."""
         if not settings.NETWORK_ENABLE_LOGGING:
             return await call_next(request)
         
-        # Skip logging for health checks and static files
         if request.url.path in ["/health", "/api/health", "/docs", "/redoc", "/openapi.json"]:
             return await call_next(request)
         
-        # Generate request ID
         request_id = str(uuid.uuid4())
         start_time = time.time()
         
-        # Extract user_id from JWT token if available
         user_id = await self._extract_user_id(request)
         
-        # Capture request data
         client_ip = self._get_client_ip(request)
         request_data = await self._capture_request(request, request_id, client_ip)
         
-        # Process request
         response = await call_next(request)
         
-        # Capture response data
         response_time_ms = (time.time() - start_time) * 1000
         log_entry = await self._capture_response(
             request_data, response, request_id, response_time_ms
         )
         
-        # Store log entry asynchronously (don't block response)
         asyncio.create_task(self._store_log(log_entry, user_id))
         
-        # Broadcast to WebSocket clients
         asyncio.create_task(self._broadcast_log(log_entry))
         
         return response
     
     async def _extract_user_id(self, request: Request) -> Optional[str]:
-        """Extract user_id from JWT token in Authorization header."""
         try:
             auth_header = request.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):

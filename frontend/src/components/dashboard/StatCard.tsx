@@ -87,7 +87,6 @@ export function StatCard({
         )}
       </div>
 
-      {/* Hover glow effect */}
       <div
         className={cn(
           "absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",

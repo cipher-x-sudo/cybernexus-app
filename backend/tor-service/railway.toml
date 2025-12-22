@@ -1,14 +1,8 @@
 [build]
 builder = "DOCKERFILE"
-# dockerfilePath not needed when root directory is set to cybernexus/backend/tor-service
-# Railway auto-detects Dockerfile in the root directory
-# If auto-detection fails, uncomment the line below:
-# dockerfilePath = "cybernexus/backend/tor-service/Dockerfile"
 
 [deploy]
 numReplicas = 1
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
-# No public port - this is an internal-only service
-# Railway will still expose port 9050 internally for service-to-service communication
 

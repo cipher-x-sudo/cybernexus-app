@@ -1,18 +1,3 @@
-"""
-Capabilities API Routes
-
-User-facing capability endpoints. Users interact with WHAT they want to achieve,
-not HOW it's done. Underlying tools are completely abstracted.
-
-Capabilities:
-- Exposure Discovery: "What can attackers find about us online?"
-- Dark Web Intelligence: "Are we mentioned on the dark web?"
-- Email Security: "Can our email be spoofed?"
-- Infrastructure Testing: "Are our servers misconfigured?"
-- Network Security: "Can attackers tunnel into our network?"
-- Investigation: "Analyze this suspicious target"
-"""
-
 from datetime import datetime
 from typing import List, Optional, Dict, Any, AsyncGenerator
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, WebSocket, WebSocketDisconnect, Depends
@@ -40,7 +25,6 @@ router = APIRouter()
 
 
 class CapabilityResponse(BaseModel):
-    """Capability information"""
     id: str
     name: str
     description: str

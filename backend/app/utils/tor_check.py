@@ -1,9 +1,3 @@
-"""
-Tor Connectivity Check Utility
-
-Provides functionality to verify Tor proxy connectivity and status.
-"""
-
 import time
 import requests
 from typing import Dict, Any
@@ -13,26 +7,12 @@ from app.config import settings
 
 
 def check_tor_connectivity_quick(timeout: int = 5) -> Dict[str, Any]:
-    """
-    Quick check of Tor connectivity with shorter timeout for health checks.
-    
-    This version uses a shorter timeout to avoid blocking health checks for too long.
-    Use this for health check endpoints where fast response is critical.
-    
-    Args:
-        timeout: Timeout in seconds (default: 5 seconds)
-    
-    Returns:
-        Dictionary with Tor status information (same format as check_tor_connectivity)
-    """
     proxy_host = settings.TOR_PROXY_HOST
     proxy_port = settings.TOR_PROXY_PORT
     proxy_type = settings.TOR_PROXY_TYPE
     
-    # Test endpoint - official Tor Project API
     test_url = "https://check.torproject.org/api/ip"
     
-    # Configure proxy (same pattern as TorConnector)
     proxies = {
         "http": f"{proxy_type}://{proxy_host}:{proxy_port}",
         "https": f"{proxy_type}://{proxy_host}:{proxy_port}",
@@ -61,7 +41,7 @@ def check_tor_connectivity_quick(timeout: int = 5) -> Dict[str, Any]:
             }
         )
         
-        response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        response_time = (time.time() - start_time) * 1000
         result["response_time_ms"] = round(response_time, 2)
         
         if response.status_code == 200:
@@ -115,31 +95,13 @@ def check_tor_connectivity_quick(timeout: int = 5) -> Dict[str, Any]:
 
 
 def check_tor_connectivity() -> Dict[str, Any]:
-    """
-    Check connectivity to Tor proxy service.
-    
-    Makes a test request through the Tor proxy to verify it's working.
-    Uses the official Tor Project API to confirm we're using a Tor exit node.
-    
-    Returns:
-        Dictionary with:
-        - status: "connected" | "disconnected" | "error"
-        - is_tor: bool - Whether the response indicates we're using Tor
-        - ip: Optional[str] - Exit node IP address
-        - response_time_ms: Optional[float] - Request response time in milliseconds
-        - error: Optional[str] - Error message if connection failed
-        - host: str - Tor proxy host
-        - port: int - Tor proxy port
-    """
     proxy_host = settings.TOR_PROXY_HOST
     proxy_port = settings.TOR_PROXY_PORT
     proxy_type = settings.TOR_PROXY_TYPE
     timeout = settings.TOR_HEALTH_CHECK_TIMEOUT
     
-    # Test endpoint - official Tor Project API
     test_url = "https://check.torproject.org/api/ip"
     
-    # Configure proxy (same pattern as TorConnector)
     proxies = {
         "http": f"{proxy_type}://{proxy_host}:{proxy_port}",
         "https": f"{proxy_type}://{proxy_host}:{proxy_port}",
@@ -168,7 +130,7 @@ def check_tor_connectivity() -> Dict[str, Any]:
             }
         )
         
-        response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        response_time = (time.time() - start_time) * 1000
         result["response_time_ms"] = round(response_time, 2)
         
         if response.status_code == 200:

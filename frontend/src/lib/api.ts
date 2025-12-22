@@ -142,7 +142,6 @@ export interface CreateJobRequest {
   priority?: "critical" | "high" | "normal" | "low" | "background";
 }
 
-// API Client
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;

@@ -1,9 +1,3 @@
-"""
-Authentication Routes
-
-Handles user authentication, registration, and token management.
-"""
-
 from datetime import datetime, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -23,12 +17,10 @@ from app.services.activity_logger import log_activity
 
 router = APIRouter()
 
-# Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-# Pydantic Models
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -127,17 +119,14 @@ class ActivityLog(BaseModel):
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password."""
     return pwd_context.hash(password)
 
 
 async def get_user_by_username(db: AsyncSession, username: str) -> Optional[UserModel]:
-    """Get a user by username from the database."""
     result = await db.execute(
         select(UserModel).where(UserModel.username == username)
     )
@@ -145,7 +134,6 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]:
-    """Get a user by email from the database."""
     result = await db.execute(
         select(UserModel).where(UserModel.email == email)
     )
@@ -153,7 +141,6 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]
 
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[UserModel]:
-    """Get a user by ID from the database."""
     result = await db.execute(
         select(UserModel).where(UserModel.id == user_id)
     )
@@ -161,7 +148,6 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[UserModel]:
 
 
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[UserModel]:
-    """Authenticate a user."""
     user = await get_user_by_username(db, username)
     if not user:
         return None
@@ -171,7 +157,6 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -186,7 +171,6 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Get the current authenticated user."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -219,14 +203,12 @@ async def get_current_user(
 
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
-    """Get the current active user."""
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
 def is_admin(user: User) -> bool:
-    """Check if user is an admin."""
     return user.role == "admin"
 
 
@@ -236,7 +218,6 @@ async def login(
     request: Request = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Authenticate user and return access token."""
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -245,7 +226,6 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Log login activity
     client_ip = request.client.host if request and request.client else None
     user_agent = request.headers.get("user-agent") if request else None
     await log_activity(
@@ -273,8 +253,6 @@ async def register(
     request: Request = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Register a new user."""
-    # Check if username already exists
     existing_user = await get_user_by_username(db, user.username)
     if existing_user:
         raise HTTPException(
@@ -282,7 +260,6 @@ async def register(
             detail="Username already registered"
         )
     
-    # Check if email already exists
     existing_email = await get_user_by_email(db, user.email)
     if existing_email:
         raise HTTPException(
@@ -290,7 +267,6 @@ async def register(
             detail="Email already registered"
         )
     
-    # Create new user
     hashed_password = get_password_hash(user.password)
     db_user = UserModel(
         username=user.username,
@@ -305,7 +281,6 @@ async def register(
     await db.commit()
     await db.refresh(db_user)
     
-    # Log registration activity
     client_ip = request.client.host if request and request.client else None
     user_agent = request.headers.get("user-agent") if request else None
     await log_activity(
@@ -330,7 +305,6 @@ async def register(
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
-    """Get current user profile."""
     return current_user
 
 
@@ -340,12 +314,10 @@ async def update_user_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update current user profile."""
     db_user = await get_user_by_id(db, current_user.id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Check email uniqueness if changing email
     if user_update.email and user_update.email != db_user.email:
         existing_email = await get_user_by_email(db, user_update.email)
         if existing_email:
@@ -379,19 +351,16 @@ async def change_password(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Change user password."""
     db_user = await get_user_by_id(db, current_user.id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Verify current password
     if not verify_password(password_change.current_password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect current password"
         )
     
-    # Update password
     db_user.hashed_password = get_password_hash(password_change.new_password)
     await db.commit()
     
@@ -405,7 +374,6 @@ async def get_user_activity(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get current user's activity logs."""
     from app.core.database.models import UserActivityLog
     
     result = await db.execute(
@@ -425,7 +393,7 @@ async def get_user_activity(
             resource_id=log.resource_id,
             ip_address=log.ip_address,
             user_agent=log.user_agent,
-            metadata=log.meta_data or {},  # Map meta_data to metadata for API response
+            metadata=log.meta_data or {},
             timestamp=log.timestamp
         )
         for log in logs
@@ -440,7 +408,6 @@ async def get_user_activity_by_id(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get activity logs for a specific user (admin only)."""
     if not is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -466,7 +433,7 @@ async def get_user_activity_by_id(
             resource_id=log.resource_id,
             ip_address=log.ip_address,
             user_agent=log.user_agent,
-            metadata=log.meta_data or {},  # Map meta_data to metadata for API response
+            metadata=log.meta_data or {},
             timestamp=log.timestamp
         )
         for log in logs

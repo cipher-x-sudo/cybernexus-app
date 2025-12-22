@@ -1,11 +1,6 @@
 version: '3.8'
 
 services:
-  # ===========================================================================
-  # CORE SERVICES
-  # ===========================================================================
-  
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     ports:
@@ -25,7 +20,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API Service
   backend:
     build:
       context: ./backend
@@ -60,7 +54,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # Frontend Web Application
   frontend:
     build:
       context: ./frontend
@@ -81,17 +74,11 @@ services:
     networks:
       - cybernexus-network
 
-  # ===========================================================================
-  # TOR PROXY SERVICE - For Dark Web Intelligence
-  # ===========================================================================
-  
   tor-proxy:
     image: dperson/torproxy:latest
     ports:
       - "9050:9050"
       - "9051:9051"
-    # Note: The image may have a default config with 'rr' option error
-    # This is non-critical as the backend handles Tor unavailability gracefully
     restart: unless-stopped
     networks:
       - cybernexus-network
@@ -101,7 +88,6 @@ services:
       timeout: 30s
       retries: 3
 
-  # Multiple TOR instances for load balancing (optional)
   tor-proxy-2:
     image: dperson/torproxy:latest
     environment:
@@ -122,10 +108,6 @@ services:
     profiles:
       - tor-scaling
 
-  # ===========================================================================
-  # TOOL WORKER SERVICE - Executes capability jobs
-  # ===========================================================================
-  
   worker:
     build:
       context: ./backend
@@ -163,10 +145,6 @@ services:
     networks:
       - cybernexus-network
 
-  # ===========================================================================
-  # ELASTICSEARCH - For dark web content indexing (optional)
-  # ===========================================================================
-  
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     environment:
@@ -188,10 +166,6 @@ services:
       timeout: 10s
       retries: 5
 
-  # ===========================================================================
-  # PRIVOXY - HTTP proxy for TOR load balancing (optional)
-  # ===========================================================================
-  
   privoxy:
     image: vimagick/privoxy:latest
     ports:
@@ -206,17 +180,9 @@ services:
     profiles:
       - tor-scaling
 
-# ===========================================================================
-# NETWORKS
-# ===========================================================================
-
 networks:
   cybernexus-network:
     driver: bridge
-
-# ===========================================================================
-# VOLUMES
-# ===========================================================================
 
 volumes:
   postgres-data:

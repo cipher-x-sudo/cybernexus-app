@@ -1,10 +1,3 @@
-"""
-Scheduler Service for Automated Search Execution
-
-Manages scheduled searches using APScheduler to execute recurring searches
-across all security capabilities.
-"""
-
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
@@ -21,16 +14,12 @@ from app.services.orchestrator import get_orchestrator, Capability, JobPriority
 
 
 class SchedulerService:
-    """Service for managing scheduled searches."""
-    
     def __init__(self):
-        """Initialize the scheduler service."""
         self.scheduler: Optional[AsyncIOScheduler] = None
         self._initialized = False
         self._lock = asyncio.Lock()
     
     async def initialize(self):
-        """Initialize the scheduler and load existing scheduled searches."""
         async with self._lock:
             if self._initialized:
                 logger.warning("Scheduler already initialized")
@@ -38,28 +27,24 @@ class SchedulerService:
             
             logger.info("Initializing scheduler service...")
             
-            # Create APScheduler instance
             self.scheduler = AsyncIOScheduler(
                 timezone=timezone.utc,
                 job_defaults={
                     'coalesce': True,
                     'max_instances': 1,
-                    'misfire_grace_time': 300  # 5 minutes grace period
+                    'misfire_grace_time': 300
                 }
             )
             
-            # Start scheduler
             self.scheduler.start()
             logger.info("Scheduler started")
             
-            # Load all enabled scheduled searches from database
             await self._load_scheduled_searches()
             
             self._initialized = True
             logger.info("Scheduler service initialized successfully")
     
     async def shutdown(self):
-        """Shutdown the scheduler service."""
         async with self._lock:
             if not self._initialized:
                 return
@@ -73,10 +58,8 @@ class SchedulerService:
             self._initialized = False
     
     async def _load_scheduled_searches(self):
-        """Load all enabled scheduled searches from database and schedule them."""
         try:
             async with _async_session_maker() as session:
-                # Query all enabled scheduled searches
                 result = await session.execute(
                     select(ScheduledSearch).where(ScheduledSearch.enabled == True)
                 )

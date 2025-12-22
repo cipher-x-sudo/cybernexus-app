@@ -1,10 +1,3 @@
-"""
-Browser Capture Service
-
-Provides real browser automation for page capture, screenshot generation,
-and HAR file export using Playwright.
-"""
-
 import asyncio
 import json
 import base64
@@ -20,32 +13,14 @@ from playwright.async_api import async_playwright, Browser, Page, Route, Request
 from loguru import logger
 
 
-# Thread-local storage for browser instances
 _thread_local = threading.local()
 
 
 class BrowserCaptureService:
-    """
-    Service for capturing web pages using Playwright.
-    
-    Features:
-    - Full page screenshot capture
-    - HAR file generation from network traffic
-    - JavaScript execution support
-    - Redirect handling
-    - Headless browser automation
-    
-    Uses thread-local storage to ensure each thread/event loop has its own
-    browser instance, preventing transport closure errors when event loops close.
-    """
-    
     def __init__(self):
-        # Browser instances are stored in thread-local storage
-        # No instance variables needed here
         pass
     
     def _get_thread_local_storage(self):
-        """Get thread-local storage for this thread"""
         if not hasattr(_thread_local, 'browser'):
             _thread_local.browser = None
             _thread_local.playwright = None
@@ -53,23 +28,19 @@ class BrowserCaptureService:
         return _thread_local
     
     async def initialize(self):
-        """Initialize Playwright browser instance for current thread"""
         storage = self._get_thread_local_storage()
         
         if storage.initialized:
-            # Check if browser is still valid
             try:
                 if storage.browser and storage.browser.is_connected():
                     return
             except Exception:
-                # Browser is closed or invalid, reinitialize
                 storage.initialized = False
                 storage.browser = None
                 storage.playwright = None
         
         try:
             storage.playwright = await async_playwright().start()
-            # Launch browser with appropriate options
             storage.browser = await storage.playwright.chromium.launch(
                 headless=True,
                 args=[
@@ -90,7 +61,6 @@ class BrowserCaptureService:
             raise
     
     async def close(self):
-        """Close browser and cleanup for current thread"""
         storage = self._get_thread_local_storage()
         
         try:

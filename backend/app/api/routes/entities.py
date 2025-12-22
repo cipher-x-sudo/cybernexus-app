@@ -1,9 +1,3 @@
-"""
-Entities Routes
-
-Handles CRUD operations for security entities (domains, IPs, emails, etc.)
-"""
-
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
@@ -14,7 +8,6 @@ router = APIRouter()
 
 
 class EntityType(str, Enum):
-    """Types of security entities."""
     DOMAIN = "domain"
     IP = "ip"
     EMAIL = "email"
@@ -27,7 +20,6 @@ class EntityType(str, Enum):
 
 
 class EntitySeverity(str, Enum):
-    """Entity severity levels."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -36,7 +28,6 @@ class EntitySeverity(str, Enum):
 
 
 class Entity(BaseModel):
-    """Security entity model."""
     id: str
     type: EntityType
     value: str
@@ -49,7 +40,6 @@ class Entity(BaseModel):
 
 
 class EntityCreate(BaseModel):
-    """Create entity request."""
     type: EntityType
     value: str
     severity: EntitySeverity = EntitySeverity.INFO
@@ -59,27 +49,23 @@ class EntityCreate(BaseModel):
 
 
 class EntityUpdate(BaseModel):
-    """Update entity request."""
     severity: Optional[EntitySeverity] = None
     tags: Optional[List[str]] = None
     metadata: Optional[dict] = None
 
 
 class EntityStats(BaseModel):
-    """Entity statistics."""
     total: int
     by_type: dict
     by_severity: dict
     recent_24h: int
 
 
-# In-memory entity store (will be replaced with custom DSA storage)
 entities_db: dict = {}
 entity_counter = 0
 
 
 def generate_entity_id() -> str:
-    """Generate a unique entity ID."""
     global entity_counter
     entity_counter += 1
     return f"ENT-{entity_counter:08d}"
@@ -94,10 +80,8 @@ async def list_entities(
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0)
 ):
-    """List all entities with optional filtering."""
     results = list(entities_db.values())
     
-    # Apply filters
     if entity_type:
         results = [e for e in results if e["type"] == entity_type]
     if severity:
@@ -107,7 +91,6 @@ async def list_entities(
     if tag:
         results = [e for e in results if tag in e.get("tags", [])]
     
-    # Pagination
     total = len(results)
     results = results[offset:offset + limit]
     
@@ -116,23 +99,19 @@ async def list_entities(
 
 @router.get("/stats", response_model=EntityStats)
 async def get_entity_stats():
-    """Get entity statistics."""
     entities = list(entities_db.values())
     
     by_type = {}
     by_severity = {}
     
     for e in entities:
-        # Count by type
         t = e["type"]
         by_type[t] = by_type.get(t, 0) + 1
         
-        # Count by severity
         s = e["severity"]
         by_severity[s] = by_severity.get(s, 0) + 1
     
-    # Count recent (last 24h) - simplified for now
-    recent_24h = len(entities)  # TODO: Implement proper time filtering
+    recent_24h = len(entities)
     
     return EntityStats(
         total=len(entities),
@@ -144,7 +123,6 @@ async def get_entity_stats():
 
 @router.get("/{entity_id}", response_model=Entity)
 async def get_entity(entity_id: str):
-    """Get a specific entity by ID."""
     if entity_id not in entities_db:
         raise HTTPException(status_code=404, detail="Entity not found")
     return Entity(**entities_db[entity_id])
@@ -152,7 +130,6 @@ async def get_entity(entity_id: str):
 
 @router.post("/", response_model=Entity)
 async def create_entity(entity: EntityCreate):
-    """Create a new entity."""
     now = datetime.utcnow()
     entity_id = generate_entity_id()
     
@@ -174,7 +151,6 @@ async def create_entity(entity: EntityCreate):
 
 @router.put("/{entity_id}", response_model=Entity)
 async def update_entity(entity_id: str, entity: EntityUpdate):
-    """Update an existing entity."""
     if entity_id not in entities_db:
         raise HTTPException(status_code=404, detail="Entity not found")
     
@@ -194,7 +170,6 @@ async def update_entity(entity_id: str, entity: EntityUpdate):
 
 @router.delete("/{entity_id}")
 async def delete_entity(entity_id: str):
-    """Delete an entity."""
     if entity_id not in entities_db:
         raise HTTPException(status_code=404, detail="Entity not found")
     
@@ -204,7 +179,6 @@ async def delete_entity(entity_id: str):
 
 @router.post("/bulk", response_model=List[Entity])
 async def bulk_create_entities(entities: List[EntityCreate]):
-    """Create multiple entities at once."""
     created = []
     now = datetime.utcnow()
     

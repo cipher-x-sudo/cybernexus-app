@@ -1,9 +1,3 @@
-"""
-Network Blocking Middleware
-
-Blocks requests based on IP, endpoint patterns, header patterns, and rate limits.
-"""
-
 import re
 from typing import Optional, Dict, Any
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -17,11 +11,8 @@ from app.services.rate_limiter import get_rate_limiter
 
 
 class NetworkBlockerMiddleware(BaseHTTPMiddleware):
-    """Middleware to block requests based on rules."""
-    
     def __init__(self, app):
         super().__init__(app)
-        # Initialize block manager and rate limiter (they work without Redis)
         try:
             self.block_manager = get_block_manager()
             self.rate_limiter = get_rate_limiter()
@@ -31,11 +22,9 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
             self.rate_limiter = None
     
     async def dispatch(self, request: Request, call_next):
-        """Check if request should be blocked."""
         if not settings.NETWORK_ENABLE_BLOCKING:
             return await call_next(request)
         
-        # Skip blocking for health checks
         if request.url.path in ["/health", "/api/health"]:
             return await call_next(request)
         
@@ -43,7 +32,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
         
-        # Check IP blocking
         if await self._is_ip_blocked(client_ip):
             logger.warning(f"Blocked request from IP: {client_ip}")
             return JSONResponse(
@@ -51,7 +39,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                 content={"error": "Access denied", "reason": "IP blocked"}
             )
         
-        # Check endpoint blocking
         if await self._is_endpoint_blocked(path, method):
             logger.warning(f"Blocked request to endpoint: {method} {path} from {client_ip}")
             return JSONResponse(
@@ -59,7 +46,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                 content={"error": "Access denied", "reason": "Endpoint blocked"}
             )
         
-        # Check pattern blocking (headers, user-agent, etc.)
         if await self._is_pattern_blocked(request):
             logger.warning(f"Blocked request matching pattern from {client_ip}")
             return JSONResponse(
@@ -67,7 +53,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                 content={"error": "Access denied", "reason": "Request pattern blocked"}
             )
         
-        # Check rate limits (skip if rate limiter not available)
         if self.rate_limiter:
             try:
                 rate_limit_result = await self.rate_limiter.check_rate_limit(client_ip, path)

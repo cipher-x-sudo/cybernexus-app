@@ -74,21 +74,18 @@ export const useSocket = create<SocketState>((set, get) => ({
       set({ isConnected: false });
     });
 
-    // Listen for threat updates
     newSocket.on("threat:update", (data: ThreatUpdate) => {
       set((state) => ({
         threats: [data, ...state.threats].slice(0, 100),
       }));
     });
 
-    // Listen for notifications
     newSocket.on("notification", (data: NotificationEvent) => {
       set((state) => ({
         notifications: [data, ...state.notifications].slice(0, 50),
       }));
     });
 
-    // Listen for collector status updates
     newSocket.on("collector:status", (data: CollectorStatusUpdate) => {
       set((state) => {
         const newStatuses = new Map(state.collectorStatuses);
@@ -118,11 +115,9 @@ export const useSocket = create<SocketState>((set, get) => ({
   },
 }));
 
-// Hook for using socket with auto-connect
 export function useSocketConnection() {
   const { connect, disconnect, isConnected } = useSocket();
 
-  // Auto-connect on mount
   if (typeof window !== "undefined" && !isConnected) {
     connect();
   }
@@ -130,7 +125,6 @@ export function useSocketConnection() {
   return { isConnected, connect, disconnect };
 }
 
-// Hook for threat updates
 export function useThreatUpdates() {
   const threats = useSocket((state) => state.threats);
   const subscribe = useSocket((state) => state.subscribe);
@@ -142,7 +136,6 @@ export function useThreatUpdates() {
   };
 }
 
-// Hook for notifications
 export function useSocketNotifications() {
   const notifications = useSocket((state) => state.notifications);
   const subscribe = useSocket((state) => state.subscribe);
@@ -154,7 +147,6 @@ export function useSocketNotifications() {
   };
 }
 
-// Hook for collector statuses
 export function useCollectorStatuses() {
   const collectorStatuses = useSocket((state) => state.collectorStatuses);
   const subscribe = useSocket((state) => state.subscribe);
