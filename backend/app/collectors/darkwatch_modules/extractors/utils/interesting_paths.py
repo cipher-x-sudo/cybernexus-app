@@ -1,9 +1,4 @@
-"""
-Interesting Paths Utility
 
-Detects interesting URL paths and common vulnerabilities.
-Adapted from freshonions-torscraper.
-"""
 
 from typing import List, Set
 
@@ -55,26 +50,12 @@ INTERESTING_PATHS = [
 
 
 def get_interesting_paths() -> List[str]:
-    """
-    Get list of interesting paths to check.
     
-    Returns:
-        List of interesting paths
-    """
     return INTERESTING_PATHS.copy()
 
 
 def find_interesting_paths_in_content(content: str, base_url: str) -> Set[str]:
-    """
-    Find interesting paths mentioned in content.
     
-    Args:
-        content: HTML or text content
-        base_url: Base URL to construct full paths
-        
-    Returns:
-        Set of interesting paths found
-    """
     found_paths = set()
     content_lower = content.lower()
     

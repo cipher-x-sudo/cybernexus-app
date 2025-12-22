@@ -1,10 +1,4 @@
-"""Add notifications table
 
-Revision ID: 005_notifications
-Revises: 004_metadata_rename
-Create Date: 2024-01-01 00:05:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

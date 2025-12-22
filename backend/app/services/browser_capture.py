@@ -298,16 +298,7 @@ class BrowserCaptureService:
         urls: List[str],
         options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Dict[str, Any]]:
-        """
-        Capture multiple URLs in parallel.
         
-        Args:
-            urls: List of URLs to capture
-            options: Capture options (same as capture_page)
-        
-        Returns:
-            Dictionary mapping URL to capture result
-        """
         storage = self._get_thread_local_storage()
         if not storage.initialized:
             await self.initialize()

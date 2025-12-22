@@ -89,7 +89,7 @@ class TunnelAnalyzer:
             return None
     
     def get_detector_stats(self) -> Dict[str, Any]:
-        """Get statistics from tunnel detector."""
+        
         try:
             return {
                 "requests_analyzed": self.detector.stats.get("requests_analyzed", 0),
@@ -107,7 +107,7 @@ _tunnel_analyzer: Optional[TunnelAnalyzer] = None
 
 
 def get_tunnel_analyzer() -> TunnelAnalyzer:
-    """Get or create global tunnel analyzer instance."""
+    
     global _tunnel_analyzer
     if _tunnel_analyzer is None:
         _tunnel_analyzer = TunnelAnalyzer()

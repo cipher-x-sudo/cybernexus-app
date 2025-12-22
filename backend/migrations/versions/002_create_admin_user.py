@@ -1,10 +1,4 @@
-"""Create admin user
 
-Revision ID: 002_admin
-Revises: 001_initial
-Create Date: 2024-01-01 00:01:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from passlib.context import CryptContext

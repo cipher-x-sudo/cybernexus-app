@@ -77,12 +77,7 @@ class ThreatRanker:
         return round(score, 2)
     
     def add_threat(self, threat_id: str, threat: Dict[str, Any]):
-        """Add a threat to the ranking system.
         
-        Args:
-            threat_id: Unique threat identifier
-            threat: Threat data dictionary
-        """
         score = self.calculate_score(threat)
         
         self._threats.put(threat_id, threat)
@@ -90,12 +85,7 @@ class ThreatRanker:
         self._threat_heap.push(score, threat_id)
     
     def update_threat(self, threat_id: str, updates: Dict[str, Any]):
-        """Update a threat and recalculate its score.
         
-        Args:
-            threat_id: Threat identifier
-            updates: Fields to update
-        """
         existing = self._threats.get(threat_id)
         if not existing:
             return
@@ -111,14 +101,7 @@ class ThreatRanker:
         self._threat_heap.push(new_score, threat_id)
     
     def get_top_threats(self, n: int = 10) -> List[Dict[str, Any]]:
-        """Get top N highest priority threats.
         
-        Args:
-            n: Number of threats to return
-            
-        Returns:
-            List of threats with scores
-        """
         # Get from heap (creates new heap to preserve original)
         temp_heap = MaxHeap()
         for score, threat_id in self._threat_heap.to_list():
@@ -155,14 +138,7 @@ class ThreatRanker:
         return results
     
     def get_threats_by_severity(self, severity: str) -> List[Dict[str, Any]]:
-        """Get all threats of a specific severity.
         
-        Args:
-            severity: Severity level
-            
-        Returns:
-            List of threats
-        """
         results = []
         
         for threat_id in self._threats.keys():
@@ -179,28 +155,17 @@ class ThreatRanker:
         return results
     
     def get_score(self, threat_id: str) -> Optional[float]:
-        """Get current score for a threat.
         
-        Args:
-            threat_id: Threat identifier
-            
-        Returns:
-            Score or None if not found
-        """
         return self._scores.get(threat_id)
     
     def remove_threat(self, threat_id: str):
-        """Remove a threat from the ranking system.
         
-        Args:
-            threat_id: Threat identifier
-        """
         self._threats.remove(threat_id)
         self._scores.remove(threat_id)
         # Note: Entry remains in heap but will be skipped due to missing data
     
     def stats(self) -> Dict[str, Any]:
-        """Get ranking statistics."""
+        
         severity_counts = {}
         total_score = 0
         

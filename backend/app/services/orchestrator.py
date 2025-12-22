@@ -263,13 +263,7 @@ class Orchestrator:
         logger.info("Orchestrator initialized with real collectors (PostgreSQL storage)")
     
     async def _save_job_to_db(self, job: Job, user_id: Optional[str] = None):
-        """
-        Save or update a job in the database.
         
-        Args:
-            job: Job to save
-            user_id: User ID (extracted from job metadata if not provided)
-        """
         try:
             from app.core.database.database import init_db, _async_session_maker
             from app.core.database.job_storage import DBJobStorage
@@ -945,10 +939,7 @@ class Orchestrator:
         return findings
     
     async def _execute_exposure_discovery(self, job: Job) -> List[Finding]:
-        """Execute comprehensive exposure discovery using enhanced WebRecon collector
         
-        Generates categorized findings with real-time WebSocket streaming support.
-        """
         execution_start = time.time()
         findings = []
         
@@ -1523,7 +1514,7 @@ class Orchestrator:
         return findings
     
     def _severity_to_score(self, severity: str) -> float:
-        """Convert severity string to risk score"""
+        
         scores = {
             "critical": 95.0,
             "high": 75.0,
@@ -1551,7 +1542,7 @@ class Orchestrator:
         return recommendations if recommendations else ["SPF configuration looks good"]
     
     def _generate_email_findings(self, job: Job) -> List[Finding]:
-        """Generate sample email security findings"""
+        
         return [
             Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -1832,7 +1823,7 @@ class Orchestrator:
             
             # Helper function to crawl and analyze a single URL
             def crawl_and_analyze_url(url: str) -> List[Finding]:
-                """Crawl a single URL and return findings (for parallel execution)"""
+                
                 url_findings = []
                 url_start_time = time.time()
                 
@@ -2018,10 +2009,7 @@ class Orchestrator:
         return findings
     
     async def _execute_darkweb_intelligence_stream(self, job: Job) -> List[Finding]:
-        """
-        Execute dark web intelligence collection with WebSocket streaming.
-        Sends findings via WebSocket as they are generated, and returns all findings at the end.
-        """
+        
         findings = []
         from app.config import settings
         from app.utils import check_tor_connectivity
@@ -2037,7 +2025,7 @@ class Orchestrator:
         
         # Helper to send progress update
         async def send_progress(progress: int, message: str = ""):
-            """Send progress update via WebSocket"""
+            
             await self.send_websocket_message(job.id, {
                 "type": "progress",
                 "data": {"progress": progress, "message": message},
@@ -2269,7 +2257,7 @@ class Orchestrator:
             
             # Helper function to crawl and analyze a single URL
             def crawl_and_analyze_url(url: str) -> List[Finding]:
-                """Crawl a single URL and return findings (for parallel execution)"""
+                
                 url_findings = []
                 url_start_time = time.time()
                 
@@ -2465,7 +2453,7 @@ class Orchestrator:
         return mapping.get(threat_level.lower(), "info")
     
     def _generate_exposure_findings(self, job: Job) -> List[Finding]:
-        """Generate sample exposure findings"""
+        
         return [
             Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2498,7 +2486,7 @@ class Orchestrator:
         ]
     
     def _generate_network_findings(self, job: Job) -> List[Finding]:
-        """Generate sample network findings"""
+        
         return [
             Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2515,18 +2503,7 @@ class Orchestrator:
         ]
     
     async def _execute_investigation(self, job: Job) -> List[Finding]:
-        """
-        Execute comprehensive investigation using browser capture and domain tree analysis.
         
-        Features:
-        - Real page capture with Playwright
-        - Screenshot generation
-        - HAR file extraction
-        - Domain tree mapping
-        - Tracker detection
-        - Visual similarity analysis (if enabled)
-        - Dark web cross-referencing (if enabled)
-        """
         findings = []
         job.progress = 10
         
@@ -2760,7 +2737,7 @@ class Orchestrator:
         return findings
     
     def _cross_reference_darkweb(self, target: str) -> List[Finding]:
-        """Cross-reference target with dark web intelligence findings"""
+        
         findings = []
         
         try:
@@ -2906,7 +2883,7 @@ class Orchestrator:
         job.status = new_status
     
     def _add_event(self, event_type: str, data: Dict[str, Any]):
-        """Add event for live feed"""
+        
         event = {
             "type": event_type,
             "data": data,
@@ -2921,7 +2898,7 @@ class Orchestrator:
             self._events = self._events[:self._max_events]
     
     def get_job(self, job_id: str) -> Optional[Job]:
-        """Get a job by ID"""
+        
         # Check in-memory
         job = self._jobs.get(job_id)
         if job:
@@ -2930,7 +2907,7 @@ class Orchestrator:
         return None
     
     def get_darkwatch_instance(self, job_id: str):
-        """Get DarkWatch instance for a job (if available)"""
+        
         from app.collectors.dark_watch import DarkWatch
         instance = self._darkwatch_instances.get(job_id)
         if instance:
@@ -2951,7 +2928,7 @@ class Orchestrator:
         status: Optional[JobStatus] = None,
         limit: int = 50
     ) -> List[Job]:
-        """Get jobs with optional filtering"""
+        
         if capability:
             job_ids = self._jobs_by_capability.get(capability.value) or []
         elif status:
@@ -2983,7 +2960,7 @@ class Orchestrator:
         min_risk_score: float = 0,
         limit: int = 100
     ) -> List[Finding]:
-        """Get findings with optional filtering"""
+        
         results = []
         
         for finding in self._all_findings:
@@ -3006,17 +2983,17 @@ class Orchestrator:
         return results
     
     def get_critical_findings(self, limit: int = 10) -> List[Finding]:
-        """Get critical and high severity findings"""
+        
         critical = [f for f in self._all_findings if f.severity in ["critical", "high"]]
         critical.sort(key=lambda f: f.risk_score, reverse=True)
         return critical[:limit]
     
     def get_findings_for_target(self, target: str) -> List[Finding]:
-        """Get all findings for a target"""
+        
         return [f for f in self._all_findings if f.target == target]
     
     async def quick_scan(self, domain: str) -> Dict[str, Any]:
-        """Perform quick scan of a domain"""
+        
         started_at = datetime.now()
         
         # Run essential capabilities
@@ -3049,11 +3026,11 @@ class Orchestrator:
         }
     
     def get_stats(self) -> Dict[str, Any]:
-        """Get orchestrator statistics"""
+        
         return self._stats
     
     def get_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get recent events for live feed"""
+        
         return self._events[:limit]
 
 
@@ -3062,7 +3039,7 @@ _orchestrator: Optional[Orchestrator] = None
 
 
 def get_orchestrator() -> Orchestrator:
-    """Get the global orchestrator instance"""
+    
     global _orchestrator
     if _orchestrator is None:
         _orchestrator = Orchestrator()

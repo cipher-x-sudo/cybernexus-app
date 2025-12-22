@@ -64,14 +64,7 @@ class BTree:
             yield from self._inorder(node.children[len(node.keys)])
     
     def search(self, key: Any) -> Optional[Any]:
-        """Search for a key.
         
-        Args:
-            key: Key to search for
-            
-        Returns:
-            Value if found, None otherwise
-        """
         return self._search(self._root, key)
     
     def _search(self, node: BTreeNode, key: Any) -> Optional[Any]:

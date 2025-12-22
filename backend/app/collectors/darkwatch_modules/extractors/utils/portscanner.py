@@ -1,9 +1,4 @@
-"""
-Port Scanner Utility
 
-Scans for open ports on onion services.
-Simplified version adapted from freshonions-torscraper.
-"""
 
 import socket
 import logging
@@ -40,30 +35,12 @@ PORTS = {
 
 
 def get_service_name(port: int) -> Optional[str]:
-    """
-    Get service name for a port.
     
-    Args:
-        port: Port number
-        
-    Returns:
-        Service name or None
-    """
     return PORTS.get(port)
 
 
 def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 2.0) -> List[Dict]:
-    """
-    Scan for open ports on a host.
     
-    Args:
-        host: Hostname or IP address
-        ports: List of ports to scan (defaults to common ports)
-        timeout: Connection timeout in seconds
-        
-    Returns:
-        List of dictionaries with port and service info
-    """
     logger = logging.getLogger(__name__)
     
     if ports is None:

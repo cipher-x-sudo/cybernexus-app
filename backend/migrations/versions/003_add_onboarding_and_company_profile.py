@@ -1,10 +1,4 @@
-"""Add onboarding_completed and company_profiles table (if not in initial schema)
 
-Revision ID: 003_onboarding
-Revises: 002_admin
-Create Date: 2024-01-01 00:02:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

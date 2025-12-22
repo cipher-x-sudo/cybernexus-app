@@ -1,11 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-"""
-Tor Connector for Dark Web Crawling
 
-Adapted from VigilantOnion for keyword-focused URL discovery and monitoring.
-"""
 
 import os
 import re
@@ -28,7 +24,7 @@ from .url_database import URLDatabase
 
 
 class TorConnector:
-    """Connector for crawling Tor network sites with keyword monitoring."""
+    
     
     def __init__(
         self,
@@ -43,21 +39,7 @@ class TorConnector:
         db_path: Optional[str] = None,
         db_name: Optional[str] = None
     ):
-        """
-        Initialize Tor Connector.
         
-        Args:
-            urls: List of URLs to crawl
-            proxy_host: Tor proxy host (defaults to settings)
-            proxy_port: Tor proxy port (defaults to settings)
-            proxy_type: Proxy type (defaults to settings)
-            timeout: Request timeout (defaults to settings)
-            count_categories: Max retry count for categories
-            score_categorie: Minimum category score threshold
-            score_keywords: Minimum keyword score threshold
-            db_path: Database path (defaults to settings)
-            db_name: Database name (defaults to settings)
-        """
         # Use settings defaults if not provided
         self.proxy_host = proxy_host or settings.TOR_PROXY_HOST
         self.proxy_port = proxy_port or settings.TOR_PROXY_PORT
@@ -89,23 +71,14 @@ class TorConnector:
     
     @property
     def headers(self):
-        """Get random user agent headers."""
+        
         return {
             'User-Agent': choice(self.desktop_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         }
     
     def check_yara(self, raw: str, yarafile: str) -> List:
-        """
-        Validate YARA rule to categorize sites.
         
-        Args:
-            raw: Text content to check
-            yarafile: Path to YARA rule file
-            
-        Returns:
-            List of YARA matches
-        """
         if not YARA_AVAILABLE:
             logger.debug("[TorConnector] YARA not available, skipping rule check")
             return []
@@ -124,15 +97,7 @@ class TorConnector:
             return []
     
     def text(self, response: bytes) -> str:
-        """
-        Remove HTML tags and extract only text elements.
         
-        Args:
-            response: HTML response content
-            
-        Returns:
-            Cleaned text content
-        """
         soup = BeautifulSoup(response, features="lxml")
         for s in soup(['script', 'style']):
             s.decompose()
@@ -140,15 +105,7 @@ class TorConnector:
         return ' '.join(soup.stripped_strings)
     
     def crawler(self, url: List) -> Dict[str, Any]:
-        """
-        Crawl a single URL.
         
-        Args:
-            url: URL tuple from database (id, type, url, title, baseurl, status, ...)
-            
-        Returns:
-            Dictionary with crawl results
-        """
         if url is None or len(url) < 3:
             logger.warning("[TorConnector] Invalid URL tuple provided to crawler")
             return {}
@@ -303,15 +260,7 @@ class TorConnector:
             return {"status": "error", "error": str(e)}
     
     def more_urls(self, url: str) -> Optional[List[str]]:
-        """
-        Extract more URLs from a page.
         
-        Args:
-            url: Base URL to extract links from
-            
-        Returns:
-            List of discovered URLs
-        """
         self.logger.info(f"Searching for new urls in: {url}")
         try:
             request = self.session.get(
@@ -386,15 +335,7 @@ class TorConnector:
         return []
     
     def crawl_url(self, url_str: str) -> Dict[str, Any]:
-        """
-        Crawl a URL string directly (convenience method).
         
-        Args:
-            url_str: URL string to crawl
-            
-        Returns:
-            Dictionary with crawl results
-        """
         # Check if URL exists in database
         existing = self.database.select_url(url=url_str)
         

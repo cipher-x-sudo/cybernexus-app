@@ -1,10 +1,4 @@
-"""Add timestamp column to notifications table if missing
 
-Revision ID: 006_notifications_timestamp
-Revises: 005_notifications
-Create Date: 2024-01-01 00:06:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect

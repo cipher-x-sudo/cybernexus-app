@@ -18,7 +18,7 @@ from core.dsa.graph import Graph
 
 
 class TunnelType(Enum):
-    """Types of detected tunnels"""
+    
     HTTP_TUNNEL = "http_tunnel"
     DNS_TUNNEL = "dns_tunnel"
     ICMP_TUNNEL = "icmp_tunnel"
@@ -104,7 +104,7 @@ class TunnelDetection:
 
 @dataclass
 class BeaconingPattern:
-    """Detected beaconing behavior"""
+    
     pattern_id: str
     source_ip: str
     destination: str
@@ -130,12 +130,7 @@ class BeaconingPattern:
 
 
 class TunnelDetector:
-    """
-    HTTP Tunnel Detection Collector
     
-    Analyzes HTTP traffic to detect tunneling attempts.
-    Inspired by understanding how Tunna works to better detect such tools.
-    """
     
     # Known tunnel indicators
     TUNNEL_INDICATORS = {
@@ -154,12 +149,7 @@ class TunnelDetector:
     ]
     
     def __init__(self, buffer_size: int = 10000):
-        """
-        Initialize TunnelDetector
         
-        Args:
-            buffer_size: Size of circular buffer for request history
-        """
         # Circular buffer for recent requests (rolling window analysis)
         self.request_buffer = CircularBuffer(buffer_size)
         
@@ -189,16 +179,16 @@ class TunnelDetector:
         }
     
     def _generate_id(self, prefix: str, data: str) -> str:
-        """Generate unique ID"""
+        
         ts = datetime.now().isoformat()
         return f"{prefix}_{hashlib.md5(f'{data}:{ts}'.encode()).hexdigest()[:10]}"
     
     def _get_connection_key(self, src_ip: str, dst_ip: str, dst_port: int) -> str:
-        """Generate connection key"""
+        
         return f"{src_ip}->{dst_ip}:{dst_port}"
     
     def _calculate_entropy(self, data: bytes) -> float:
-        """Calculate Shannon entropy of data"""
+        
         if not data:
             return 0.0
         
@@ -230,11 +220,7 @@ class TunnelDetector:
         response_size: int = 0,
         response_time_ms: float = 0
     ) -> Optional[TunnelDetection]:
-        """
-        Analyze an HTTP request for tunneling indicators
         
-        Returns TunnelDetection if suspicious activity detected
-        """
         request_id = self._generate_id("req", f"{source_ip}:{uri}")
         
         # Calculate body entropy
@@ -321,7 +307,7 @@ class TunnelDetector:
         return None
     
     def _track_connection(self, conn_key: str, request: HTTPRequest):
-        """Track connection state and timing"""
+        
         conn_state = self.connections.get(conn_key)
         
         if not conn_state:
@@ -355,7 +341,7 @@ class TunnelDetector:
             timing.pop(0)
     
     def _check_suspicious_headers(self, headers: Dict[str, str]) -> List[str]:
-        """Check for suspicious HTTP headers"""
+        
         indicators = []
         
         # Check content type
@@ -379,7 +365,7 @@ class TunnelDetector:
         return indicators
     
     def _check_uri_patterns(self, uri: str) -> Tuple[List[str], Optional[TunnelType]]:
-        """Check for suspicious URI patterns"""
+        
         indicators = []
         tunnel_type = None
         
@@ -407,7 +393,7 @@ class TunnelDetector:
         return indicators, tunnel_type
     
     def _check_content_patterns(self, request: HTTPRequest) -> List[str]:
-        """Check for suspicious content patterns"""
+        
         indicators = []
         
         # Large POST with small response (data exfil)
@@ -429,7 +415,7 @@ class TunnelDetector:
         return indicators
     
     def _check_beaconing(self, conn_key: str) -> Optional[BeaconingPattern]:
-        """Check for beaconing behavior"""
+        
         timing = self.timing_data.get(conn_key)
         if not timing or len(timing) < 10:
             return None
@@ -489,7 +475,7 @@ class TunnelDetector:
         indicators: List[str],
         tunnel_type: TunnelType
     ) -> TunnelDetection:
-        """Create a tunnel detection"""
+        
         detection_id = self._generate_id("tunnel", conn_key)
         
         # Calculate risk score
@@ -536,7 +522,7 @@ class TunnelDetector:
         min_confidence: DetectionConfidence = DetectionConfidence.LOW,
         limit: int = 50
     ) -> List[TunnelDetection]:
-        """Get tunnel detections with filtering"""
+        
         results = []
         confidence_order = [
             DetectionConfidence.SUSPICIOUS,
@@ -564,7 +550,7 @@ class TunnelDetector:
         return sorted(results, key=lambda d: d.risk_score, reverse=True)[:limit]
     
     def get_beaconing_patterns(self, min_confidence: float = 0.5) -> List[BeaconingPattern]:
-        """Get detected beaconing patterns"""
+        
         results = []
         
         for pid in self.beacons.keys():
@@ -575,7 +561,7 @@ class TunnelDetector:
         return sorted(results, key=lambda p: p.confidence, reverse=True)
     
     def get_connection_stats(self, conn_key: str) -> Optional[Dict[str, Any]]:
-        """Get statistics for a specific connection"""
+        
         conn = self.connections.get(conn_key)
         if not conn:
             return None
@@ -592,7 +578,7 @@ class TunnelDetector:
         }
     
     def get_top_talkers(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get top connections by request count"""
+        
         connections = []
         
         for key in self.connections.keys():
@@ -608,7 +594,7 @@ class TunnelDetector:
         return sorted(connections, key=lambda c: c["request_count"], reverse=True)[:limit]
     
     def get_recent_activity(self, minutes: int = 60) -> Dict[str, Any]:
-        """Get recent activity summary"""
+        
         cutoff = datetime.now() - timedelta(minutes=minutes)
         
         recent_requests = 0
@@ -637,7 +623,7 @@ class TunnelDetector:
         }
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get collector statistics"""
+        
         return {
             **self.stats,
             "active_connections": len(list(self.connections.keys())),

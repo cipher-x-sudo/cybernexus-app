@@ -1,9 +1,4 @@
-"""
-Bitcoin Address Utility
 
-Extracts and validates Bitcoin addresses from text.
-Adapted from freshonions-torscraper.
-"""
 
 import re
 from typing import List
@@ -18,7 +13,7 @@ __b58base = len(__b58chars)
 
 
 def b58decode(v, length):
-    """Decode base58 string into bytes."""
+    
     long_value = 0
     for (i, c) in enumerate(v[::-1]):
         long_value += __b58chars.find(c) * (__b58base**i)
@@ -46,15 +41,7 @@ def b58decode(v, length):
 
 
 def is_valid_bitcoin(addr: str) -> bool:
-    """
-    Validate Bitcoin address.
     
-    Args:
-        addr: Bitcoin address to validate
-        
-    Returns:
-        True if valid, False otherwise
-    """
     addr = addr.strip()
     if not re.match(REGEX_ALL, addr):
         return False
@@ -74,15 +61,7 @@ def is_valid_bitcoin(addr: str) -> bool:
 
 
 def extract_bitcoin_addresses(text: str) -> List[str]:
-    """
-    Extract Bitcoin addresses from text.
     
-    Args:
-        text: Text to search
-        
-    Returns:
-        List of valid Bitcoin addresses
-    """
     addresses = []
     matches = REGEX.findall(text)
     

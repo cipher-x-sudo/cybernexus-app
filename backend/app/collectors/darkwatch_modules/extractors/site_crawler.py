@@ -1,9 +1,4 @@
-"""
-Site Crawler
 
-Crawls onion sites and extracts content and entities.
-Simplified version adapted from freshonions-torscraper.
-"""
 
 import requests
 import logging
@@ -31,20 +26,7 @@ def crawl_onion_site(
     timeout: Optional[int] = None,
     max_depth: int = 1
 ) -> Dict[str, Any]:
-    """
-    Crawl an onion site and extract information.
     
-    Args:
-        url: Onion URL to crawl (without http://)
-        proxy_host: Tor proxy host (defaults to settings)
-        proxy_port: Tor proxy port (defaults to settings)
-        proxy_type: Proxy type (defaults to settings)
-        timeout: Request timeout (defaults to settings)
-        max_depth: Maximum crawl depth
-        
-    Returns:
-        Dictionary with site information
-    """
     proxy_host = proxy_host or settings.TOR_PROXY_HOST
     proxy_port = proxy_port or settings.TOR_PROXY_PORT
     proxy_type = proxy_type or settings.TOR_PROXY_TYPE
@@ -151,16 +133,7 @@ def crawl_onion_site(
 
 
 def extract_entities(content: str, url: str) -> List[Dict[str, Any]]:
-    """
-    Extract entities from content.
     
-    Args:
-        content: Text or HTML content
-        url: Source URL
-        
-    Returns:
-        List of extracted entities
-    """
     entities = []
     
     # Extract emails

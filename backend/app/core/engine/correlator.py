@@ -61,14 +61,7 @@ class Correlator:
         return correlations
     
     def find_common_connections(self, entity_ids: List[str]) -> List[str]:
-        """Find entities connected to all given entities.
         
-        Args:
-            entity_ids: List of entity IDs
-            
-        Returns:
-            List of common connection entity IDs
-        """
         if not entity_ids:
             return []
         
@@ -86,15 +79,7 @@ class Correlator:
         return list(common - set(entity_ids))
     
     def find_shortest_path(self, source: str, target: str) -> Optional[List[Dict[str, Any]]]:
-        """Find shortest path between two entities.
         
-        Args:
-            source: Source entity ID
-            target: Target entity ID
-            
-        Returns:
-            List of entities and relationships in path
-        """
         result = self.graph.get_path(source, target)
         if not result:
             return None
@@ -122,14 +107,7 @@ class Correlator:
         return path_details
     
     def find_clusters(self, min_size: int = 3) -> List[Dict[str, Any]]:
-        """Find clusters of related entities.
         
-        Args:
-            min_size: Minimum cluster size
-            
-        Returns:
-            List of clusters with metadata
-        """
         components = self.graph.connected_components()
         
         clusters = []
@@ -152,16 +130,7 @@ class Correlator:
         return clusters
     
     def identify_attack_patterns(self) -> List[Dict[str, Any]]:
-        """Identify potential attack patterns in the graph.
         
-        Looks for patterns like:
-        - Actor -> Malware -> Target chains
-        - Multiple entities from same source
-        - Highly connected nodes (potential C2)
-        
-        Returns:
-            List of identified patterns
-        """
         patterns = []
         
         # Find high-degree nodes (potential C2 or key infrastructure)
@@ -201,14 +170,7 @@ class Correlator:
         return patterns
     
     def calculate_risk_score(self, entity_id: str) -> float:
-        """Calculate risk score for an entity based on its connections.
         
-        Args:
-            entity_id: Entity to score
-            
-        Returns:
-            Risk score (0-100)
-        """
         if entity_id not in self.graph:
             return 0.0
         

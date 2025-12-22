@@ -1,10 +1,4 @@
-"""Add multiple capabilities support to scheduled searches
 
-Revision ID: 010_multiple_capabilities
-Revises: 009_scheduled_searches
-Create Date: 2024-01-21 00:00:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

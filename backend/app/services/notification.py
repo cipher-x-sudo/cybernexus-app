@@ -120,22 +120,7 @@ class NotificationService:
         severity: str,
         metadata: Optional[Dict[str, Any]] = None
     ) -> NotificationModel:
-        """
-        Create a notification in the database.
         
-        Args:
-            db: Database session
-            user_id: User ID to send notification to
-            channel: Notification channel (threats, findings, scans, system, etc.)
-            priority: Notification priority level
-            title: Notification title
-            message: Notification message
-            severity: Severity level (critical, high, medium, low, info)
-            metadata: Optional metadata dictionary
-            
-        Returns:
-            Created Notification model instance
-        """
         notification = NotificationModel(
             user_id=user_id,
             channel=channel,

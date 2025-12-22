@@ -1,10 +1,4 @@
-"""Add automation_config to company_profiles
 
-Revision ID: 011_automation_config
-Revises: 010_multiple_capabilities
-Create Date: 2024-01-22 00:00:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

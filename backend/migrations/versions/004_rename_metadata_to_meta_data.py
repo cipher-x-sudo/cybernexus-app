@@ -1,10 +1,4 @@
-"""Rename metadata to meta_data (reserved in SQLAlchemy)
 
-Revision ID: 004_metadata_rename
-Revises: 003_onboarding
-Create Date: 2024-01-01 00:03:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
@@ -18,7 +12,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Rename metadata columns to meta_data to avoid SQLAlchemy reserved name conflict."""
+    
     conn = op.get_bind()
     inspector = inspect(conn)
     
@@ -42,7 +36,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Rename meta_data columns back to metadata."""
+    
     conn = op.get_bind()
     inspector = inspect(conn)
     

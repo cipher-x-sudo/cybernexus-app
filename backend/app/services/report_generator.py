@@ -1,8 +1,4 @@
-"""
-Report Generator Service
 
-Generate professional PDF and HTML reports.
-"""
 
 import os
 from typing import Any, Dict, List, Optional
@@ -64,14 +60,7 @@ class ReportGenerator:
         return pdf_bytes.getvalue()
     
     def _render_executive_summary(self, data: Dict[str, Any]) -> str:
-        """Render executive summary HTML.
         
-        Args:
-            data: Report data
-            
-        Returns:
-            HTML content
-        """
         # Default template with dark cyberpunk theme matching website
         return f"""
 <!DOCTYPE html>
@@ -352,14 +341,7 @@ class ReportGenerator:
         """
     
     def generate_threat_report(self, threats: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate detailed threat report.
         
-        Args:
-            threats: List of threats
-            
-        Returns:
-            Report metadata
-        """
         report_id = f"THR-RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
         # Aggregate data
@@ -374,14 +356,7 @@ class ReportGenerator:
         return self.generate_executive_summary(data)
     
     def _generate_recommendations(self, threats: List[Dict[str, Any]]) -> List[str]:
-        """Generate recommendations based on threats.
         
-        Args:
-            threats: List of threats
-            
-        Returns:
-            List of recommendations
-        """
         recommendations = []
         
         # Check for critical threats
@@ -405,11 +380,7 @@ class ReportGenerator:
         return recommendations
     
     def list_reports(self) -> List[Dict[str, Any]]:
-        """List all generated reports.
         
-        Returns:
-            List of report metadata
-        """
         reports = []
         
         # List both HTML and PDF reports

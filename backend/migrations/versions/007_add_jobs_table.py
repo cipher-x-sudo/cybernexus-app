@@ -1,10 +1,4 @@
-"""Add jobs table
 
-Revision ID: 007_jobs
-Revises: 006_notifications_timestamp
-Create Date: 2024-01-01 00:06:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

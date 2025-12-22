@@ -43,15 +43,15 @@ class AVLTree:
         return self.search(key) is not None
     
     def __iter__(self) -> Generator[Tuple[Any, Any], None, None]:
-        """Iterate over tree in-order (sorted order)."""
+        
         yield from self.inorder()
     
     def _height(self, node: Optional[AVLNode]) -> int:
-        """Get height of a node."""
+        
         return node.height if node else 0
     
     def _balance_factor(self, node: Optional[AVLNode]) -> int:
-        """Get balance factor of a node."""
+        
         if not node:
             return 0
         return self._height(node.left) - self._height(node.right)

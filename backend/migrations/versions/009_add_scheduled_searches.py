@@ -1,10 +1,4 @@
-"""Add scheduled searches table
 
-Revision ID: 009_scheduled_searches
-Revises: 008_positive_points
-Create Date: 2024-01-20 00:00:00.000000
-
-"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

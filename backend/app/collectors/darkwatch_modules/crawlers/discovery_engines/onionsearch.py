@@ -1,12 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-"""
-OnionSearch Library
 
-Refactored from OnionSearch project to work as a library.
-Supports ahmia and tor66 search engines.
-"""
 
 import logging
 import math
@@ -41,20 +36,20 @@ desktop_agents = [
 
 
 def random_headers():
-    """Generate random headers for requests"""
+    
     return {'User-Agent': choice(desktop_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'}
 
 
 def clear(text: str) -> str:
-    """Clean and normalize text"""
+    
     cleaned = text.replace("\n", " ")
     cleaned = ' '.join(cleaned.split())
     return cleaned
 
 
 def get_parameter(url: str, parameter_name: str, default=None):
-    """Extract a parameter from URL query string, return default if not found"""
+    
     try:
         parsed = urlparse.urlparse(url)
         params = parse_qs(parsed.query)
@@ -75,24 +70,7 @@ def safe_request(
     headers: Optional[Dict[str, str]] = None,
     debug: bool = False
 ):
-    """
-    Make a request with timeout, retry logic, and better error handling
     
-    Args:
-        method: HTTP method (GET or POST)
-        url: URL to request
-        proxies: Proxy configuration dict
-        timeout: Request timeout in seconds (None = no timeout)
-        max_retries: Maximum number of retries
-        headers: Request headers (defaults to random headers)
-        debug: Enable debug logging
-        
-    Returns:
-        Response object
-        
-    Raises:
-        requests.exceptions.RequestException on failure
-    """
     if headers is None:
         headers = random_headers()
     
@@ -186,17 +164,7 @@ def safe_request(
 
 
 def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str, str]]:
-    """
-    Extract links from search engine results
     
-    Args:
-        engine_str: Engine name (ahmia, tor66)
-        data_obj: BeautifulSoup object or dict with results
-        debug: Enable debug logging
-        
-    Returns:
-        List of dicts with 'link' and 'name' keys
-    """
     found_links = []
     name = ""
     link = ""
@@ -332,19 +300,7 @@ def ahmia(
     max_retries: int = 2,
     debug: bool = False
 ) -> List[Dict[str, str]]:
-    """
-    Search using Ahmia engine
     
-    Args:
-        searchstr: Search query string
-        proxies: Proxy configuration dict
-        timeout: Request timeout (None = no timeout)
-        max_retries: Maximum retries
-        debug: Enable debug logging
-        
-    Returns:
-        List of result dicts with 'link', 'name', 'engine' keys
-    """
     engine_start = time.time()
     loguru_logger.info(f"[OnionSearch] [Ahmia] Starting search for: {searchstr}")
     results = []
@@ -439,20 +395,7 @@ def tor66(
     max_pages: int = 30,
     debug: bool = False
 ) -> List[Dict[str, str]]:
-    """
-    Search using Tor66 engine
     
-    Args:
-        searchstr: Search query string
-        proxies: Proxy configuration dict
-        timeout: Request timeout (None = no timeout)
-        max_retries: Maximum retries
-        max_pages: Maximum pages to fetch
-        debug: Enable debug logging
-        
-    Returns:
-        List of result dicts with 'link', 'name', 'engine' keys
-    """
     engine_start = time.time()
     loguru_logger.info(f"[OnionSearch] [Tor66] Starting search for: {searchstr} (max_pages={max_pages})")
     results = []
@@ -563,21 +506,7 @@ def search_all_engines(
     max_pages: int = 5,
     debug: bool = False
 ) -> List[str]:
-    """
-    Search all specified engines and return unique URLs
     
-    Args:
-        searchstr: Search query string
-        proxies: Proxy configuration dict
-        engines: List of engine names to use (default: ['ahmia', 'tor66'])
-        timeout: Request timeout (None = no timeout, minimum 300s enforced)
-        max_retries: Maximum retries
-        max_pages: Maximum pages per engine
-        debug: Enable debug logging
-        
-    Returns:
-        List of unique .onion URLs
-    """
     search_start = time.time()
     if engines is None:
         engines = ['ahmia', 'tor66']
@@ -753,7 +682,7 @@ def search_all_engines(
 
 
 class DarkWebEngine:
-    """Engine for discovering URLs from OnionSearch engines."""
+    
     
     def __init__(
         self,
@@ -761,14 +690,7 @@ class DarkWebEngine:
         proxy_port: Optional[int] = None,
         proxy_type: Optional[str] = None
     ):
-        """
-        Initialize DarkWeb engine.
         
-        Args:
-            proxy_host: Tor proxy host (defaults to settings)
-            proxy_port: Tor proxy port (defaults to settings)
-            proxy_type: Proxy type (defaults to settings)
-        """
         self.proxy_host = proxy_host or settings.TOR_PROXY_HOST
         self.proxy_port = proxy_port or settings.TOR_PROXY_PORT
         self.proxy_type = proxy_type or settings.TOR_PROXY_TYPE
@@ -797,18 +719,7 @@ class DarkWebEngine:
         )
     
     def discover_urls(self, keywords: Optional[List[str]] = None) -> List[str]:
-        """
-        Discover .onion URLs using OnionSearch engines.
         
-        Args:
-            keywords: List of search keywords (REQUIRED - no default fallback)
-        
-        Returns:
-            List of discovered .onion URLs
-        
-        Raises:
-            ValueError: If no keywords are provided
-        """
         discovery_start = time.time()
         
         # Require keywords - no fallback terms

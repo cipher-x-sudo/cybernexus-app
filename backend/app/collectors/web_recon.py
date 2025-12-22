@@ -119,15 +119,7 @@ class WebRecon:
         domain: str, 
         progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Dict[str, Any]:
-        """Discover assets for a domain with comprehensive scanning.
         
-        Args:
-            domain: Target domain
-            progress_callback: Optional callback for progress updates (progress, message)
-            
-        Returns:
-            Discovery results with categorized findings
-        """
         import time
         discovery_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting comprehensive asset discovery")
@@ -431,7 +423,7 @@ class WebRecon:
         subdomain: str, 
         is_https: bool
     ) -> Optional[Dict[str, Any]]:
-        """Check if a subdomain is accessible."""
+        
         import time
         request_start = time.time()
         protocol = "HTTPS" if is_https else "HTTP"
@@ -483,7 +475,7 @@ class WebRecon:
             return None
     
     def _extract_title(self, html: str) -> str:
-        """Extract page title from HTML."""
+        
         try:
             match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
             if match:
@@ -493,14 +485,7 @@ class WebRecon:
         return ""
     
     async def _check_endpoints(self, domain: str) -> List[Dict[str, Any]]:
-        """Check common endpoints.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of discovered endpoints
-        """
         import time
         endpoint_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting endpoint scanning")
@@ -585,17 +570,7 @@ class WebRecon:
         path: str,
         follow_redirects: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Check a single endpoint.
         
-        Args:
-            client: HTTP client (will be ignored if follow_redirects=True)
-            url: URL to check
-            path: Endpoint path
-            follow_redirects: If True, follow redirects and return final status code
-            
-        Returns:
-            Endpoint information dict or None
-        """
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
@@ -615,7 +590,7 @@ class WebRecon:
         request_start: float,
         protocol: str
     ) -> Optional[Dict[str, Any]]:
-        """Internal method to check endpoint with a given client."""
+        
         import time
         try:
             response = await client.get(url, timeout=5.0)
@@ -661,14 +636,7 @@ class WebRecon:
         return None
     
     async def _detect_sensitive_files(self, domain: str) -> List[Dict[str, Any]]:
-        """Detect exposed sensitive files.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of detected sensitive files
-        """
         import time
         file_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting sensitive file detection")
@@ -744,7 +712,7 @@ class WebRecon:
         url: str, 
         file_path: str
     ) -> Optional[Dict[str, Any]]:
-        """Check if a sensitive file is accessible."""
+        
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
@@ -786,14 +754,7 @@ class WebRecon:
         return None
     
     async def _detect_source_code_exposure(self, domain: str) -> List[Dict[str, Any]]:
-        """Detect exposed source code repositories.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of source code exposures
-        """
         import time
         exposure_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting source code exposure detection")
@@ -869,14 +830,7 @@ class WebRecon:
         return exposures
     
     async def _discover_admin_panels(self, domain: str) -> List[Dict[str, Any]]:
-        """Discover admin panels and login pages.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of discovered admin panels
-        """
         import time
         admin_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting admin panel discovery")
@@ -956,18 +910,7 @@ class WebRecon:
         panel_name: str,
         follow_redirects: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Check if an admin panel is accessible.
         
-        Args:
-            client: HTTP client (will be ignored if follow_redirects=True)
-            url: URL to check
-            path: Admin panel path
-            panel_name: Name of the admin panel
-            follow_redirects: If True, follow redirects and return final status code
-            
-        Returns:
-            Admin panel information dict or None
-        """
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
@@ -988,7 +931,7 @@ class WebRecon:
         request_start: float,
         protocol: str
     ) -> Optional[Dict[str, Any]]:
-        """Internal method to check admin panel with a given client."""
+        
         import time
         try:
             response = await client.get(url, timeout=5.0)
@@ -1048,14 +991,7 @@ class WebRecon:
         return None
     
     async def _detect_config_files(self, domain: str) -> List[Dict[str, Any]]:
-        """Detect exposed configuration files.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of detected configuration files
-        """
         import time
         config_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting configuration file detection")
@@ -1112,7 +1048,7 @@ class WebRecon:
         url: str, 
         config_path: str
     ) -> Optional[Dict[str, Any]]:
-        """Check if a configuration file is accessible."""
+        
         import time
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
@@ -1162,18 +1098,11 @@ class WebRecon:
         return None
     
     def get_cached_results(self, domain: str) -> Optional[Dict[str, Any]]:
-        """Get cached results for a domain.
         
-        Args:
-            domain: Target domain
-            
-        Returns:
-            Cached results or None
-        """
         return self._asset_cache.get(domain)
     
     def stats(self) -> Dict[str, Any]:
-        """Get collector statistics."""
+        
         return {
             "dork_patterns": len(self.DORK_PATTERNS),
             "cached_domains": len(self._asset_cache),

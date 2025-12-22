@@ -1,9 +1,4 @@
-"""
-Language Detection Utility
 
-Detects language of text content.
-Simplified version - can be enhanced with langdetect library.
-"""
 
 import re
 from typing import Optional
@@ -22,19 +17,7 @@ LANGUAGE_PATTERNS = {
 
 
 def detect_language(text: str) -> str:
-    """
-    Detect language of text (simplified).
     
-    Args:
-        text: Text to analyze
-        
-    Returns:
-        Language code (defaults to 'en')
-    
-    Note:
-        This is a simplified implementation. For better accuracy,
-        consider using the 'langdetect' library.
-    """
     if not text or len(text) < 10:
         return 'unknown'
     
