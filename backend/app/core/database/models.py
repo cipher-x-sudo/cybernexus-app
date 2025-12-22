@@ -137,9 +137,9 @@ class GraphEdge(Base):
     relation = Column(String(50), nullable=False, index=True)
     weight = Column(Float, default=1.0, nullable=False)
     meta_data = Column(JSONB, default=dict, nullable=True)
-        created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-        
-        user = relationship("User", back_populates="graph_edges", foreign_keys=[user_id])
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    user = relationship("User", back_populates="graph_edges", foreign_keys=[user_id])
     source_node = relationship("GraphNode", foreign_keys=[source_id], back_populates="source_edges")
     target_node = relationship("GraphNode", foreign_keys=[target_id], back_populates="target_edges")
     
