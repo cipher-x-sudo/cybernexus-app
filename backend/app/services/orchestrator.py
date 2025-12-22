@@ -300,7 +300,7 @@ class Orchestrator:
     async def register_websocket(self, job_id: str, websocket: WebSocket):
         async with self._websocket_lock:
             self._websocket_connections[job_id] = websocket
-                logger.info(f"Registered WebSocket connection for job {job_id}")
+            logger.info(f"Registered WebSocket connection for job {job_id}")
     
     async def unregister_websocket(self, job_id: str):
         async with self._websocket_lock:
@@ -837,7 +837,6 @@ class Orchestrator:
                     risk_score=20.0
                 ))
         
-        # MTA-STS findings
         if "mta_sts" in results:
             mta_sts = results.get("mta_sts", {})
             if not mta_sts.get("exists"):
@@ -883,7 +882,6 @@ class Orchestrator:
                     risk_score=self._severity_to_score(issue.get("severity", "medium"))
                 ))
         
-        # Add risk assessment as a finding
         risk = results.get("risk_assessment", {})
         if risk.get("spoofing_risk") in ["critical", "high"]:
             findings.append(Finding(
@@ -1189,7 +1187,6 @@ class Orchestrator:
             f"(from {endpoint_count} discovered)"
         )
         
-        # Process sensitive files
         files = results.get("files", [])
         file_count = len(files)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {file_count} sensitive files")
@@ -1198,7 +1195,6 @@ class Orchestrator:
             path = file_info.get("path", "")
             url = file_info.get("url", "")
             
-            # Determine severity based on file type
             severity = "high"
             risk_score = 80.0
             if ".env" in path or "config" in path.lower():
@@ -1244,7 +1240,6 @@ class Orchestrator:
             f"(from {file_count} discovered)"
         )
         
-        # Process source code exposures
         source_code = results.get("source_code", [])
         source_count = len(source_code)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {source_count} source code exposures")
@@ -1271,7 +1266,6 @@ class Orchestrator:
                 source="source_code_detection"
             )
         
-        # Process admin panels
         admin_panels = results.get("admin_panels", [])
         admin_count = len(admin_panels)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {admin_count} admin panels")
@@ -1282,7 +1276,6 @@ class Orchestrator:
             path = panel.get("path", "")
             panel_name = panel.get("name", "")
             
-            # Skip any admin panel that redirects to 404 (not actually accessible)
             if status == 404:
                 logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping admin panel {panel_name} at {path}: "
@@ -1329,7 +1322,6 @@ class Orchestrator:
             f"(from {admin_count} discovered)"
         )
         
-        # Process configuration files
         configs = results.get("configs", [])
         config_count = len(configs)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {config_count} configuration files")
@@ -1356,19 +1348,17 @@ class Orchestrator:
                 source="config_detection"
             )
         
-        # Report dork queries generated
         dorks_count = results.get("dorks_generated", 0)
         if dorks_count > 0:
-            # Get all dorks, not just a sample
             all_dorks = self._web_recon.generate_dorks(job.target)
             await create_and_stream_finding(
-                category="endpoint",  # Dorks are informational
+                category="endpoint",
                 severity="info",
                 title=f"Generated {dorks_count} Search Dorks",
                 description="Search engine dork queries have been generated for manual investigation",
                 evidence={
                     "dork_count": dorks_count,
-                    "sample_dorks": all_dorks  # Send all dorks, not just first 10
+                    "sample_dorks": all_dorks
                 },
                 affected_assets=[job.target],
                 recommendations=["Use these dorks in Google to find exposed information", "Review and remove any sensitive findings"],
@@ -1402,7 +1392,6 @@ class Orchestrator:
         job.progress = 20
         logger.info(f"Running infrastructure audit for {job.target}")
         
-        # Extract config options from job.config
         config = job.config or {}
         audit_config = {
             "crlf": config.get("crlf", True),
@@ -1418,15 +1407,12 @@ class Orchestrator:
             "paths": config.get("paths", [])
         }
         
-        # Run real config audit with config options
         results = await self._config_audit.audit(job.target, config=audit_config)
         
         job.progress = 80
         
-        # Convert header analysis to findings
         headers = results.get("headers_analysis", {})
         
-        # Missing headers
         for missing in headers.get("missing", []):
             header_name = missing.get("header", "Unknown")
             severity = missing.get("severity", "medium")
@@ -1465,10 +1451,8 @@ class Orchestrator:
                 risk_score=10.0
             ))
         
-        # Convert vulnerability findings
         vuln_findings = results.get("findings", [])
         for vuln in vuln_findings:
-            # Extract recommendations from finding if available
             vuln_recommendations = vuln.get("recommendations", [])
             if not vuln_recommendations:
                 vuln_recommendations = ["Patch the identified vulnerability", "Review server configuration"]
