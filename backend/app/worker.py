@@ -1,10 +1,3 @@
-"""
-CyberNexus Worker
-
-Background worker for processing capability jobs.
-Executes tool wrappers and stores results in PostgreSQL.
-"""
-
 import asyncio
 import os
 import sys
@@ -12,7 +5,6 @@ from typing import Dict, List, Any
 from datetime import datetime
 from loguru import logger
 
-# Import services
 from app.services.orchestrator import get_orchestrator, Capability
 from app.collectors import (
     WebRecon,
@@ -27,15 +19,8 @@ from app.config import settings
 
 
 class ToolExecutors:
-    """
-    Tool executor wrappers that connect capabilities to underlying tool implementations.
-    
-    Each executor takes a target and config, runs the appropriate tool(s),
-    and returns findings in a standardized format.
-    """
     
     def __init__(self):
-        """Initialize tool instances"""
         self.dark_watch = DarkWatch()
         self.keyword_monitor = KeywordMonitor()
         self.email_audit = EmailAudit()
@@ -51,10 +36,6 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute dark web monitoring.
-        Powered by: freshonions-torscraper
-        """
         from app.config import settings
         
         findings = []
@@ -62,30 +43,25 @@ class ToolExecutors:
         crawled_urls = []
         
         try:
-            # Add keywords to monitor
             keywords = target.split(",")
             for keyword in keywords:
                 keyword = keyword.strip()
                 if keyword:
                     self.dark_watch.add_monitored_keyword(keyword)
             
-            # Discover URLs using discovery engines
             logger.info(f"[DarkWatch] Starting URL discovery for keywords: {keywords}")
             discovered_urls = self.dark_watch._discover_urls_with_engines()
             logger.info(f"[DarkWatch] Discovered {len(discovered_urls)} URLs")
             
-            # Apply crawl limit (default 5)
             crawl_limit = config.get("crawl_limit", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
             urls_to_crawl = discovered_urls[:crawl_limit]
             logger.info(f"[DarkWatch] Crawling first {len(urls_to_crawl)} URLs (limit: {crawl_limit})")
             
-            # Crawl limited number of sites
             for url in urls_to_crawl:
                 try:
                     site = self.dark_watch.crawl_site(url, depth=1)
                     crawled_urls.append(url)
                     
-                    # Convert to findings
                     for mention in self.dark_watch.get_brand_mentions():
                         findings.append({
                             "severity": mention.threat_level.value,
@@ -120,19 +96,11 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute keyword monitoring with YaraRule matching.
-        Powered by: VigilantOnion
-        """
         findings = []
         
         try:
-            # Keywords from target
             keywords = [k.strip() for k in target.split(",") if k.strip()]
-            
-            # Run monitoring (simulated - actual would use VigilantOnion)
             for keyword in keywords:
-                # Simulate finding
                 findings.append({
                     "severity": "medium",
                     "title": f"Keyword monitored: {keyword}",
@@ -160,17 +128,10 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute email security assessment.
-        Powered by: espoofer
-        """
         findings = []
         
         try:
-            # Run the email audit
             results = await self.email_audit.audit(target)
-            
-            # Convert SPF issues
             for issue in results.get("spf", {}).get("issues", []):
                 findings.append({
                     "severity": issue.get("severity", "medium"),
@@ -188,7 +149,6 @@ class ToolExecutors:
                     "risk_score": 80.0 if issue.get("severity") == "critical" else 60.0
                 })
             
-            # Convert DKIM issues
             for issue in results.get("dkim", {}).get("issues", []):
                 findings.append({
                     "severity": issue.get("severity", "medium"),
@@ -206,7 +166,6 @@ class ToolExecutors:
                     "risk_score": 70.0
                 })
             
-            # Convert DMARC issues
             for issue in results.get("dmarc", {}).get("issues", []):
                 findings.append({
                     "severity": issue.get("severity", "medium"),
@@ -236,17 +195,10 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute exposure discovery.
-        Powered by: oxdork
-        """
         findings = []
         
         try:
-            # Run web recon (uses dork queries)
             results = await self.web_recon.scan(target, config)
-            
-            # Convert results to findings
             for result in results.get("findings", []):
                 findings.append({
                     "severity": result.get("severity", "medium"),
@@ -273,17 +225,10 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute domain tree capture.
-        Powered by: lookyloo
-        """
         findings = []
         
         try:
-            # Capture domain tree
             results = await self.domain_tree.capture(target, config)
-            
-            # Analyze captured resources
             findings.append({
                 "severity": "info",
                 "title": f"Domain tree captured for {target}",
@@ -311,14 +256,9 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute infrastructure testing.
-        Powered by: nginxpwner
-        """
         findings = []
         
         try:
-            # Run config audit
             results = await self.config_audit.scan(target, config)
             
             for vuln in results.get("vulnerabilities", []):
@@ -344,14 +284,9 @@ class ToolExecutors:
         target: str, 
         config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute network security detection.
-        Powered by: Tunna
-        """
         findings = []
         
         try:
-            # Run tunnel detection
             results = await self.tunnel_detector.detect(target, config)
             
             for detection in results.get("detections", []):
@@ -376,11 +311,9 @@ class ToolExecutors:
 
 
 async def register_executors():
-    """Register all tool executors with the orchestrator"""
     orchestrator = get_orchestrator()
     executors = ToolExecutors()
     
-    # Register executors for each tool
     orchestrator.register_tool_executor("dark_watch", executors.execute_dark_watch)
     orchestrator.register_tool_executor("keyword_monitor", executors.execute_keyword_monitor)
     orchestrator.register_tool_executor("email_audit", executors.execute_email_audit)
@@ -393,14 +326,12 @@ async def register_executors():
 
 
 async def process_jobs():
-    """Main job processing loop"""
     logger.info("Starting job processor...")
     
     orchestrator = get_orchestrator()
     
     while True:
         try:
-            # Check for pending jobs
             pending_jobs = orchestrator.get_jobs(status=None, limit=10)
             pending = [j for j in pending_jobs if j.status.value == "pending"]
             
@@ -408,7 +339,6 @@ async def process_jobs():
                 logger.info(f"Processing job: {job.id} ({job.capability.value})")
                 await orchestrator.execute_job(job.id)
                 
-            # Sleep before next check
             await asyncio.sleep(1)
             
         except Exception as e:
@@ -417,13 +347,10 @@ async def process_jobs():
 
 
 async def main():
-    """Worker entry point"""
     logger.info("CyberNexus Worker starting...")
     
-    # Register tool executors
     await register_executors()
     
-    # Start processing
     await process_jobs()
 
 

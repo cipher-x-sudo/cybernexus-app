@@ -1,27 +1,3 @@
-"""
-TrainingKB Collector - Social Engineering Training Knowledge Base
-
-Inspired by: awesome-social-engineering (https://github.com/v2-dev/awesome-social-engineering)
-
-Provides a knowledge base for security awareness training,
-including social engineering tactics, phishing templates for
-training, and assessment scenarios.
-
-Features:
-- Social engineering tactic database
-- Training scenario generation
-- Phishing simulation templates
-- Risk assessment questionnaires
-- Progress tracking for trainees
-- Lab environment scenarios
-
-DSA Usage:
-- Graph: Topic relationship mapping
-- Tree: Hierarchical content organization
-- HashMap: Content storage and retrieval
-- Trie: Search functionality
-"""
-
 from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,7 +16,6 @@ from core.dsa.avl_tree import AVLTree
 
 
 class DifficultyLevel(Enum):
-    """Difficulty levels for training content"""
     BEGINNER = 1
     INTERMEDIATE = 2
     ADVANCED = 3
@@ -48,7 +23,6 @@ class DifficultyLevel(Enum):
 
 
 class ContentType(Enum):
-    """Types of training content"""
     ARTICLE = "article"
     VIDEO = "video"
     QUIZ = "quiz"

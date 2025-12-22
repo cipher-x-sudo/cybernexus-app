@@ -1,9 +1,3 @@
-"""
-Database Models
-
-SQLAlchemy models for all database tables.
-"""
-
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
@@ -19,7 +13,6 @@ Base = declarative_base()
 
 
 class User(Base):
-    """User model for authentication and authorization."""
     __tablename__ = "users"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -51,7 +44,6 @@ class User(Base):
 
 
 class CompanyProfile(Base):
-    """Company profile model - user-scoped."""
     __tablename__ = "company_profiles"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -83,7 +75,6 @@ class CompanyProfile(Base):
 
 
 class Entity(Base):
-    """Entity model for threat intelligence entities."""
     __tablename__ = "entities"
     
     id = Column(String(255), primary_key=True)
@@ -104,7 +95,6 @@ class Entity(Base):
 
 
 class GraphNode(Base):
-    """Graph node model for relationship visualization."""
     __tablename__ = "graph_nodes"
     
     id = Column(String(255), primary_key=True)
@@ -127,7 +117,6 @@ class GraphNode(Base):
 
 
 class GraphEdge(Base):
-    """Graph edge model for entity relationships."""
     __tablename__ = "graph_edges"
     
     id = Column(String(255), primary_key=True)
@@ -151,7 +140,6 @@ class GraphEdge(Base):
 
 
 class UserActivityLog(Base):
-    """User activity log model for audit trail."""
     __tablename__ = "user_activity_logs"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -173,7 +161,6 @@ class UserActivityLog(Base):
 
 
 class NetworkLog(Base):
-    """Network log model for request/response tracking."""
     __tablename__ = "network_logs"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -202,7 +189,6 @@ class NetworkLog(Base):
 
 
 class Finding(Base):
-    """Finding model for security findings and threats."""
     __tablename__ = "findings"
     
     id = Column(String(255), primary_key=True)
@@ -234,7 +220,6 @@ class Finding(Base):
 
 
 class PositiveIndicator(Base):
-    """Positive security indicator model for tracking good practices and improvements."""
     __tablename__ = "positive_indicators"
     
     id = Column(String(255), primary_key=True)
@@ -255,7 +240,6 @@ class PositiveIndicator(Base):
 
 
 class Notification(Base):
-    """Notification model for user alerts and messages."""
     __tablename__ = "notifications"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -264,7 +248,7 @@ class Notification(Base):
     priority = Column(String(20), nullable=False, index=True)
     title = Column(String(500), nullable=False)
     message = Column(Text, nullable=False)
-    severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
+    severity = Column(String(20), nullable=False)
     read = Column(Boolean, default=False, nullable=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
     meta_data = Column(JSONB, default=dict, nullable=True)
@@ -281,7 +265,6 @@ class Notification(Base):
 
 
 class Job(Base):
-    """Job model for capability execution jobs."""
     __tablename__ = "jobs"
     
     id = Column(String(255), primary_key=True)
@@ -310,7 +293,6 @@ class Job(Base):
 
 
 class ScheduledSearch(Base):
-    """Scheduled search model for automated recurring searches."""
     __tablename__ = "scheduled_searches"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

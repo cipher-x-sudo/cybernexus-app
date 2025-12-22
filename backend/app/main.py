@@ -147,19 +147,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="""
-    ## CyberNexus - Enterprise Threat Intelligence Platform
-    
-    A unified security intelligence platform that:
-    - **Discovers** external attack surface through automated reconnaissance
-    - **Monitors** dark web for leaked credentials and brand abuse
-    - **Correlates** threats using graph-based relationship engine
-    - **Visualizes** attack paths through 3D graphs and geographic maps
-    - **Prioritizes** threats with intelligent severity scoring
-    - **Reports** findings through professional documentation
-    
-    Built with custom Data Structure and Algorithm (DSA) implementations.
-    """,
+    description="",
     version=settings.APP_VERSION,
     lifespan=lifespan,
     docs_url="/docs",

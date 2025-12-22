@@ -1,10 +1,3 @@
-"""
-Configuration Audit Collector
-
-Inspired by: nginxpwner
-Purpose: Scan for misconfigurations in web servers and services.
-"""
-
 import asyncio
 import re
 from typing import Any, Dict, List, Optional
@@ -18,27 +11,7 @@ from app.core.dsa import HashMap, MaxHeap
 
 
 class ConfigAudit:
-    """
-    Configuration Audit Collector - Full nginxpwner implementation.
     
-    Features:
-    - Nginx version detection and CVE lookup
-    - Comprehensive CRLF injection testing
-    - Path traversal detection (merge_slashes, alias)
-    - PURGE method testing
-    - Variable leakage detection
-    - Hop-by-hop headers testing
-    - X-Accel-Redirect bypass testing
-    - PHP detection
-    - CVE-2017-7529 testing
-    - Security header analysis
-    
-    DSA Usage:
-    - HashMap: Signature matching
-    - MaxHeap: Severity-based finding prioritization
-    """
-    
-    # Security headers to check
     SECURITY_HEADERS = {
         'Strict-Transport-Security': {'required': True, 'severity': 'high'},
         'X-Content-Type-Options': {'required': True, 'severity': 'medium'},
@@ -49,13 +22,11 @@ class ConfigAudit:
         'Permissions-Policy': {'required': False, 'severity': 'low'},
     }
     
-    # Common paths for testing
     COMMON_PATHS = [
         'static', 'images', 'assets', 'css', 'js', 'uploads', 'files',
         'media', 'public', 'resources', 'content', 'data'
     ]
     
-    # Hop-by-hop headers to test
     HOP_BY_HOP_HEADERS = [
         "Proxy-Host", "Request-Uri", "X-Forwarded", "X-Forwarded-By", "X-Forwarded-For",
         "X-Forwarded-For-Original", "X-Forwarded-Host", "X-Forwarded-Server", "X-Forwarder-For",
@@ -67,16 +38,13 @@ class ConfigAudit:
     ]
     
     def __init__(self):
-        """Initialize Config Audit collector."""
         self._signature_map = HashMap()
         self._findings_heap = MaxHeap()
         self._results_cache = HashMap()
         
-        # Initialize signatures
         self._init_signatures()
     
     def _init_signatures(self):
-        """Initialize vulnerability signatures."""
         severity_scores = {'critical': 10, 'high': 8, 'medium': 5, 'low': 2, 'info': 1}
         
         checks = [
@@ -97,15 +65,6 @@ class ConfigAudit:
             })
     
     async def audit(self, target: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Perform configuration audit on target.
-        
-        Args:
-            target: Target URL or domain
-            config: Configuration options for tests
-            
-        Returns:
-            Audit results
-        """
         if config is None:
             config = {}
         
@@ -126,7 +85,6 @@ class ConfigAudit:
         
         logger.info(f"Starting configuration audit for {target} with config: {test_config}")
         
-        # Normalize target
         if not target.startswith(('http://', 'https://')):
             target = f"https://{target}"
         
@@ -136,18 +94,16 @@ class ConfigAudit:
             "findings": [],
             "headers_analysis": {},
             "server_info": {},
-            "score": 100  # Start with perfect score
+            "score": 100
         }
         
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as client:
             try:
                 response = await client.get(target)
                 
-                # Analyze response
                 results["server_info"] = await self._extract_server_info(response, test_config)
                 results["headers_analysis"] = self._analyze_headers(response.headers)
                 
-                # Run all tests based on config
                 findings = []
                 
                 if test_config.get("versionDetection") or test_config.get("cveLookup"):
@@ -188,7 +144,6 @@ class ConfigAudit:
                 
                 results["findings"] = findings
                 
-                # Calculate score
                 results["score"] = self._calculate_score(results)
                 
             except Exception as e:
@@ -201,15 +156,6 @@ class ConfigAudit:
         return results
     
     async def _extract_server_info(self, response: httpx.Response, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract server information from response.
-        
-        Args:
-            response: HTTP response
-            config: Test configuration
-            
-        Returns:
-            Server information
-        """
         headers = response.headers
         
         server_info = {
@@ -222,14 +168,6 @@ class ConfigAudit:
         return server_info
     
     def _extract_version(self, server_header: str) -> Optional[str]:
-        """Extract version from server header.
-        
-        Args:
-            server_header: Server header value
-            
-        Returns:
-            Version string or None
-        """
         match = re.search(r'nginx/(\d+\.\d+\.\d+)', server_header, re.I)
         if match:
             return match.group(1)
@@ -237,17 +175,6 @@ class ConfigAudit:
     
     async def _check_version_and_cve(self, client: httpx.AsyncClient, target: str, 
                                      response: httpx.Response, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Check nginx version and look up CVEs.
-        
-        Args:
-            client: HTTP client
-            target: Target URL
-            response: Initial response
-            config: Test configuration
-            
-        Returns:
-            List of findings
-        """
         findings = []
         server_header = response.headers.get("server", "")
         nginx_version = self._extract_version(server_header)
@@ -271,7 +198,6 @@ class ConfigAudit:
                 if latest_version:
                     try:
                         if pkg_version.parse(nginx_version) < pkg_version.parse(latest_version):
-                            # Version is outdated
                             cves = await self._lookup_cves(nginx_version)
                             findings.append({
                                 "check": "version_outdated",
@@ -308,14 +234,6 @@ class ConfigAudit:
         return findings
     
     async def _get_latest_nginx_version(self, client: httpx.AsyncClient) -> Optional[str]:
-        """Get latest nginx version from GitHub releases.
-        
-        Args:
-            client: HTTP client
-            
-        Returns:
-            Latest version string or None
-        """
         try:
             response = await client.get("https://github.com/nginx/nginx/tags", timeout=10.0)
             if response.status_code == 200:
@@ -324,7 +242,6 @@ class ConfigAudit:
                 tag_links = soup.find_all('a', href=re.compile(r'/nginx/nginx/releases/tag'))
                 if tag_links:
                     href = tag_links[0].get('href', '')
-                    # Extract version from href like /nginx/nginx/releases/tag/release-1.25.3
                     match = re.search(r'release-(\d+\.\d+\.\d+)', href)
                     if match:
                         return match.group(1)
@@ -334,14 +251,6 @@ class ConfigAudit:
         return None
     
     async def _lookup_cves(self, nginx_version: str) -> List[str]:
-        """Look up CVEs for nginx version.
-        
-        Args:
-            nginx_version: Nginx version string
-            
-        Returns:
-            List of CVE IDs
-        """
         cves = []
         try:
             # Use NVD API to search for CVEs
@@ -351,7 +260,6 @@ class ConfigAudit:
             # Try NVD API
             async with httpx.AsyncClient() as client:
                 try:
-                    # NVD API endpoint
                     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0"
                     params = {
                         "keywordSearch": f"nginx {major_minor}",
@@ -369,7 +277,6 @@ class ConfigAudit:
         except Exception as e:
             logger.debug(f"CVE lookup error: {e}")
         
-        # Fallback: return reference to CVE database
         if not cves:
             cves = [f"Check https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=nginx for version {nginx_version}"]
         
@@ -377,19 +284,8 @@ class ConfigAudit:
     
     async def _test_crlf_injection(self, client: httpx.AsyncClient, target: str, 
                                    config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Test for CRLF injection vulnerabilities.
-        
-        Args:
-            client: HTTP client
-            target: Target URL
-            config: Test configuration
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
-        # CRLF payloads to test
         crlf_payloads = [
             "%0d%0aDetectify:%20clrf",
             "%0d%0aSet-Cookie:test=injected",
@@ -398,13 +294,11 @@ class ConfigAudit:
             "%0d%0aLocation:%20http://evil.com",
         ]
         
-        # Test base URL
         for payload in crlf_payloads:
             try:
                 test_url = f"{target.rstrip('/')}/{payload}"
                 response = await client.get(test_url, timeout=10.0)
                 
-                # Check if CRLF was injected into headers
                 headers_lower = {k.lower(): v for k, v in response.headers.items()}
                 
                 if 'detectify' in headers_lower:
@@ -438,7 +332,6 @@ class ConfigAudit:
             except Exception as e:
                 logger.debug(f"CRLF test error for {payload}: {e}")
         
-        # Test CRLF on provided paths
         paths_to_test = config.get("paths", [])
         if not paths_to_test:
             paths_to_test = self.COMMON_PATHS
@@ -461,26 +354,16 @@ class ConfigAudit:
                             "Sanitize path variables in nginx config"
                         ]
                     })
-                    break  # Found one on a path
+                    break
             except Exception:
                 pass
         
         return findings
     
     async def _test_purge_method(self, client: httpx.AsyncClient, target: str) -> List[Dict[str, Any]]:
-        """Test if PURGE HTTP method is available.
-        
-        Args:
-            client: HTTP client
-            target: Target URL
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
         try:
-            # Test PURGE method
             response = await client.request("PURGE", f"{target.rstrip('/')}/*", timeout=10.0)
             
             if response.status_code == 204:
@@ -513,7 +396,6 @@ class ConfigAudit:
         """
         findings = []
         
-        # Test Referer header variable leakage
         try:
             test_url = f"{target.rstrip('/')}/foo$http_referer"
             headers = {"Referer": "bar"}
@@ -551,7 +433,6 @@ class ConfigAudit:
         """
         findings = []
         
-        # Get baseline response
         try:
             baseline = await client.get(target, timeout=10.0)
             baseline_status = baseline.status_code
@@ -560,7 +441,6 @@ class ConfigAudit:
             baseline_status = None
             baseline_length = None
         
-        # Test merge_slashes
         merge_slashes_tests = [
             "///",
             "//////",
@@ -575,7 +455,6 @@ class ConfigAudit:
                 test_url = f"{target.rstrip('/')}{test_path}"
                 response = await client.get(test_url, timeout=10.0)
                 
-                # Check if merge_slashes is off (same response as baseline)
                 if baseline_status and baseline_length:
                     if response.status_code == baseline_status and len(response.text) == baseline_length:
                         findings.append({
@@ -611,7 +490,6 @@ class ConfigAudit:
             except Exception:
                 pass
         
-        # Test alias traversal
         paths_to_test = config.get("paths", [])
         if not paths_to_test:
             paths_to_test = self.COMMON_PATHS
@@ -650,18 +528,8 @@ class ConfigAudit:
         return findings
     
     async def _test_hop_by_hop_headers(self, client: httpx.AsyncClient, target: str) -> List[Dict[str, Any]]:
-        """Test hop-by-hop headers for SSRF/IP spoofing.
-        
-        Args:
-            client: HTTP client
-            target: Target URL
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
-        # Get baseline
         try:
             baseline = await client.get(target, timeout=10.0)
             baseline_status = baseline.status_code
@@ -669,7 +537,6 @@ class ConfigAudit:
         except Exception:
             return findings
         
-        # Test IPs
         test_ips = {
             "127.0.0.1": "127.0.0.1",
             "localhost": "localhost",
@@ -680,7 +547,7 @@ class ConfigAudit:
         differences_found = []
         
         for ip_name, ip_value in test_ips.items():
-            for header in self.HOP_BY_HOP_HEADERS[:10]:  # Limit to 10 headers per IP
+            for header in self.HOP_BY_HOP_HEADERS[:10]:
                 try:
                     headers = {header: ip_value}
                     response = await client.get(target, headers=headers, timeout=10.0)
@@ -705,7 +572,7 @@ class ConfigAudit:
                 "description": "Hop-by-hop headers cause response differences - possible SSRF/IP spoofing",
                 "severity": "medium",
                 "evidence": {
-                    "differences": differences_found[:5]  # Limit to 5 examples
+                    "differences": differences_found[:5]
                 },
                 "url": target,
                 "recommendations": [
@@ -731,7 +598,6 @@ class ConfigAudit:
         """
         findings = []
         
-        # Find paths that return 401/403
         paths_to_test = config.get("paths", [])
         if not paths_to_test:
             paths_to_test = self.COMMON_PATHS
@@ -748,8 +614,7 @@ class ConfigAudit:
             except Exception:
                 pass
         
-        # Test X-Accel-Redirect bypass
-        for path, original_status in unauthorized_paths[:5]:  # Limit to 5 paths
+        for path, original_status in unauthorized_paths[:5]:
             try:
                 # Test with X-Accel-Redirect header
                 headers = {"X-Accel-Redirect": f"/{path}"}
@@ -773,7 +638,7 @@ class ConfigAudit:
                             "Implement proper access controls"
                         ]
                     })
-                    break  # Found one bypass
+                    break
             except Exception:
                 pass
         
@@ -781,16 +646,6 @@ class ConfigAudit:
     
     async def _detect_php(self, client: httpx.AsyncClient, target: str, 
                           response: httpx.Response) -> List[Dict[str, Any]]:
-        """Detect PHP usage.
-        
-        Args:
-            client: HTTP client
-            target: Target URL
-            response: Initial response
-            
-        Returns:
-            List of findings
-        """
         findings = []
         php_detected = False
         detection_methods = []
@@ -804,7 +659,6 @@ class ConfigAudit:
         except Exception:
             pass
         
-        # Check 2: PHPSESSID cookie
         if 'PHPSESSID' in response.cookies:
             php_detected = True
             detection_methods.append("PHPSESSID cookie present")
@@ -815,7 +669,6 @@ class ConfigAudit:
             php_detected = True
             detection_methods.append("PHP in Server header")
         
-        # Check 4: X-Powered-By header
         powered_by = response.headers.get("x-powered-by", "").lower()
         if "php" in powered_by:
             php_detected = True
@@ -853,7 +706,6 @@ class ConfigAudit:
         findings = []
         
         try:
-            # Get initial response
             response = await client.get(target, timeout=10.0)
             content_length = int(response.headers.get('Content-Length', 0))
             
@@ -862,7 +714,6 @@ class ConfigAudit:
                 bytes_length = content_length + 623
                 range_value = f"bytes=-{bytes_length},-9223372036854{776000 - bytes_length}"
                 
-                # Test with malicious range header
                 headers = {'Range': range_value}
                 test_response = await client.get(target, headers=headers, timeout=10.0)
                 
@@ -917,14 +768,6 @@ class ConfigAudit:
         return analysis
     
     def _calculate_score(self, results: Dict[str, Any]) -> int:
-        """Calculate security score.
-        
-        Args:
-            results: Audit results
-            
-        Returns:
-            Score 0-100
-        """
         score = 100
         
         # Deduct for missing headers
@@ -936,7 +779,6 @@ class ConfigAudit:
             else:
                 score -= 5
         
-        # Deduct for vulnerabilities
         for finding in results.get("findings", []):
             if finding['severity'] == 'critical':
                 score -= 30
@@ -961,7 +803,6 @@ class ConfigAudit:
         return self._findings_heap.get_top_n(n)
     
     def stats(self) -> Dict[str, Any]:
-        """Get collector statistics."""
         return {
             "checks_available": len(self.HOP_BY_HOP_HEADERS) + len(self.COMMON_PATHS),
             "cached_audits": len(self._results_cache),

@@ -1,22 +1,3 @@
-"""
-DomainTree Collector - Domain Tree Capture & Analysis
-
-Inspired by: lookyloo (https://github.com/Lookyloo/lookyloo)
-
-This collector captures website structures, builds domain relationship trees,
-and extracts all external resources, redirects, and third-party connections.
-Uses N-ary Tree and Graph DSA for hierarchical domain mapping.
-
-Features:
-- Website structure capture and tree building
-- Domain relationship extraction
-- Redirect chain tracking
-- Third-party resource identification
-- Cookie and tracker detection
-- Screenshot capture (simulated)
-- Request waterfall timeline
-"""
-
 from typing import Dict, List, Optional, Set, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -38,7 +19,6 @@ from core.dsa.linked_list import DoublyLinkedList
 
 
 class ResourceType(Enum):
-    """Types of web resources"""
     DOCUMENT = "document"
     SCRIPT = "script"
     STYLESHEET = "stylesheet"
@@ -52,7 +32,6 @@ class ResourceType(Enum):
 
 
 class RequestMethod(Enum):
-    """HTTP request methods"""
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -63,7 +42,6 @@ class RequestMethod(Enum):
 
 @dataclass
 class CapturedRequest:
-    """Represents a captured HTTP request"""
     request_id: str
     url: str
     method: RequestMethod
@@ -97,7 +75,6 @@ class CapturedRequest:
 
 @dataclass
 class DomainNode:
-    """Represents a domain in the tree structure"""
     domain: str
     full_url: str
     depth: int
@@ -105,7 +82,7 @@ class DomainNode:
     resource_type: ResourceType
     is_root: bool = False
     children: List[str] = field(default_factory=list)
-    requests: List[str] = field(default_factory=list)  # Request IDs
+    requests: List[str] = field(default_factory=list)
     cookies: Set[str] = field(default_factory=set)
     trackers_detected: List[str] = field(default_factory=list)
     risk_score: float = 0.0
@@ -128,7 +105,6 @@ class DomainNode:
 
 @dataclass
 class CaptureResult:
-    """Complete capture result for a URL"""
     capture_id: str
     target_url: str
     final_url: str
@@ -163,20 +139,7 @@ class CaptureResult:
 
 
 class DomainTree:
-    """
-    Domain Tree Collector
     
-    Captures website structures and builds hierarchical domain relationship trees.
-    Inspired by Lookyloo's approach to visualizing web page complexity.
-    
-    DSA Usage:
-    - Graph: Domain relationship mapping and traversal
-    - HashMap: Fast domain and request lookups
-    - Trie: Efficient domain suffix matching (for tracker detection)
-    - DoublyLinkedList: Request timeline ordering
-    """
-    
-    # Known tracker domains (simplified list)
     KNOWN_TRACKERS = [
         "google-analytics.com",
         "googletagmanager.com",
@@ -197,7 +160,6 @@ class DomainTree:
         "sentry.io",
     ]
     
-    # Known CDN domains (not necessarily third-party risk)
     CDN_DOMAINS = [
         "cloudflare.com",
         "cloudfront.net",
@@ -211,23 +173,17 @@ class DomainTree:
     ]
     
     def __init__(self):
-        """Initialize the DomainTree collector"""
-        # Graph for domain relationships
         self.domain_graph = Graph(directed=True)
         
-        # HashMap for fast lookups
-        self.captures = HashMap()  # capture_id -> CaptureResult
-        self.domain_cache = HashMap()  # domain -> DomainNode
-        self.request_cache = HashMap()  # request_id -> CapturedRequest
+        self.captures = HashMap()
+        self.domain_cache = HashMap()
+        self.request_cache = HashMap()
         
-        # Trie for efficient domain pattern matching
         self.tracker_trie = Trie()
         self._build_tracker_trie()
         
-        # DoublyLinkedList for request timeline
         self.request_timeline = DoublyLinkedList()
         
-        # Statistics
         self.stats = {
             "total_captures": 0,
             "total_domains_analyzed": 0,
@@ -236,14 +192,11 @@ class DomainTree:
         }
     
     def _build_tracker_trie(self):
-        """Build Trie from known tracker domains"""
         for tracker in self.KNOWN_TRACKERS:
-            # Insert reversed domain for suffix matching
             reversed_domain = '.'.join(reversed(tracker.split('.')))
             self.tracker_trie.insert(reversed_domain)
     
     def _extract_domain(self, url: str) -> str:
-        """Extract domain from URL"""
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower()
@@ -251,23 +204,18 @@ class DomainTree:
             return ""
     
     def _get_base_domain(self, domain: str) -> str:
-        """Extract base domain (e.g., example.com from sub.example.com)"""
         parts = domain.split('.')
         if len(parts) >= 2:
-            # Handle common TLDs
             if parts[-1] in ['com', 'org', 'net', 'io', 'co', 'edu', 'gov']:
                 if len(parts) >= 2:
                     return '.'.join(parts[-2:])
-            # Handle country TLDs like .co.uk
             if len(parts) >= 3 and parts[-2] in ['co', 'com', 'org', 'net']:
                 return '.'.join(parts[-3:])
         return domain
     
     def _is_tracker(self, domain: str) -> Tuple[bool, Optional[str]]:
-        """Check if domain is a known tracker using Trie"""
         reversed_domain = '.'.join(reversed(domain.split('.')))
         
-        # Check for prefix matches in reversed domain
         for tracker in self.KNOWN_TRACKERS:
             reversed_tracker = '.'.join(reversed(tracker.split('.')))
             if reversed_domain.startswith(reversed_tracker):
@@ -276,32 +224,20 @@ class DomainTree:
         return False, None
     
     def _is_cdn(self, domain: str) -> bool:
-        """Check if domain is a known CDN"""
         base = self._get_base_domain(domain)
         return any(cdn in domain for cdn in self.CDN_DOMAINS)
     
     def _generate_capture_id(self, url: str) -> str:
-        """Generate unique capture ID"""
         timestamp = datetime.now().isoformat()
         data = f"{url}:{timestamp}"
         return hashlib.sha256(data.encode()).hexdigest()[:16]
     
     def _generate_request_id(self, url: str, method: str) -> str:
-        """Generate unique request ID"""
         timestamp = datetime.now().isoformat()
         data = f"{method}:{url}:{timestamp}"
         return hashlib.md5(data.encode()).hexdigest()[:12]
     
     def _extract_requests_from_har(self, har: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Extract network requests from HAR file.
-        
-        Args:
-            har: HAR file content as dictionary
-        
-        Returns:
-            List of request dictionaries
-        """
         requests = []
         entries = har.get('entries', [])
         
@@ -313,24 +249,19 @@ class DomainTree:
             url = har_request.get('url', '')
             method = har_request.get('method', 'GET')
             
-            # Determine resource type from MIME type or URL
             mime_type = har_response.get('content', {}).get('mimeType', '')
             resource_type = self._determine_resource_type(url, mime_type)
             
-            # Calculate timing
             total_time = sum(
                 v for v in har_timings.values() 
                 if isinstance(v, (int, float)) and v > 0
             )
             
-            # Get response size
             body_size = har_response.get('bodySize', 0)
             if body_size < 0:
                 body_size = har_response.get('content', {}).get('size', 0)
             
-            # Find initiator (simplified - would need better tracking)
             initiator = None
-            # Check referer header
             headers = har_request.get('headers', [])
             for header in headers:
                 if header.get('name', '').lower() == 'referer':
@@ -351,11 +282,9 @@ class DomainTree:
         return requests
     
     def _determine_resource_type(self, url: str, mime_type: str) -> str:
-        """Determine resource type from URL and MIME type"""
         url_lower = url.lower()
         mime_lower = mime_type.lower()
         
-        # Check MIME type first
         if 'text/html' in mime_lower:
             return 'document'
         elif 'text/css' in mime_lower:
@@ -369,7 +298,6 @@ class DomainTree:
         elif 'video' in mime_lower or 'audio' in mime_lower:
             return 'media'
         
-        # Fallback to URL extension
         if url_lower.endswith(('.html', '.htm')):
             return 'document'
         elif url_lower.endswith('.css'):
@@ -386,18 +314,10 @@ class DomainTree:
         return 'other'
     
     def _simulate_page_capture(self, url: str) -> List[Dict[str, Any]]:
-        """
-        Simulate capturing a page's network requests.
-        Fallback method when HAR is not available.
-        
-        Returns simulated request data for demonstration.
-        """
         domain = self._extract_domain(url)
         base_domain = self._get_base_domain(domain)
         
-        # Simulate realistic request patterns
         simulated_requests = [
-            # Main document
             {
                 "url": url,
                 "method": "GET",
@@ -407,7 +327,6 @@ class DomainTree:
                 "time": 150,
                 "initiator": None,
             },
-            # First-party resources
             {
                 "url": f"https://{domain}/assets/main.css",
                 "method": "GET",
@@ -435,7 +354,6 @@ class DomainTree:
                 "time": 30,
                 "initiator": url,
             },
-            # Third-party analytics
             {
                 "url": "https://www.google-analytics.com/analytics.js",
                 "method": "GET",
@@ -454,7 +372,6 @@ class DomainTree:
                 "time": 95,
                 "initiator": url,
             },
-            # Third-party fonts
             {
                 "url": "https://fonts.googleapis.com/css2?family=Roboto",
                 "method": "GET",
@@ -473,7 +390,6 @@ class DomainTree:
                 "time": 60,
                 "initiator": "https://fonts.googleapis.com/css2?family=Roboto",
             },
-            # Third-party ads
             {
                 "url": "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
                 "method": "GET",
@@ -483,7 +399,6 @@ class DomainTree:
                 "time": 110,
                 "initiator": url,
             },
-            # API calls
             {
                 "url": f"https://api.{base_domain}/v1/user/session",
                 "method": "GET",
@@ -493,7 +408,6 @@ class DomainTree:
                 "time": 25,
                 "initiator": f"https://{domain}/assets/app.js",
             },
-            # Social tracking
             {
                 "url": "https://connect.facebook.net/en_US/fbevents.js",
                 "method": "GET",
@@ -513,30 +427,17 @@ class DomainTree:
         har_data: Optional[Dict[str, Any]] = None,
         follow_redirects: bool = True
     ) -> CaptureResult:
-        """
-        Capture a URL and build its domain tree from HAR data.
-        
-        Args:
-            url: Target URL to capture
-            har_data: Optional HAR file data (if provided, uses this instead of simulation)
-            follow_redirects: Whether to follow HTTP redirects
-            
-        Returns:
-            CaptureResult with complete domain tree and analysis
-        """
         start_time = datetime.now()
         capture_id = self._generate_capture_id(url)
         
         target_domain = self._extract_domain(url)
         target_base = self._get_base_domain(target_domain)
         
-        # Use HAR data if provided, otherwise simulate
         if har_data:
             raw_requests = self._extract_requests_from_har(har_data)
         else:
             raw_requests = self._simulate_page_capture(url)
         
-        # Process requests and build structures (same as before)
         return self._process_capture_requests(
             capture_id, url, target_domain, target_base,
             raw_requests, start_time, follow_redirects
@@ -552,7 +453,6 @@ class DomainTree:
         start_time: datetime,
         follow_redirects: bool
     ) -> CaptureResult:
-        """Process captured requests and build domain tree"""
         captured_requests: List[CapturedRequest] = []
         domain_nodes: Dict[str, DomainNode] = {}
         unique_domains: Set[str] = set()
@@ -562,7 +462,6 @@ class DomainTree:
         redirect_chain: List[str] = [url]
         total_size = 0
         
-        # Create root domain node
         root_node = DomainNode(
             domain=target_domain,
             full_url=url,
@@ -574,7 +473,6 @@ class DomainTree:
         domain_nodes[target_domain] = root_node
         unique_domains.add(target_domain)
         
-        # Add root to graph
         self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
         
         for req_data in raw_requests:
@@ -585,13 +483,10 @@ class DomainTree:
             # Generate request ID
             request_id = self._generate_request_id(req_url, req_data["method"])
             
-            # Determine resource type
             resource_type = ResourceType(req_data["type"])
             
-            # Check if third-party
             is_third_party = req_base != target_base
             
-            # Create captured request
             captured_req = CapturedRequest(
                 request_id=request_id,
                 url=req_url,
@@ -609,24 +504,20 @@ class DomainTree:
             # Update timeline
             self.request_timeline.append(captured_req.to_dict())
             
-            # Cache request
             self.request_cache.put(request_id, captured_req)
             
-            # Update statistics
             total_size += req_data["size"]
             unique_domains.add(req_domain)
             
             if is_third_party:
                 third_party_domains.add(req_domain)
             
-            # Check for trackers
             is_tracker, tracker_name = self._is_tracker(req_domain)
             if is_tracker:
                 if tracker_name not in trackers:
                     trackers[tracker_name] = []
                 trackers[tracker_name].append(req_url)
             
-            # Build domain node if not exists
             if req_domain not in domain_nodes:
                 # Find parent domain from initiator
                 parent_domain = None
@@ -654,7 +545,6 @@ class DomainTree:
                 
                 domain_nodes[req_domain] = node
                 
-                # Add to graph
                 self.domain_graph.add_node(
                     req_domain,
                     label=req_domain,
@@ -669,14 +559,11 @@ class DomainTree:
                 if parent_domain:
                     self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
             
-            # Add request to domain node
             domain_nodes[req_domain].requests.append(request_id)
         
-        # Calculate capture duration
         end_time = datetime.now()
         duration_ms = (end_time - start_time).total_seconds() * 1000
         
-        # Risk assessment
         risk_assessment = self._assess_risk(
             third_party_count=len(third_party_domains),
             tracker_count=len(trackers),
@@ -688,7 +575,7 @@ class DomainTree:
         result = CaptureResult(
             capture_id=capture_id,
             target_url=url,
-            final_url=url,  # Would be different if redirected
+            final_url=url,
             captured_at=start_time,
             capture_duration_ms=duration_ms,
             domain_tree=domain_nodes,
@@ -702,7 +589,6 @@ class DomainTree:
             risk_assessment=risk_assessment
         )
         
-        # Cache the capture
         self.captures.put(capture_id, result)
         
         # Update stats
@@ -714,32 +600,19 @@ class DomainTree:
         return result
     
     def capture_url(self, url: str, follow_redirects: bool = True) -> CaptureResult:
-        """
-        Capture a URL and build its domain tree (synchronous version)
-        
-        Args:
-            url: Target URL to capture
-            follow_redirects: Whether to follow HTTP redirects
-            
-        Returns:
-            CaptureResult with complete domain tree and analysis
-        """
         start_time = datetime.now()
         capture_id = self._generate_capture_id(url)
         
         target_domain = self._extract_domain(url)
         target_base = self._get_base_domain(target_domain)
         
-        # Simulate page capture (fallback when no HAR available)
         raw_requests = self._simulate_page_capture(url)
         
-        # Use shared processing logic
         return self._process_capture_requests(
             capture_id, url, target_domain, target_base,
             raw_requests, start_time, follow_redirects
         )
         
-        # Process requests and build structures
         captured_requests: List[CapturedRequest] = []
         domain_nodes: Dict[str, DomainNode] = {}
         unique_domains: Set[str] = set()
@@ -749,7 +622,6 @@ class DomainTree:
         redirect_chain: List[str] = [url]
         total_size = 0
         
-        # Create root domain node
         root_node = DomainNode(
             domain=target_domain,
             full_url=url,
@@ -761,7 +633,6 @@ class DomainTree:
         domain_nodes[target_domain] = root_node
         unique_domains.add(target_domain)
         
-        # Add root to graph
         self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
         
         for req_data in raw_requests:
@@ -772,13 +643,10 @@ class DomainTree:
             # Generate request ID
             request_id = self._generate_request_id(req_url, req_data["method"])
             
-            # Determine resource type
             resource_type = ResourceType(req_data["type"])
             
-            # Check if third-party
             is_third_party = req_base != target_base
             
-            # Create captured request
             captured_req = CapturedRequest(
                 request_id=request_id,
                 url=req_url,
@@ -796,24 +664,20 @@ class DomainTree:
             # Update timeline
             self.request_timeline.append(captured_req.to_dict())
             
-            # Cache request
             self.request_cache.put(request_id, captured_req)
             
-            # Update statistics
             total_size += req_data["size"]
             unique_domains.add(req_domain)
             
             if is_third_party:
                 third_party_domains.add(req_domain)
             
-            # Check for trackers
             is_tracker, tracker_name = self._is_tracker(req_domain)
             if is_tracker:
                 if tracker_name not in trackers:
                     trackers[tracker_name] = []
                 trackers[tracker_name].append(req_url)
             
-            # Build domain node if not exists
             if req_domain not in domain_nodes:
                 # Find parent domain from initiator
                 parent_domain = None
@@ -841,7 +705,6 @@ class DomainTree:
                 
                 domain_nodes[req_domain] = node
                 
-                # Add to graph
                 self.domain_graph.add_node(
                     req_domain,
                     label=req_domain,
@@ -856,14 +719,11 @@ class DomainTree:
                 if parent_domain:
                     self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
             
-            # Add request to domain node
             domain_nodes[req_domain].requests.append(request_id)
         
-        # Calculate capture duration
         end_time = datetime.now()
         duration_ms = (end_time - start_time).total_seconds() * 1000
         
-        # Risk assessment
         risk_assessment = self._assess_risk(
             third_party_count=len(third_party_domains),
             tracker_count=len(trackers),
@@ -875,7 +735,7 @@ class DomainTree:
         result = CaptureResult(
             capture_id=capture_id,
             target_url=url,
-            final_url=url,  # Would be different if redirected
+            final_url=url,
             captured_at=start_time,
             capture_duration_ms=duration_ms,
             domain_tree=domain_nodes,
@@ -889,7 +749,6 @@ class DomainTree:
             risk_assessment=risk_assessment
         )
         
-        # Cache the capture
         self.captures.put(capture_id, result)
         
         # Update stats
@@ -907,13 +766,9 @@ class DomainTree:
         total_domains: int,
         redirect_count: int
     ) -> Dict[str, Any]:
-        """Assess privacy/security risk based on capture data"""
-        
-        # Calculate risk score (0-100)
         score = 0
         factors = []
         
-        # Third-party domains (max 30 points)
         if third_party_count > 20:
             score += 30
             factors.append("Excessive third-party domains (>20)")
@@ -924,7 +779,6 @@ class DomainTree:
             score += 10
             factors.append("Moderate third-party count (>5)")
         
-        # Trackers (max 40 points)
         if tracker_count > 5:
             score += 40
             factors.append("Many trackers detected (>5)")
@@ -943,7 +797,6 @@ class DomainTree:
             score += 8
             factors.append("Multiple redirects")
         
-        # Domain complexity (max 15 points)
         if total_domains > 30:
             score += 15
             factors.append("Very complex domain structure (>30)")
@@ -951,7 +804,6 @@ class DomainTree:
             score += 8
             factors.append("Complex domain structure (>15)")
         
-        # Determine risk level
         if score >= 70:
             level = "critical"
         elif score >= 50:
@@ -972,7 +824,6 @@ class DomainTree:
         }
     
     def get_domain_tree(self, capture_id: str) -> Optional[Dict]:
-        """Get domain tree for a specific capture"""
         result = self.captures.get(capture_id)
         if result:
             return {
@@ -982,11 +833,6 @@ class DomainTree:
         return None
     
     def get_capture_graph(self, capture_id: str) -> Dict[str, Any]:
-        """
-        Get graph representation for visualization
-        
-        Returns nodes and edges suitable for frontend rendering
-        """
         result = self.captures.get(capture_id)
         if not result:
             return {"nodes": [], "edges": []}
@@ -1021,11 +867,6 @@ class DomainTree:
         capture_id_1: str,
         capture_id_2: str
     ) -> Dict[str, Any]:
-        """
-        Compare two captures to detect changes
-        
-        Useful for monitoring sites over time
-        """
         result1 = self.captures.get(capture_id_1)
         result2 = self.captures.get(capture_id_2)
         
@@ -1048,11 +889,6 @@ class DomainTree:
         }
     
     def find_tracker_connections(self) -> Dict[str, List[str]]:
-        """
-        Find all connections to tracker domains across captures
-        
-        Returns mapping of tracker -> list of captured sites using it
-        """
         tracker_usage: Dict[str, List[str]] = {}
         
         for capture_id in self.captures.keys():
@@ -1076,16 +912,6 @@ class DomainTree:
         }
     
     def export_capture(self, capture_id: str, format: str = "json") -> Optional[str]:
-        """
-        Export capture data in specified format
-        
-        Args:
-            capture_id: ID of capture to export
-            format: Export format (json, html)
-            
-        Returns:
-            Formatted export string
-        """
         result = self.captures.get(capture_id)
         if not result:
             return None
@@ -1100,7 +926,6 @@ class DomainTree:
             return json.dumps(export_data, indent=2)
         
         elif format == "html":
-            # Generate HTML report
             html = f"""
 <!DOCTYPE html>
 <html>

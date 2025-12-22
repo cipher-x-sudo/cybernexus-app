@@ -1,26 +1,3 @@
-"""
-DarkWatch Collector - Dark Web Monitoring & Crawling
-
-Inspired by: freshonions-torscraper (https://github.com/dirtyfilthy/freshonions-torscraper)
-
-This collector monitors dark web (.onion) sites for:
-- Brand mentions and impersonation
-- Leaked credentials and data
-- Threat actor discussions
-- Malware marketplaces
-- Cryptocurrency transactions
-
-Uses Bloom Filter for efficient duplicate detection and Graph for relationship mapping.
-
-Features:
-- Onion site discovery and indexing
-- Content extraction (emails, bitcoin addresses, SSH keys)
-- Brand/keyword monitoring
-- Site fingerprinting and clone detection
-- Language detection
-- Risk scoring based on content
-"""
-
 from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -29,7 +6,6 @@ import hashlib
 import re
 import json
 
-# Import our custom DSA
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +17,6 @@ from core.dsa.trie import Trie
 from core.dsa.linked_list import DoublyLinkedList
 from core.dsa.heap import MinHeap
 
-# Import dark web crawlers and extractors
 from app.collectors.darkwatch_modules.crawlers.tor_connector import TorConnector
 from app.collectors.darkwatch_modules.crawlers.url_database import URLDatabase
 from app.collectors.darkwatch_modules.crawlers.discovery_engines import (
@@ -58,7 +33,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class SiteCategory(Enum):
-    """Categories of dark web sites"""
     MARKETPLACE = "marketplace"
     FORUM = "forum"
     LEAK_SITE = "leak_site"
@@ -78,7 +52,6 @@ class SiteCategory(Enum):
 
 
 class ThreatLevel(Enum):
-    """Threat severity levels"""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -88,8 +61,7 @@ class ThreatLevel(Enum):
 
 @dataclass
 class ExtractedEntity:
-    """Entity extracted from dark web content"""
-    entity_type: str  # email, bitcoin, ssh_key, phone, etc.
+    entity_type: str
     value: str
     context: str  # Surrounding text
     source_url: str
@@ -109,7 +81,6 @@ class ExtractedEntity:
 
 @dataclass
 class OnionSite:
-    """Represents a dark web .onion site"""
     onion_url: str
     site_id: str
     title: str

@@ -1,27 +1,3 @@
-"""
-TunnelDetector Collector - HTTP Tunnel Detection
-
-Inspired by: Tunna (https://github.com/SECFORCE/Tunna)
-
-Detects and analyzes HTTP tunneling attempts where TCP traffic
-is encapsulated within HTTP requests. Focuses on detection
-and analysis rather than providing tunneling capabilities.
-
-Features:
-- HTTP tunnel pattern detection
-- Traffic anomaly analysis
-- Beaconing detection
-- Covert channel identification
-- Protocol-over-HTTP detection
-- Risk scoring
-
-DSA Usage:
-- CircularBuffer: Rolling window analysis
-- HashMap: Connection state tracking
-- Heap: Priority alerting
-- Graph: Connection relationship mapping
-"""
-
 from typing import Dict, List, Optional, Set, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -53,7 +29,6 @@ class TunnelType(Enum):
 
 
 class DetectionConfidence(Enum):
-    """Confidence levels for detection"""
     CONFIRMED = "confirmed"
     HIGH = "high"
     MEDIUM = "medium"
@@ -63,7 +38,6 @@ class DetectionConfidence(Enum):
 
 @dataclass
 class HTTPRequest:
-    """Represents an HTTP request for analysis"""
     request_id: str
     timestamp: datetime
     source_ip: str
@@ -96,7 +70,6 @@ class HTTPRequest:
 
 @dataclass
 class TunnelDetection:
-    """A detected tunnel or suspicious pattern"""
     detection_id: str
     tunnel_type: TunnelType
     confidence: DetectionConfidence

@@ -1,10 +1,3 @@
-"""
-Web Reconnaissance Collector
-
-Inspired by: oxdork, lookyloo
-Purpose: Asset discovery through dorking and domain analysis.
-"""
-
 import asyncio
 import re
 import socket
@@ -18,27 +11,8 @@ from app.core.dsa import Trie, HashMap, BloomFilter
 
 
 class WebRecon:
-    """
-    Enhanced Web Reconnaissance Collector.
     
-    Features:
-    - Comprehensive Google dork query generation (50+ patterns)
-    - Advanced subdomain enumeration
-    - Deep file detection and verification
-    - Endpoint discovery (admin panels, APIs, docs)
-    - Source code exposure detection (.git, .svn, etc.)
-    - Configuration file scanning
-    - Structured findings with categories
-    
-    DSA Usage:
-    - Trie: Dork pattern matching
-    - HashMap: Asset caching
-    - BloomFilter: URL deduplication
-    """
-    
-    # Extended dork patterns (50+ patterns)
     DORK_PATTERNS = [
-        # Sensitive files
         'site:{domain} filetype:env',
         'site:{domain} filetype:config',
         'site:{domain} filetype:key',
@@ -55,14 +29,12 @@ class WebRecon:
         'site:{domain} "credentials" filetype:txt',
         'site:{domain} "aws_access_key" OR "aws_secret"',
         'site:{domain} "github_token" OR "gitlab_token"',
-        # Database files
         'site:{domain} filetype:sql',
         'site:{domain} filetype:db',
         'site:{domain} filetype:sqlite',
         'site:{domain} filetype:mdb',
         'site:{domain} filetype:accdb',
         'site:{domain} "database" filetype:sql',
-        # Backup files
         'site:{domain} filetype:bak',
         'site:{domain} filetype:backup',
         'site:{domain} filetype:old',
@@ -79,11 +51,9 @@ class WebRecon:
         'site:{domain} filetype:xlsx',
         'site:{domain} filetype:ppt',
         'site:{domain} filetype:pptx',
-        # Log files
         'site:{domain} filetype:log',
         'site:{domain} filetype:txt "error"',
         'site:{domain} filetype:log "password"',
-        # Admin panels and login pages
         'site:{domain} inurl:admin',
         'site:{domain} inurl:login',
         'site:{domain} inurl:administrator',
@@ -93,20 +63,17 @@ class WebRecon:
         'site:{domain} inurl:cpanel',
         'site:{domain} intitle:"admin login"',
         'site:{domain} intitle:"login" inurl:admin',
-        # API endpoints
         'site:{domain} inurl:api',
         'site:{domain} inurl:api/v1',
         'site:{domain} inurl:graphql',
         'site:{domain} inurl:swagger',
         'site:{domain} inurl:openapi',
         'site:{domain} filetype:json "api"',
-        # Source code repositories
         'site:{domain} inurl:.git',
         'site:{domain} inurl:.svn',
         'site:{domain} inurl:.hg',
         'site:{domain} filetype:git',
         'site:{domain} "git clone"',
-        # Configuration files
         'site:{domain} filetype:conf',
         'site:{domain} filetype:ini',
         'site:{domain} filetype:xml',
@@ -123,28 +90,16 @@ class WebRecon:
     ]
     
     def __init__(self):
-        """Initialize Web Recon collector."""
         self._dork_trie = Trie()
         self._asset_cache = HashMap()
         self._seen_urls = BloomFilter(expected_items=100000)
         self._results = []
         
-        # Initialize dork patterns
         for pattern in self.DORK_PATTERNS:
             self._dork_trie.insert(pattern, pattern)
     
     async def _resolve_dns(self, hostname: str, timeout: float = 2.0) -> bool:
-        """Check if a hostname resolves via DNS.
-        
-        Args:
-            hostname: Hostname to resolve
-            timeout: DNS resolution timeout in seconds
-            
-        Returns:
-            True if hostname resolves, False otherwise
-        """
         try:
-            # Use asyncio to run DNS resolution in executor to avoid blocking
             loop = asyncio.get_event_loop()
             await asyncio.wait_for(
                 loop.run_in_executor(
@@ -196,7 +151,6 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(5, 'Initializing discovery...')")
                 progress_callback(5, "Initializing discovery...")
             
-            # Generate dorks for this domain
             dork_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Generating dork queries...")
             dorks = self.generate_dorks(domain)
@@ -209,7 +163,6 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(10, 'Enumerating subdomains...')")
                 progress_callback(10, "Enumerating subdomains...")
             
-            # Discover subdomains
             subdomain_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting subdomain enumeration...")
             try:
@@ -228,7 +181,6 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(30, 'Scanning endpoints...')")
                 progress_callback(30, "Scanning endpoints...")
             
-            # Check common endpoints
             endpoint_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting endpoint scanning...")
             try:
@@ -247,7 +199,6 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(50, 'Detecting sensitive files...')")
                 progress_callback(50, "Detecting sensitive files...")
             
-            # Deep file detection
             file_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting sensitive file detection...")
             try:
@@ -304,7 +255,6 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(85, 'Checking configuration files...')")
                 progress_callback(85, "Checking configuration files...")
             
-            # Configuration file detection
             config_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting configuration file detection...")
             try:
@@ -353,14 +303,6 @@ class WebRecon:
             raise
     
     def generate_dorks(self, domain: str) -> List[str]:
-        """Generate dork queries for a domain.
-        
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of dork queries
-        """
         dorks = []
         
         for pattern in self.DORK_PATTERNS:
@@ -370,43 +312,28 @@ class WebRecon:
         return dorks
     
     async def _enumerate_subdomains(self, domain: str) -> List[Dict[str, Any]]:
-        """Enumerate subdomains with comprehensive wordlist.
-        
-        Args:
-            domain: Target domain
-            
-        Returns:
-            List of discovered subdomains
-        """
         import time
         enum_start = time.time()
         logger.info(f"[WebRecon] [domain={domain}] Starting subdomain enumeration with wordlist")
         subdomains = []
         
-        # Extended subdomain wordlist
         common_prefixes = [
-            # Common
             'www', 'mail', 'email', 'webmail', 'smtp', 'pop', 'imap',
             'ftp', 'sftp', 'ssh', 'vpn', 'remote', 'secure',
-            # Infrastructure
             'ns1', 'ns2', 'dns', 'mx', 'mx1', 'mx2',
             'server', 'servers', 'host', 'hosting',
-            # Development
             'dev', 'development', 'staging', 'stage', 'test', 'testing',
             'qa', 'prod', 'production', 'preprod', 'pre-prod',
             # Services
             'api', 'api1', 'api2', 'apis', 'rest', 'graphql',
             'cdn', 'static', 'assets', 'media', 'files', 'download',
             'upload', 'storage', 'backup', 'backups',
-            # Applications
             'app', 'apps', 'application', 'portal', 'dashboard',
             'admin', 'administrator', 'panel', 'cpanel', 'whm',
             'blog', 'blogs', 'forum', 'forums', 'wiki', 'docs',
             'documentation', 'help', 'support', 'status', 'monitor',
-            # CI/CD
             'jenkins', 'gitlab', 'github', 'git', 'svn', 'hg',
             'ci', 'cd', 'deploy', 'deployment',
-            # Other
             'mobile', 'm', 'wap', 'old', 'new', 'legacy',
             'shop', 'store', 'payment', 'pay', 'billing',
             'auth', 'login', 'signin', 'account', 'accounts',
@@ -414,14 +341,12 @@ class WebRecon:
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(common_prefixes)} subdomain prefixes")
         
-        # First, perform DNS resolution checks for all subdomains
         dns_start = time.time()
         dns_tasks = []
         subdomain_list = []
         for prefix in common_prefixes:
             subdomain = f"{prefix}.{domain}"
             
-            # Skip if already seen
             if self._seen_urls.contains(subdomain):
                 continue
             self._seen_urls.add(subdomain)
@@ -429,11 +354,9 @@ class WebRecon:
             subdomain_list.append(subdomain)
             dns_tasks.append(self._resolve_dns(subdomain))
         
-        # Resolve all DNS queries in parallel
         dns_results = await asyncio.gather(*dns_tasks, return_exceptions=True)
         dns_time = time.time() - dns_start
         
-        # Filter to only subdomains that resolved
         resolved_subdomains = []
         dns_failed = 0
         for subdomain, resolved in zip(subdomain_list, dns_results):

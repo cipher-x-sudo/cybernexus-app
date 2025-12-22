@@ -1,26 +1,3 @@
-"""
-KeywordMonitor Collector - Keyword & Brand Monitoring
-
-Inspired by: VigilantOnion (https://github.com/andreyglauzer/VigilantOnion)
-
-This collector monitors various sources for keyword matches,
-providing alerting and scoring based on YARA-like rules.
-
-Features:
-- Multi-source keyword monitoring
-- Priority-based alerting
-- YARA-like pattern matching
-- Scoring system for matches
-- Historical trend analysis
-- Real-time notifications
-
-DSA Usage:
-- Trie: Efficient keyword prefix matching
-- Heap: Priority queue for alerts
-- LinkedList: Match history timeline
-- HashMap: Rule storage and lookups
-"""
-
 from typing import Dict, List, Optional, Set, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -40,7 +17,6 @@ from core.dsa.hashmap import HashMap
 
 
 class MatchSeverity(Enum):
-    """Severity levels for keyword matches"""
     CRITICAL = 5
     HIGH = 4
     MEDIUM = 3
@@ -49,7 +25,6 @@ class MatchSeverity(Enum):
 
 
 class SourceType(Enum):
-    """Types of monitored sources"""
     DARK_WEB = "dark_web"
     PASTE_SITE = "paste_site"
     FORUM = "forum"
@@ -61,7 +36,6 @@ class SourceType(Enum):
 
 @dataclass
 class MonitorRule:
-    """A monitoring rule with keywords and conditions"""
     rule_id: str
     name: str
     keywords: List[str]
@@ -93,7 +67,6 @@ class MonitorRule:
 
 @dataclass
 class KeywordMatch:
-    """A keyword match result"""
     match_id: str
     rule_id: str
     rule_name: str
