@@ -1,12 +1,9 @@
 "use client";
 
-// Type declaration for process.env in client components
 declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
-// Get WebSocket URL from API URL
 function getWebSocketUrl(): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-  // Convert http/https to ws/wss
   const wsUrl = apiUrl
     .replace(/^http:/, 'ws:')
     .replace(/^https:/, 'wss:');
@@ -64,7 +61,6 @@ export function connectDarkwebJobWebSocket(
           case "complete":
             console.log("[WebSocket] Received complete message:", message.data);
             callbacks.onComplete?.(message.data);
-            // Close connection after completion
             setTimeout(() => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.close();
@@ -138,7 +134,6 @@ export function connectExposureJobWebSocket(
           case "complete":
             console.log("[WebSocket] Received complete message:", message.data);
             callbacks.onComplete?.(message.data);
-            // Close connection after completion
             setTimeout(() => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.close();

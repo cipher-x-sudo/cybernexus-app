@@ -175,7 +175,7 @@ def get_cors_origins():
         return ["*"], False
     
     origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
-        logger.info(f"[CORS DEBUG HYP-A] Parsed {len(origins)} origins from string: {origins}")
+    logger.info(f"[CORS DEBUG HYP-A] Parsed {len(origins)} origins from string: {origins}")
     
     validated_origins = []
     for origin in origins:

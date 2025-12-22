@@ -1,20 +1,15 @@
 "use client";
 
-// Type declaration for process.env in client components (Next.js replaces these at build time)
 declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
-// API base URL - set via NEXT_PUBLIC_API_URL environment variable at build time
-// Next.js replaces process.env.NEXT_PUBLIC_* variables at build time with actual values
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-// DEBUG: Log the actual values (remove after diagnosis)
 if (typeof window !== 'undefined') {
   console.log('🔍 [DEBUG] API_BASE_URL:', API_BASE_URL);
   console.log('🔍 [DEBUG] process.env.NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
   console.log('🔍 [DEBUG] Window location:', window.location.href);
 }
 
-// Types
 export interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -73,7 +68,6 @@ export interface DashboardStats {
   darkWebMentions: number;
 }
 
-// Capability Types
 export interface CapabilityInfo {
   id: string;
   name: string;
@@ -96,7 +90,7 @@ export interface CapabilityJob {
   completed_at: string | null;
   findings_count: number;
   error: string | null;
-  time_ago?: string; // Optional field for formatted time display
+  time_ago?: string;
 }
 
 export interface JobDetail extends CapabilityJob {
@@ -184,13 +178,11 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      // Handle 401 Unauthorized - clear token and redirect to login
       if (response.status === 401) {
         this.clearToken();
         if (typeof window !== "undefined") {
           localStorage.removeItem("auth_token");
           localStorage.removeItem("auth_user");
-          // Only redirect if not already on login/signup page
           if (!window.location.pathname.includes("/login") && !window.location.pathname.includes("/signup")) {
             window.location.href = "/login";
           }
@@ -206,7 +198,6 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth
   async login(username: string, password: string) {
     const formData = new URLSearchParams();
     formData.append("username", username);
@@ -265,14 +256,10 @@ class ApiClient {
     }
   }
 
-  // Dashboard
   async getDashboardStats() {
     return this.request<DashboardStats>("/dashboard/stats");
   }
 
-  /**
-   * Get comprehensive dashboard overview data
-   */
   async getDashboardOverview() {
     return this.request<{
       risk_score: number;
@@ -320,9 +307,6 @@ class ApiClient {
     }>("/dashboard/overview");
   }
 
-  /**
-   * Get critical findings for dashboard
-   */
   async getDashboardCriticalFindings(limit: number = 10) {
     return this.request<{
       findings: Array<{
@@ -339,9 +323,6 @@ class ApiClient {
     }>(`/dashboard/critical-findings?limit=${limit}`);
   }
 
-  /**
-   * Get detailed risk score breakdown with category analysis
-   */
   async getDashboardRiskBreakdown() {
     return this.request<{
       overall_score: number;
@@ -395,9 +376,6 @@ class ApiClient {
     }>("/dashboard/risk-breakdown");
   }
 
-  /**
-   * Resolve a finding
-   */
   async resolveFinding(findingId: string, status: "resolved" | "false_positive" | "accepted_risk" = "resolved") {
     return this.request<{
       message: string;
@@ -408,9 +386,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get positive indicators
-   */
   async getPositiveIndicators() {
     return this.request<{
       indicators: Array<{
@@ -428,9 +403,6 @@ class ApiClient {
     }>("/dashboard/positive-indicators");
   }
 
-  /**
-   * Get recent jobs for dashboard
-   */
   async getRecentJobs(limit: number = 10, capability?: string, status?: string) {
     const params: Record<string, string> = { limit: limit.toString() };
     if (capability) params.capability = capability;
@@ -494,7 +466,6 @@ class ApiClient {
     return response.blob();
   }
 
-  // Threats
   async getThreats(params?: { page?: number; pageSize?: number; severity?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<PaginatedResponse<Threat>>(`/threats?${query}`);
@@ -511,7 +482,6 @@ class ApiClient {
     });
   }
 
-  // Credentials
   async getCredentials(params?: { page?: number; pageSize?: number; riskLevel?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<PaginatedResponse<Credential>>(`/credentials?${query}`);
@@ -521,7 +491,6 @@ class ApiClient {
     return this.request<Credential>(`/credentials/${id}`);
   }
 
-  // Entities / Graph
   async getEntities(params?: { type?: string; limit?: number }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<Entity[]>(`/entities?${query}`);
@@ -533,7 +502,6 @@ class ApiClient {
     );
   }
 
-  // Graph
   async getGraphData(params?: { limit?: number; entity_types?: string[]; min_severity?: string }) {
     const queryParams: Record<string, string> = {};
     if (params?.limit) queryParams.limit = params.limit.toString();
@@ -559,9 +527,6 @@ class ApiClient {
     }> }>(`/graph?${query}`);
   }
 
-  /**
-   * Get graph data focused on a specific job
-   */
   async getGraphDataForJob(jobId: string, depth: number = 2) {
     return this.request<{ nodes: Array<{
       id: string;
@@ -582,9 +547,6 @@ class ApiClient {
     }> }>(`/graph/job/${jobId}?depth=${depth}`);
   }
 
-  /**
-   * Get graph data focused on a specific node
-   */
   async getGraphDataForNode(nodeId: string, depth: number = 2) {
     return this.request<{ nodes: Array<{
       id: string;
@@ -605,9 +567,6 @@ class ApiClient {
     }> }>(`/graph/node/${nodeId}/neighbors?depth=${depth}`);
   }
 
-  /**
-   * Get a specific finding by ID
-   */
   async getFinding(findingId: string) {
     return this.request<{
       id: string;
@@ -624,7 +583,6 @@ class ApiClient {
     }>(`/capabilities/findings/${findingId}`);
   }
 
-  // Timeline
   async getTimelineEvents(params?: { from?: string; to?: string; type?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<any[]>(`/timeline?${query}`);
@@ -634,7 +592,6 @@ class ApiClient {
     return this.request<any[]>(`/timeline/recent?n=${n}`);
   }
 
-  // Reports
   async getReports() {
     return this.request<any[]>("/reports");
   }
@@ -674,7 +631,6 @@ class ApiClient {
     return response.blob();
   }
 
-  // Collectors
   async getCollectorStatuses() {
     return this.request<any[]>("/collectors/status");
   }
@@ -687,7 +643,6 @@ class ApiClient {
     return this.request(`/collectors/${id}/stop`, { method: "POST" });
   }
 
-  // Settings
   async getSettings() {
     return this.request<any>("/settings");
   }
@@ -699,27 +654,14 @@ class ApiClient {
     });
   }
 
-  // ============================================================================
-  // Capabilities API
-  // ============================================================================
-
-  /**
-   * List all available security capabilities
-   */
   async getCapabilities() {
     return this.request<CapabilityInfo[]>("/capabilities/");
   }
 
-  /**
-   * Get a specific capability by ID
-   */
   async getCapability(capabilityId: string) {
     return this.request<CapabilityInfo>(`/capabilities/${capabilityId}`);
   }
 
-  /**
-   * Create and start a capability job (scan)
-   */
   async createCapabilityJob(request: CreateJobRequest) {
     return this.request<CapabilityJob>("/capabilities/jobs", {
       method: "POST",
@@ -727,31 +669,19 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get job status and progress
-   */
   async getJobStatus(jobId: string) {
     return this.request<CapabilityJob>(`/capabilities/jobs/${jobId}`);
   }
 
-  /**
-   * List all jobs with optional filtering
-   */
   async getJobs(params?: { capability?: string; status?: string; limit?: number }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<CapabilityJob[]>(`/capabilities/jobs?${query}`);
   }
 
-  /**
-   * Get findings from a completed job
-   */
   async getJobFindings(jobId: string) {
     return this.request<CapabilityFinding[]>(`/capabilities/jobs/${jobId}/findings`);
   }
 
-  /**
-   * List all findings with optional filtering
-   */
   async getFindings(params?: { 
     capability?: string; 
     severity?: string; 
@@ -763,16 +693,10 @@ class ApiClient {
     return this.request<CapabilityFinding[]>(`/capabilities/findings?${query}`);
   }
 
-  /**
-   * Get critical findings that need immediate attention
-   */
   async getCriticalFindings(limit: number = 10) {
     return this.request<CapabilityFinding[]>(`/capabilities/findings/critical?limit=${limit}`);
   }
 
-  /**
-   * Perform a quick scan of a domain
-   */
   async quickScan(domain: string) {
     return this.request<{
       domain: string;
@@ -787,34 +711,18 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get capability statistics
-   */
   async getCapabilityStats() {
     return this.request<any>("/capabilities/stats");
   }
 
-  /**
-   * Get recent capability events for live feed
-   */
   async getCapabilityEvents(limit: number = 50) {
     return this.request<{ events: any[]; count: number }>(`/capabilities/events?limit=${limit}`);
   }
 
-  // ============================================================================
-  // Company Profile API
-  // ============================================================================
-
-  /**
-   * Get current company profile
-   */
   async getCompanyProfile() {
     return this.request<any>("/company/profile");
   }
 
-  /**
-   * Create a new company profile
-   */
   async createCompanyProfile(data: Record<string, any>) {
     return this.request<any>("/company/profile", {
       method: "POST",
@@ -822,9 +730,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Update company profile (full replace)
-   */
   async updateCompanyProfile(data: Record<string, any>) {
     return this.request<any>("/company/profile", {
       method: "PUT",
@@ -832,9 +737,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Partially update company profile
-   */
   async patchCompanyProfile(data: Record<string, any>) {
     return this.request<any>("/company/profile", {
       method: "PATCH",
@@ -842,9 +744,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Sync company automation config to scheduled searches
-   */
   async syncCompanyAutomation() {
     return this.request<{
       success: boolean;
@@ -856,13 +755,6 @@ class ApiClient {
     });
   }
 
-  // ============================================================================
-  // Email Security Specific Methods
-  // ============================================================================
-
-  /**
-   * Get email security scan history for a domain
-   */
   async getEmailHistory(domain: string, limit: number = 10) {
     return this.request<{
       domain: string;
@@ -876,9 +768,6 @@ class ApiClient {
     }>(`/capabilities/email/${encodeURIComponent(domain)}/history?limit=${limit}`);
   }
 
-  /**
-   * Get email compliance report for a domain
-   */
   async getEmailCompliance(domain: string) {
     return this.request<{
       domain: string;
@@ -887,9 +776,6 @@ class ApiClient {
     }>(`/capabilities/email/${encodeURIComponent(domain)}/compliance`);
   }
 
-  /**
-   * Run bypass vulnerability tests for a domain
-   */
   async runEmailBypassTest(domain: string) {
     return this.request<{
       job_id: string;
@@ -901,9 +787,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get email infrastructure graph data
-   */
   async getEmailInfrastructure(domain: string) {
     return this.request<{
       domain: string;
@@ -920,9 +803,6 @@ class ApiClient {
     }>(`/capabilities/email/${encodeURIComponent(domain)}/infrastructure`);
   }
 
-  /**
-   * Export email security report
-   */
   async exportEmailReport(domain: string, format: "json" | "csv" = "json") {
     const url = `/capabilities/email/${encodeURIComponent(domain)}/export?format=${format}`;
     
@@ -955,9 +835,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * Compare two email security scans
-   */
   async compareEmailScans(domain: string, jobId1: string, jobId2: string) {
     return this.request<{
       domain: string;
@@ -982,13 +859,6 @@ class ApiClient {
     }>(`/capabilities/email/${encodeURIComponent(domain)}/compare?job_id1=${jobId1}&job_id2=${jobId2}`);
   }
 
-  // ============================================================================
-  // Investigation API
-  // ============================================================================
-
-  /**
-   * Get screenshot from an investigation job
-   */
   async getInvestigationScreenshot(jobId: string): Promise<string> {
     const response = await fetch(`${this.baseUrl}/capabilities/investigation/${jobId}/screenshot`, {
       headers: {
@@ -1005,16 +875,10 @@ class ApiClient {
     return URL.createObjectURL(blob);
   }
 
-  /**
-   * Get HAR file from an investigation job
-   */
   async getInvestigationHAR(jobId: string) {
     return this.request<any>(`/capabilities/investigation/${jobId}/har`);
   }
 
-  /**
-   * Get domain tree graph from an investigation job
-   */
   async getInvestigationDomainTree(jobId: string) {
     return this.request<{
       nodes: Array<{
@@ -1035,9 +899,6 @@ class ApiClient {
     }>(`/capabilities/investigation/${jobId}/domain-tree`);
   }
 
-  /**
-   * Compare two investigation results
-   */
   async compareInvestigations(jobId1: string, jobId2: string) {
     return this.request<{
       job1: string;
@@ -1064,9 +925,6 @@ class ApiClient {
     }>(`/capabilities/investigation/compare?job_id1=${jobId1}&job_id2=${jobId2}`);
   }
 
-  /**
-   * Export investigation results
-   */
   async exportInvestigation(jobId: string, format: "json" | "html" = "json") {
     const url = `/capabilities/investigation/${jobId}/export?format=${format}`;
     
@@ -1121,7 +979,6 @@ class ApiClient {
     }
   }
 
-  // Network Monitoring
   async getNetworkLogs(params?: {
     limit?: number;
     offset?: number;
@@ -1178,7 +1035,6 @@ class ApiClient {
     return this.request<{ detections: any[]; count: number }>(`/network/tunnels?${query}`);
   }
 
-  // Blocking
   async blockIP(ip: string, reason: string = "", created_by: string = "") {
     return this.request<{ message: string; ip: string }>("/network/blocks/ip", {
       method: "POST",
@@ -1273,13 +1129,6 @@ class ApiClient {
     return { success: true };
   }
 
-  // ============================================================================
-  // Notifications API
-  // ============================================================================
-
-  /**
-   * Get notifications for the current user
-   */
   async getNotifications(params?: {
     limit?: number;
     unread_only?: boolean;
@@ -1311,16 +1160,10 @@ class ApiClient {
     }>(url);
   }
 
-  /**
-   * Get unread notification count
-   */
   async getUnreadCount() {
     return this.request<{ unread_count: number }>("/notifications/unread-count");
   }
 
-  /**
-   * Mark a notification as read
-   */
   async markNotificationRead(notificationId: string) {
     return this.request<{ message: string; id: string }>(
       `/notifications/${notificationId}/read`,
@@ -1330,9 +1173,6 @@ class ApiClient {
     );
   }
 
-  /**
-   * Mark all notifications as read
-   */
   async markAllNotificationsRead() {
     return this.request<{ message: string; count: number }>(
       "/notifications/mark-all-read",
@@ -1342,13 +1182,6 @@ class ApiClient {
     );
   }
 
-  // ============================================================================
-  // Scheduled Searches API
-  // ============================================================================
-
-  /**
-   * List all scheduled searches for the current user
-   */
   async getScheduledSearches(enabled?: boolean) {
     const query = enabled !== undefined ? `?enabled=${enabled}` : "";
     return this.request<Array<{
@@ -1372,10 +1205,8 @@ class ApiClient {
   }
 }
 
-// Export singleton instance
 export const api = new ApiClient(API_BASE_URL);
 
-// React Query hooks (if using React Query)
 export const queryKeys = {
   dashboard: ["dashboard"],
   threats: (params?: any) => ["threats", params],
@@ -1388,9 +1219,7 @@ export const queryKeys = {
   reports: ["reports"],
   collectors: ["collectors"],
   settings: ["settings"],
-  // Capabilities
   capabilities: ["capabilities"],
-  // Scheduled Searches
   scheduledSearches: (enabled?: boolean) => ["scheduled-searches", enabled],
   capability: (id: string) => ["capability", id],
   jobs: (params?: any) => ["jobs", params],
@@ -1400,7 +1229,6 @@ export const queryKeys = {
   criticalFindings: ["criticalFindings"],
   capabilityStats: ["capabilityStats"],
   capabilityEvents: ["capabilityEvents"],
-  // Company Profile
   companyProfile: ["companyProfile"],
 };
 

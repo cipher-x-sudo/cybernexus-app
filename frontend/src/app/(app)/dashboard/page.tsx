@@ -24,18 +24,15 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [scoreModalOpen, setScoreModalOpen] = useState(false);
 
-  // Aggregate findings/events by month for chart
   const aggregateThreatsByTime = (items: any[]) => {
     if (!items || items.length === 0) {
       return { data: [], labels: [] };
     }
 
-    // Get last 12 months
     const months: { [key: string]: number } = {};
     const monthLabels: string[] = [];
     const now = new Date();
     
-    // Initialize last 12 months
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -44,11 +41,9 @@ export default function DashboardPage() {
       monthLabels.push(monthLabel);
     }
 
-    // Count items by month (handle both findings and timeline events)
     items.forEach((item) => {
       let timestamp: string | null = null;
       
-      // Check for different timestamp fields
       if (item.discovered_at) {
         timestamp = item.discovered_at;
       } else if (item.timestamp) {
@@ -65,19 +60,16 @@ export default function DashboardPage() {
             months[monthKey]++;
           }
         } catch (e) {
-          // Skip invalid dates
         }
       }
     });
 
-    // Convert to arrays
     const data = Object.values(months);
     const labels = monthLabels;
 
     return { data, labels };
   };
 
-  // Fetch dashboard data
   const fetchData = async (showLoading: boolean = true) => {
     try {
       if (showLoading) {
@@ -85,20 +77,15 @@ export default function DashboardPage() {
       }
       setError(null);
 
-      // Fetch dashboard overview
       const overview = await api.getDashboardOverview();
       setDashboardData(overview);
 
-      // Fetch critical findings
       const findingsResponse = await api.getDashboardCriticalFindings(10);
       setCriticalFindings(findingsResponse.findings || []);
 
-        // Fetch timeline events for Live Activity (preferred over dashboard overview events)
-        // Only show job lifecycle events, not findings/results
         try {
           const timelineEvents = await api.getRecentTimelineEvents(20);
           if (timelineEvents && timelineEvents.length > 0) {
-            // Filter to only job-related events
             const jobEvents = timelineEvents.filter((event: any) => {
               const type = event.type || "";
               return type === "job_started" || 
@@ -110,7 +97,6 @@ export default function DashboardPage() {
             });
             setRecentEvents(jobEvents);
           } else {
-            // Fallback to dashboard overview events - also filter for job events only
             const allEvents = overview.recent_events || [];
             const jobEvents = allEvents.filter((event: any) => {
               const type = event.type || "";
@@ -125,7 +111,6 @@ export default function DashboardPage() {
           }
         } catch (timelineErr) {
           console.error("Error fetching timeline events:", timelineErr);
-          // Fallback to dashboard overview events - also filter for job events only
           const allEvents = overview.recent_events || [];
           const jobEvents = allEvents.filter((event: any) => {
             const type = event.type || "";
@@ -139,31 +124,24 @@ export default function DashboardPage() {
           setRecentEvents(jobEvents);
         }
 
-        // Fetch timeline events or all findings for chart
         try {
-          // Try to get timeline events first
           const timelineEvents = await api.getTimelineEvents({});
           
-          // If we have timeline events, use them; otherwise use findings from overview
           let dataForChart: any[] = [];
           if (timelineEvents && timelineEvents.length > 0) {
             dataForChart = timelineEvents;
           } else if (overview.recent_events && overview.recent_events.length > 0) {
             dataForChart = overview.recent_events;
           } else {
-            // Fallback: try to get all findings
-            // We'll use the threat_map_data which contains findings
             if (overview.threat_map_data && overview.threat_map_data.length > 0) {
               dataForChart = overview.threat_map_data;
             }
           }
 
-          // Aggregate the data
           const aggregated = aggregateThreatsByTime(dataForChart);
           setThreatsOverTime(aggregated);
         } catch (chartErr) {
           console.error("Error fetching chart data:", chartErr);
-          // Use findings from overview as fallback
           if (overview.threat_map_data) {
             const aggregated = aggregateThreatsByTime(overview.threat_map_data);
             setThreatsOverTime(aggregated);
@@ -183,12 +161,10 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchData(true);
 
-    // Poll for updates every 30 seconds
     const interval = setInterval(() => fetchData(false), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Show loading state
   if (loading && !dashboardData) {
     return (
       <div className="space-y-6">
@@ -202,7 +178,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Show error state
   if (error && !dashboardData) {
     return (
       <div className="space-y-6">
@@ -216,7 +191,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Use only real data - no fallbacks
   if (!dashboardData) {
     return (
       <div className="space-y-6">
@@ -233,7 +207,6 @@ export default function DashboardPage() {
   const riskScoreData = mapToRiskScore(dashboardData);
   const findingsData = criticalFindings.length > 0 ? mapToFindings(criticalFindings) : [];
   const recentJobs = dashboardData.recent_jobs ? mapToJobs(dashboardData.recent_jobs) : [];
-  // Use timeline events if available, otherwise fallback to dashboard overview events
   const mappedRecentEvents = recentEvents.length > 0 
     ? mapToEvents(recentEvents) 
     : (dashboardData.recent_events ? mapToEvents(dashboardData.recent_events) : []);
@@ -242,7 +215,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Security Operations Center</h1>
@@ -261,7 +233,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Top row: Risk Score + Critical Findings */}
       <div className="grid lg:grid-cols-2 gap-6">
         <RiskScore
           score={riskScoreData.score}
@@ -277,7 +248,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Security Score Detail Modal */}
       <SecurityScoreDetailModal
         open={scoreModalOpen}
         onOpenChange={setScoreModalOpen}
@@ -288,12 +258,9 @@ export default function DashboardPage() {
         highIssues={riskScoreData.highIssues}
       />
 
-      {/* Capability Cards */}
       <CapabilityCards stats={capabilityStats} />
 
-      {/* Bottom row: Map + Activity + Trends */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* World map */}
         <GlassCard className="lg:col-span-2 overflow-hidden" padding="none">
           <div className="p-5 border-b border-white/[0.05]">
             <div className="flex items-center justify-between">
@@ -314,11 +281,9 @@ export default function DashboardPage() {
           </div>
         </GlassCard>
 
-        {/* Live Activity */}
         <LiveActivity events={mappedRecentEvents} />
       </div>
 
-      {/* Trends row */}
       <div className="grid lg:grid-cols-2 gap-6">
         <LineChart data={threatsOverTime.data} labels={threatsOverTime.labels} />
         <JobHistoryCard limit={5} />

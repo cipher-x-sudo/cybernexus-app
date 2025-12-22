@@ -1,9 +1,3 @@
-/**
- * Data Transformation Utilities
- * 
- * Maps API responses to component prop formats
- */
-
 export interface RiskScoreData {
   score: number;
   riskLevel: string;

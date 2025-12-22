@@ -1,12 +1,9 @@
 "use client";
 
-// Type declaration for process.env in client components
 declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
-// Get WebSocket URL from API URL
 function getWebSocketUrl(): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-  // Convert http/https to ws/wss
   const wsUrl = apiUrl
     .replace(/^http:/, 'ws:')
     .replace(/^https:/, 'wss:');
@@ -102,7 +99,6 @@ export function connectNetworkWebSocket(
             console.log("[Network WebSocket] Connection confirmed");
             break;
           case "pong":
-            // Heartbeat response
             break;
           default:
             console.warn("[Network WebSocket] Unknown message type:", message.type, message);
@@ -122,7 +118,6 @@ export function connectNetworkWebSocket(
       callbacks.onDisconnect?.();
     };
 
-    // Send ping every 30 seconds to keep connection alive
     const pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "ping" }));
@@ -131,7 +126,6 @@ export function connectNetworkWebSocket(
       }
     }, 30000);
 
-    // Store interval on WebSocket for cleanup
     (ws as any).pingInterval = pingInterval;
 
     return ws;
@@ -144,7 +138,6 @@ export function connectNetworkWebSocket(
 
 export function disconnectNetworkWebSocket(ws: WebSocket | null): void {
   if (ws) {
-    // Clear ping interval
     if ((ws as any).pingInterval) {
       clearInterval((ws as any).pingInterval);
     }

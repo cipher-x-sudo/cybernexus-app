@@ -3,7 +3,6 @@
 import { io, Socket } from "socket.io-client";
 import { create } from "zustand";
 
-// Types
 export interface ThreatUpdate {
   id: string;
   type: "new" | "update" | "resolved";
@@ -31,7 +30,6 @@ export interface CollectorStatusUpdate {
   lastUpdate: Date;
 }
 
-// Socket Store
 interface SocketState {
   socket: Socket | null;
   isConnected: boolean;

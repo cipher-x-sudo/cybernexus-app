@@ -1,7 +1,3 @@
-/**
- * TypeScript types for Email Security feature
- */
-
 export interface EmailSecurityConfig {
   check_spf?: boolean;
   check_dkim?: boolean;

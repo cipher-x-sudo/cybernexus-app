@@ -1,8 +1,5 @@
 import { InfrastructureFinding, InfrastructureStats } from "@/components/infrastructure/helpers";
 
-/**
- * Export findings as JSON
- */
 export function exportInfrastructureJSON(
   findings: InfrastructureFinding[],
   stats: InfrastructureStats,
@@ -28,9 +25,6 @@ export function exportInfrastructureJSON(
   URL.revokeObjectURL(url);
 }
 
-/**
- * Export findings as CSV
- */
 export function exportInfrastructureCSV(
   findings: InfrastructureFinding[],
   filename?: string

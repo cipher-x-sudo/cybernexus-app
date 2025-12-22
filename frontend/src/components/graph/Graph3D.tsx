@@ -6,7 +6,6 @@ import { OrbitControls, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
 
-// Entity types with unique colors
 const entityTypes = {
   ip_address: { color: "#f59e0b", shape: "octahedron" },
   threat: { color: "#ef4444", shape: "box" },
@@ -22,7 +21,6 @@ const entityTypes = {
   job: { color: "#6366f1", shape: "dodecahedron" },
 };
 
-// Graph data types
 type GraphNode = {
   id: string;
   type: string;
@@ -37,7 +35,6 @@ type GraphEdge = {
   target: string;
 };
 
-// Fetch graph data from API
 async function fetchGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
   try {
     const { api } = await import("@/lib/api");
@@ -48,7 +45,6 @@ async function fetchGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[
     };
   } catch (error) {
     console.error('Error fetching graph data:', error);
-    // Return empty arrays - no mock data
     return { nodes: [], edges: [] };
   }
 }
@@ -120,7 +116,6 @@ function Node3D({ node, position, isHovered, isSelected, onHover, onClick }: Nod
           wireframe={true}
         />
       </mesh>
-      {/* Glow effect */}
       <mesh scale={1.5}>
         {geometry}
         <meshBasicMaterial
@@ -129,7 +124,6 @@ function Node3D({ node, position, isHovered, isSelected, onHover, onClick }: Nod
           opacity={isHovered || isSelected ? 0.2 : 0.05}
         />
       </mesh>
-      {/* Label */}
       <Text
         position={[0, 0.7, 0]}
         fontSize={0.2}
@@ -167,17 +161,14 @@ function CameraController({ targetPosition }: { targetPosition: THREE.Vector3 | 
   
   useFrame(() => {
     if (targetRef.current) {
-      // Smoothly move camera to focus on target
       const currentPos = camera.position.clone();
       const targetPos = targetRef.current.clone();
-      targetPos.add(new THREE.Vector3(5, 5, 5)); // Offset camera position
+      targetPos.add(new THREE.Vector3(5, 5, 5));
       
       camera.position.lerp(targetPos, 0.05);
       
-      // Look at the target
       camera.lookAt(targetRef.current);
       
-      // Stop when close enough
       if (currentPos.distanceTo(targetPos) < 0.1) {
         targetRef.current = null;
       }
@@ -199,24 +190,19 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
   const nodePositions = useMemo(() => {
     const positions: Record<string, THREE.Vector3> = {};
     
-    // Check if any nodes have explicit positions
     const hasPositions = nodes.some(node => node.x !== null && node.x !== undefined);
     
     if (hasPositions) {
-      // Use provided positions
       nodes.forEach((node) => {
         positions[node.id] = new THREE.Vector3(node.x || 0, node.y || 0, node.z || 0);
       });
     } else {
-      // Calculate layout positions using force-directed algorithm
       const nodeMap = new Map(nodes.map((node, i) => [node.id, { node, index: i }]));
       const edgeList = edges.map(e => ({ source: e.source, target: e.target }));
       
-      // Initialize positions randomly or in a sphere
       const radius = Math.max(3, Math.sqrt(nodes.length) * 0.8);
       nodes.forEach((node, i) => {
         if (!positions[node.id]) {
-          // Place nodes in a sphere layout
           const angle1 = (i / nodes.length) * Math.PI * 2;
           const angle2 = Math.acos((i * 2.0 / nodes.length) - 1);
           const x = radius * Math.sin(angle2) * Math.cos(angle1);
@@ -226,14 +212,12 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
         }
       });
       
-      // Simple force-directed layout iterations
       for (let iter = 0; iter < 50; iter++) {
         const forces: Record<string, THREE.Vector3> = {};
         nodes.forEach(node => {
           forces[node.id] = new THREE.Vector3(0, 0, 0);
         });
         
-        // Repulsion between all nodes
         nodes.forEach((node1) => {
           nodes.forEach((node2) => {
             if (node1.id !== node2.id) {
@@ -248,7 +232,6 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
           });
         });
         
-        // Attraction along edges
         edgeList.forEach((edge) => {
           const pos1 = positions[edge.source];
           const pos2 = positions[edge.target];
@@ -262,7 +245,6 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
           }
         });
         
-        // Apply forces with damping
         nodes.forEach((node) => {
           const force = forces[node.id];
           if (force) {
@@ -285,21 +267,16 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
 
   return (
     <>
-      {/* Ambient light */}
       <ambientLight intensity={0.3} />
-      {/* Point lights */}
       <pointLight position={[10, 10, 10]} intensity={0.8} color="#f59e0b" />
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
 
-      {/* Grid */}
       <gridHelper args={[20, 20, "#f59e0b", "#1a1a2e"]} position={[0, -5, 0]} />
 
-      {/* Edges */}
       {edges.map((edge, i) => {
         const sourcePos = nodePositions[edge.source];
         const targetPos = nodePositions[edge.target];
         if (!sourcePos || !targetPos) {
-          // Debug: log missing positions
           if (process.env.NODE_ENV === 'development') {
             console.debug(`Edge ${i} missing position: source=${edge.source} (${!!sourcePos}), target=${edge.target} (${!!targetPos})`);
           }
@@ -317,7 +294,6 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
         );
       })}
 
-      {/* Nodes */}
       {nodes.map((node) => {
         const position = nodePositions[node.id];
         if (!position) return null;
@@ -334,10 +310,8 @@ function Scene({ nodes, edges, hoveredNode, selectedNode, focusedNodeId, onHover
         );
       })}
       
-      {/* Camera controller for focusing */}
       <CameraController targetPosition={focusedPosition} />
 
-      {/* Controls */}
       <OrbitControls
         enableDamping
         dampingFactor={0.05}
@@ -364,7 +338,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
   const [edges, setEdges] = useState<GraphEdge[]>([]);
 
   useEffect(() => {
-    // Check WebGL support
     try {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -377,7 +350,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
       setHasError(true);
     }
     
-    // Use provided graph data or fetch from API
     if (propGraphData) {
       setNodes(propGraphData.nodes || []);
       setEdges(propGraphData.edges || []);
@@ -449,7 +421,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
 
   return (
     <div className="relative w-full" style={{ height: "700px" }}>
-      {/* 3D Canvas */}
       <Canvas
         camera={{ position: [10, 8, 10], fov: 50 }}
         style={{ background: "#0a0e1a", height: "100%", width: "100%" }}
@@ -471,9 +442,7 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
         />
       </Canvas>
 
-      {/* Control panel */}
       <div className="absolute top-4 left-4 w-72 space-y-3 z-10">
-        {/* Search */}
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
           <div className="relative">
             <svg 
@@ -509,7 +478,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
           )}
         </div>
 
-        {/* Entity type filters */}
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
           <p className="text-xs font-mono text-amber-500/70 mb-3 uppercase tracking-wider">
             Entity Types
@@ -537,7 +505,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
         </div>
       </div>
 
-      {/* Node details panel */}
       {selectedNodeData && (
         <div className="absolute top-4 right-4 w-72 z-10">
           <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-4">
@@ -586,7 +553,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
         </div>
       )}
 
-      {/* Instructions */}
       <div className="absolute bottom-4 left-4 z-10">
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 text-xs text-white/50 space-y-1 font-mono">
           <p className="flex items-center gap-2"><span className="text-amber-500">⟳</span> Drag to rotate</p>
@@ -594,8 +560,6 @@ export function Graph3D({ graphData: propGraphData, focusedNodeId }: Graph3DProp
           <p className="flex items-center gap-2"><span className="text-amber-500">◉</span> Click node for details</p>
         </div>
       </div>
-
-      {/* Legend */}
       <div className="absolute bottom-4 right-4 z-10">
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3">
           <p className="text-xs font-mono text-amber-500/70 mb-2 uppercase tracking-wider">

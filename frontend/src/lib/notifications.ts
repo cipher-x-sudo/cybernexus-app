@@ -19,10 +19,10 @@ export interface Notification {
 }
 
 interface UseNotificationsOptions {
-  pollInterval?: number; // Polling interval in milliseconds (default: 5000)
-  limit?: number; // Number of notifications to fetch (default: 50)
-  autoPoll?: boolean; // Whether to automatically poll (default: true)
-  unreadOnly?: boolean; // Only fetch unread notifications (default: false)
+  pollInterval?: number;
+  limit?: number;
+  autoPoll?: boolean;
+  unreadOnly?: boolean;
 }
 
 interface UseNotificationsReturn {
@@ -35,14 +35,11 @@ interface UseNotificationsReturn {
   markAllAsRead: () => Promise<void>;
 }
 
-/**
- * Hook for fetching and managing notifications via HTTP polling
- */
 export function useNotifications(
   options: UseNotificationsOptions = {}
 ): UseNotificationsReturn {
   const {
-    pollInterval = 15000, // Default to 15 seconds
+    pollInterval = 15000,
     limit = 50,
     autoPoll = true,
     unreadOnly = false,
