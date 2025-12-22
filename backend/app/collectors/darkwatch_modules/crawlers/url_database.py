@@ -1,13 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-"""
-URL Database Module
-
-Manages SQLite database for URL tracking and discovery.
-Adapted from VigilantOnion.
-"""
-
 import sqlite3
 import os
 import logging
@@ -17,16 +10,10 @@ from typing import List, Optional, Tuple
 
 
 class URLDatabase:
-    """Database manager for URL tracking."""
+    
     
     def __init__(self, dbpath: str, dbname: str):
-        """
-        Initialize URL database.
         
-        Args:
-            dbpath: Path to database directory
-            dbname: Database filename
-        """
         self.logger = logging.getLogger(__name__)
         self.logger.debug("Checking Database.")
         self.dbpath = dbpath
@@ -44,7 +31,7 @@ class URLDatabase:
             self._create_database(db_file)
     
     def _create_database(self, db_file: str):
-        """Create database and table if they don't exist."""
+        
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
         
@@ -71,15 +58,7 @@ class URLDatabase:
         conn.close()
     
     def compare(self, url: str) -> List[Tuple]:
-        """
-        Check if URL exists in database.
         
-        Args:
-            url: URL to check
-            
-        Returns:
-            List of matching records
-        """
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         r = cursor.execute("SELECT * FROM URL WHERE url=?;", (url,))
@@ -94,15 +73,7 @@ class URLDatabase:
         type: str,
         baseurl: Optional[str] = None
     ):
-        """
-        Save a new URL to database.
         
-        Args:
-            url: URL to save
-            source: Source of the URL
-            type: Type of URL
-            baseurl: Base URL (optional)
-        """
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -120,18 +91,7 @@ class URLDatabase:
         type: str,
         baseurl: Optional[str] = None
     ) -> int:
-        """
-        Save multiple URLs to database in a single transaction (batch insert).
         
-        Args:
-            urls: List of URLs to save
-            source: Source of the URLs
-            type: Type of URLs
-            baseurl: Base URL (optional, applied to all)
-            
-        Returns:
-            Number of URLs successfully saved
-        """
         if not urls:
             return 0
         
@@ -175,16 +135,7 @@ class URLDatabase:
         score_categorie: Optional[int] = None,
         score_keywords: Optional[int] = None
     ) -> List[Tuple]:
-        """
-        Select URLs based on score criteria.
         
-        Args:
-            score_categorie: Minimum category score
-            score_keywords: Minimum keyword score
-            
-        Returns:
-            List of URL records
-        """
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         
@@ -206,15 +157,7 @@ class URLDatabase:
         return results
     
     def select_url(self, url: str) -> List[Tuple]:
-        """
-        Select a specific URL.
         
-        Args:
-            url: URL to select
-            
-        Returns:
-            List of matching records
-        """
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         r = cursor.execute("SELECT * FROM URL WHERE url=?;", (url,))
@@ -229,15 +172,7 @@ class URLDatabase:
         result: int,
         count_categories: int
     ):
-        """
-        Update URL status.
         
-        Args:
-            id: URL record ID
-            url: URL string
-            result: HTTP status code
-            count_categories: Max retry count
-        """
         if result == 404:
             existing = self.select_url(url=url)
             if existing and len(existing) > 0:
@@ -281,18 +216,7 @@ class URLDatabase:
         score_keywords: int,
         full_match_keywords: str
     ):
-        """
-        Update URL category and keyword information.
         
-        Args:
-            id: URL record ID
-            categorie: Category name
-            title: Page title
-            full_match_categorie: Full category match string
-            score_categorie: Category score
-            score_keywords: Keyword score
-            full_match_keywords: Full keyword match string
-        """
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         

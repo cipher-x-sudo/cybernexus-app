@@ -145,11 +145,7 @@ async def get_site_network(
     site_id: str,
     depth: int = Query(default=2, ge=1, le=5, description="Network traversal depth")
 ):
-    """
-    Get site relationship network graph.
     
-    Returns a graph of connected .onion sites up to the specified depth.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -181,11 +177,7 @@ async def get_site_network(
 
 @router.get("/jobs/{job_id}/sites/{site_id}/clones", response_model=List[OnionSiteResponse])
 async def get_site_clones(job_id: str, site_id: str):
-    """
-    Find sites with similar content (potential clones).
     
-    Uses content hash comparison to identify duplicate or mirrored sites.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -222,11 +214,7 @@ async def search_entities(
     entity_type: Optional[str] = Query(None, description="Filter by entity type (email, bitcoin, etc.)"),
     value_pattern: Optional[str] = Query(None, description="Regex pattern to match entity values")
 ):
-    """
-    Search extracted entities from dark web sites.
     
-    Supports filtering by entity type and value pattern matching.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -297,11 +285,7 @@ async def get_brand_mentions(
 
 @router.get("/jobs/{job_id}/statistics", response_model=StatisticsResponse)
 async def get_statistics(job_id: str):
-    """
-    Get dark web intelligence collection statistics.
     
-    Returns comprehensive statistics about sites indexed, entities extracted, etc.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -330,11 +314,7 @@ async def get_recent_activity(
     job_id: str,
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back")
 ):
-    """
-    Get recent dark web intelligence activity.
     
-    Returns activity summary for the specified time period.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -358,11 +338,7 @@ async def get_high_risk_sites(
     job_id: str,
     limit: int = Query(default=20, ge=1, le=100, description="Maximum number of sites to return")
 ):
-    """
-    Get high-risk dark web sites.
     
-    Returns sites sorted by risk score (highest first).
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -427,12 +403,7 @@ async def get_all_mentions(
     keyword: Optional[str] = Query(None, description="Filter by keyword"),
     min_threat_level: str = Query(default="info", description="Minimum threat level")
 ):
-    """
-    Get brand mentions (frontend-compatible endpoint).
     
-    Aggregates mentions from all dark web jobs or a specific job.
-    Compatible with frontend Mention interface.
-    """
     orchestrator = get_orchestrator()
     
     try:

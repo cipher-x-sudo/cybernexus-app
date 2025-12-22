@@ -103,7 +103,7 @@ class KeywordMatch:
 
 @dataclass
 class Alert:
-    """An alert generated from high-priority matches"""
+    
     alert_id: str
     match_id: str
     title: str
@@ -134,12 +134,7 @@ class Alert:
 
 
 class KeywordMonitor:
-    """
-    Keyword & Brand Monitoring Collector
     
-    Monitors content sources for keyword matches with scoring.
-    Inspired by VigilantOnion's dark web monitoring approach.
-    """
     
     def __init__(self):
         # Trie for efficient keyword matching
@@ -173,12 +168,12 @@ class KeywordMonitor:
         self.alert_callbacks: List[Callable[[Alert], None]] = []
     
     def _generate_id(self, prefix: str, data: str) -> str:
-        """Generate unique ID"""
+        
         timestamp = datetime.now().isoformat()
         return f"{prefix}_{hashlib.md5(f'{data}:{timestamp}'.encode()).hexdigest()[:10]}"
     
     def add_rule(self, rule: MonitorRule) -> str:
-        """Add a monitoring rule"""
+        
         self.rules.put(rule.rule_id, rule)
         
         # Index keywords in Trie
@@ -203,7 +198,7 @@ class KeywordMonitor:
         severity: MatchSeverity = MatchSeverity.MEDIUM,
         **kwargs
     ) -> MonitorRule:
-        """Create and add a new rule"""
+        
         rule_id = self._generate_id("rule", name)
         rule = MonitorRule(
             rule_id=rule_id,
@@ -216,7 +211,7 @@ class KeywordMonitor:
         return rule
     
     def remove_rule(self, rule_id: str) -> bool:
-        """Remove a monitoring rule"""
+        
         rule = self.rules.get(rule_id)
         if not rule:
             return False
@@ -238,7 +233,7 @@ class KeywordMonitor:
         content: str,
         source_type: SourceType
     ) -> Optional[Dict[str, Any]]:
-        """Check if content matches a rule"""
+        
         if not rule.enabled:
             return None
         
@@ -289,7 +284,7 @@ class KeywordMonitor:
         matched_patterns: List[str],
         source_type: SourceType
     ) -> float:
-        """Calculate match score"""
+        
         base_score = rule.severity.value * 20  # 20-100 based on severity
         
         # Bonus for multiple matches
@@ -312,7 +307,7 @@ class KeywordMonitor:
         return min(score, 100.0)  # Cap at 100
     
     def _get_snippet(self, content: str, keyword: str, context_size: int = 100) -> str:
-        """Extract content snippet around matched keyword"""
+        
         content_lower = content.lower()
         keyword_lower = keyword.lower()
         
@@ -338,18 +333,7 @@ class KeywordMonitor:
         source_type: SourceType,
         metadata: Dict[str, Any] = None
     ) -> List[KeywordMatch]:
-        """
-        Scan content against all rules
         
-        Args:
-            content: Text content to scan
-            source_url: URL where content was found
-            source_type: Type of source
-            metadata: Additional metadata
-            
-        Returns:
-            List of keyword matches found
-        """
         self.stats["content_scanned"] += 1
         matches = []
         
@@ -405,7 +389,7 @@ class KeywordMonitor:
         return matches
     
     def _create_alert(self, match: KeywordMatch):
-        """Create an alert from a match"""
+        
         alert_id = self._generate_id("alert", match.match_id)
         
         alert = Alert(
@@ -431,11 +415,11 @@ class KeywordMonitor:
                 pass
     
     def register_alert_callback(self, callback: Callable[[Alert], None]):
-        """Register a callback for new alerts"""
+        
         self.alert_callbacks.append(callback)
     
     def get_pending_alerts(self, limit: int = 10) -> List[Alert]:
-        """Get highest priority pending alerts"""
+        
         alerts = []
         temp = []
         
@@ -452,7 +436,7 @@ class KeywordMonitor:
         return alerts
     
     def acknowledge_alert(self, alert_id: str, user: str) -> bool:
-        """Acknowledge an alert"""
+        
         alert = self.alerts.get(alert_id)
         if not alert:
             return False
@@ -470,7 +454,7 @@ class KeywordMonitor:
         since: Optional[datetime] = None,
         limit: int = 100
     ) -> List[KeywordMatch]:
-        """Get matches with optional filtering"""
+        
         results = []
         
         for match_id in self.matches.keys():
@@ -494,7 +478,7 @@ class KeywordMonitor:
         return results[:limit]
     
     def get_match_trends(self, days: int = 7) -> Dict[str, Any]:
-        """Get match trends over time"""
+        
         cutoff = datetime.now() - timedelta(days=days)
         
         daily_counts = {}
@@ -531,11 +515,11 @@ class KeywordMonitor:
         }
     
     def search_keywords(self, prefix: str) -> List[str]:
-        """Search keywords by prefix using Trie"""
+        
         return self.keyword_trie.starts_with(prefix.lower())
     
     def get_rules(self, enabled_only: bool = True) -> List[MonitorRule]:
-        """Get all rules"""
+        
         rules = []
         for rule_id in self.rules.keys():
             rule = self.rules.get(rule_id)
@@ -544,7 +528,7 @@ class KeywordMonitor:
         return rules
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get collector statistics"""
+        
         return {
             **self.stats,
             "pending_alerts": len([1 for aid in self.alerts.keys() 
@@ -554,12 +538,12 @@ class KeywordMonitor:
         }
     
     def export_rules(self) -> str:
-        """Export all rules as JSON"""
+        
         rules = [self.rules.get(rid).to_dict() for rid in self.rules.keys() if self.rules.get(rid)]
         return json.dumps(rules, indent=2)
     
     def import_rules(self, rules_json: str) -> int:
-        """Import rules from JSON"""
+        
         rules_data = json.loads(rules_json)
         count = 0
         

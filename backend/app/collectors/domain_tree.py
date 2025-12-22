@@ -902,7 +902,7 @@ class DomainTree:
         return tracker_usage
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get collector statistics"""
+        
         return {
             **self.stats,
             "graph_vertices": self.domain_graph.vertex_count(),

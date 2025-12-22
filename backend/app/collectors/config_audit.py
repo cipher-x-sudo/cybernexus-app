@@ -385,15 +385,7 @@ class ConfigAudit:
         return findings
     
     async def _test_variable_leakage(self, client: httpx.AsyncClient, target: str) -> List[Dict[str, Any]]:
-        """Test for nginx variable leakage.
         
-        Args:
-            client: HTTP client
-            target: Target URL
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
         try:
@@ -421,16 +413,7 @@ class ConfigAudit:
     
     async def _test_path_traversal(self, client: httpx.AsyncClient, target: str, 
                                    config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Test for path traversal vulnerabilities.
         
-        Args:
-            client: HTTP client
-            target: Target URL
-            config: Test configuration
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
         try:
@@ -586,16 +569,7 @@ class ConfigAudit:
     
     async def _test_x_accel_bypass(self, client: httpx.AsyncClient, target: str, 
                                   config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Test X-Accel-Redirect bypass for 401/403.
         
-        Args:
-            client: HTTP client
-            target: Target URL
-            config: Test configuration
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
         paths_to_test = config.get("paths", [])
@@ -694,15 +668,7 @@ class ConfigAudit:
         return findings
     
     async def _test_cve_2017_7529(self, client: httpx.AsyncClient, target: str) -> List[Dict[str, Any]]:
-        """Test for CVE-2017-7529 (integer overflow in range filter).
         
-        Args:
-            client: HTTP client
-            target: Target URL
-            
-        Returns:
-            List of findings
-        """
         findings = []
         
         try:
@@ -736,14 +702,7 @@ class ConfigAudit:
         return findings
     
     def _analyze_headers(self, headers: httpx.Headers) -> Dict[str, Any]:
-        """Analyze security headers.
         
-        Args:
-            headers: Response headers
-            
-        Returns:
-            Headers analysis
-        """
         analysis = {
             "present": [],
             "missing": [],
@@ -792,14 +751,7 @@ class ConfigAudit:
         return max(0, score)
     
     def get_top_findings(self, n: int = 10) -> List[Dict[str, Any]]:
-        """Get top N findings by severity.
         
-        Args:
-            n: Number of findings
-            
-        Returns:
-            Top findings
-        """
         return self._findings_heap.get_top_n(n)
     
     def stats(self) -> Dict[str, Any]:

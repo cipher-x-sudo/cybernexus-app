@@ -33,7 +33,7 @@ class ContentType(Enum):
 
 
 class SECategory(Enum):
-    """Social engineering categories"""
+    
     PHISHING = "phishing"
     VISHING = "vishing"
     SMISHING = "smishing"
@@ -52,7 +52,7 @@ class SECategory(Enum):
 
 @dataclass
 class TrainingContent:
-    """Training content item"""
+    
     content_id: str
     title: str
     description: str
@@ -85,7 +85,7 @@ class TrainingContent:
 
 @dataclass
 class PhishingTemplate:
-    """Phishing simulation template"""
+    
     template_id: str
     name: str
     category: SECategory
@@ -112,7 +112,7 @@ class PhishingTemplate:
 
 @dataclass
 class LabScenario:
-    """Interactive lab scenario"""
+    
     scenario_id: str
     title: str
     description: str
@@ -141,7 +141,7 @@ class LabScenario:
 
 @dataclass
 class QuizQuestion:
-    """Quiz question"""
+    
     question_id: str
     question_text: str
     options: List[str]
@@ -154,7 +154,7 @@ class QuizQuestion:
 
 @dataclass
 class TraineeProgress:
-    """Trainee progress tracking"""
+    
     trainee_id: str
     completed_content: List[str]
     quiz_scores: Dict[str, float]
@@ -177,12 +177,7 @@ class TraineeProgress:
 
 
 class TrainingKB:
-    """
-    Social Engineering Training Knowledge Base
     
-    Comprehensive training content and scenario generation.
-    Inspired by awesome-social-engineering's resource collection.
-    """
     
     def __init__(self):
         # Graph for content relationships
@@ -216,11 +211,11 @@ class TrainingKB:
         self._init_sample_content()
     
     def _generate_id(self, prefix: str, data: str) -> str:
-        """Generate unique ID"""
+        
         return f"{prefix}_{hashlib.md5(data.encode()).hexdigest()[:8]}"
     
     def _init_sample_content(self):
-        """Initialize with sample training content"""
+        
         # Phishing basics
         self.add_content(TrainingContent(
             content_id=self._generate_id("content", "phishing_basics"),
@@ -405,7 +400,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         ])
     
     def add_content(self, content: TrainingContent) -> str:
-        """Add training content"""
+        
         self.content.put(content.content_id, content)
         
         # Add to graph
@@ -441,19 +436,19 @@ Attackers may impersonate IT support, banks, or government agencies.
         return content.content_id
     
     def add_template(self, template: PhishingTemplate) -> str:
-        """Add phishing template"""
+        
         self.templates.put(template.template_id, template)
         self.stats["total_templates"] += 1
         return template.template_id
     
     def add_lab(self, lab: LabScenario) -> str:
-        """Add lab scenario"""
+        
         self.labs.put(lab.scenario_id, lab)
         self.stats["total_labs"] += 1
         return lab.scenario_id
     
     def get_content(self, content_id: str) -> Optional[TrainingContent]:
-        """Get content by ID"""
+        
         content = self.content.get(content_id)
         if content:
             content.view_count += 1
@@ -461,7 +456,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         return content
     
     def search_content(self, query: str) -> List[TrainingContent]:
-        """Search content by query"""
+        
         results = []
         query_lower = query.lower()
         
@@ -483,7 +478,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         category: SECategory,
         difficulty: Optional[DifficultyLevel] = None
     ) -> List[TrainingContent]:
-        """Get content filtered by category and difficulty"""
+        
         results = []
         
         for content_id in self.content.keys():
@@ -506,7 +501,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         category: SECategory,
         current_level: DifficultyLevel = DifficultyLevel.BEGINNER
     ) -> List[TrainingContent]:
-        """Generate a learning path for a category"""
+        
         path = []
         
         # Get all content for category
@@ -524,7 +519,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         self,
         difficulty: DifficultyLevel
     ) -> List[PhishingTemplate]:
-        """Get phishing templates by difficulty"""
+        
         results = []
         
         for template_id in self.templates.keys():
@@ -538,7 +533,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         self,
         category: SECategory
     ) -> List[LabScenario]:
-        """Get lab scenarios by category"""
+        
         results = []
         
         for lab_id in self.labs.keys():
@@ -549,7 +544,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         return sorted(results, key=lambda l: l.difficulty.value)
     
     def register_trainee(self, trainee_id: str) -> TraineeProgress:
-        """Register a new trainee"""
+        
         progress = TraineeProgress(
             trainee_id=trainee_id,
             completed_content=[],
@@ -569,7 +564,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         trainee_id: str,
         content_id: str
     ) -> TraineeProgress:
-        """Record content completion"""
+        
         progress = self.trainees.get(trainee_id)
         if not progress:
             progress = self.register_trainee(trainee_id)
@@ -592,7 +587,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         quiz_id: str,
         score: float
     ) -> TraineeProgress:
-        """Record quiz score"""
+        
         progress = self.trainees.get(trainee_id)
         if not progress:
             progress = self.register_trainee(trainee_id)
@@ -610,7 +605,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         lab_id: str,
         success: bool
     ) -> TraineeProgress:
-        """Record lab completion"""
+        
         progress = self.trainees.get(trainee_id)
         if not progress:
             progress = self.register_trainee(trainee_id)
@@ -627,7 +622,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         return progress
     
     def _update_trainee_level(self, progress: TraineeProgress):
-        """Update trainee level based on points"""
+        
         if progress.total_points >= 500:
             progress.current_level = DifficultyLevel.EXPERT
             if "Expert" not in progress.badges:
@@ -642,11 +637,11 @@ Attackers may impersonate IT support, banks, or government agencies.
                 progress.badges.append("Intermediate")
     
     def get_trainee_progress(self, trainee_id: str) -> Optional[TraineeProgress]:
-        """Get trainee progress"""
+        
         return self.trainees.get(trainee_id)
     
     def get_leaderboard(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get trainee leaderboard"""
+        
         trainees = []
         
         for tid in self.trainees.keys():
@@ -663,7 +658,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         return sorted(trainees, key=lambda t: t["total_points"], reverse=True)[:limit]
     
     def get_category_overview(self) -> Dict[str, Dict[str, int]]:
-        """Get content overview by category"""
+        
         overview = {}
         
         for category in SECategory:
@@ -693,7 +688,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         return overview
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get KB statistics"""
+        
         return {
             **self.stats,
             "categories": len(SECategory),
@@ -702,7 +697,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         }
     
     def export_content(self, format: str = "json") -> str:
-        """Export all content"""
+        
         data = {
             "exported_at": datetime.now().isoformat(),
             "content": [self.content.get(cid).to_dict() for cid in self.content.keys() if self.content.get(cid)],

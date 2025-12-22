@@ -133,10 +133,7 @@ async def get_capability(capability_id: str):
 
 
 def run_job_in_thread(job_id: str, orchestrator_instance):
-    """
-    Synchronous wrapper to run async job execution in a separate thread.
-    Creates a new event loop for the thread to avoid conflicts.
-    """
+    
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -175,16 +172,7 @@ async def create_job(
     request: JobCreateRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Create and start a capability job.
     
-    The job will execute the appropriate capability against the target in the background.
-    This endpoint returns immediately with the job ID. To get results:
-    
-    1. Poll job status via GET /api/v1/capabilities/jobs/{job_id} every 3 seconds
-    2. Check the 'status' field: "pending" → "running" → "completed" or "failed"
-    3. When status is "completed", fetch findings via GET /api/v1/capabilities/jobs/{job_id}/findings
-    """
     import time
     request_start_time = time.time()
     
@@ -319,10 +307,7 @@ async def list_jobs(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    List jobs with optional filtering.
-    Queries jobs from database, filtered by current user.
-    """
+    
     cap_filter = None
     if capability:
         try:
@@ -395,11 +380,7 @@ async def get_job_history(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get job history with pagination support.
-    Uses page/page_size parameters (converts to offset/limit internally).
-    Queries jobs from database, filtered by current user.
-    """
+    
     offset = (page - 1) * page_size
     limit = page_size
     
@@ -490,10 +471,7 @@ async def get_recent_jobs(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get recent jobs for the current user.
-    Returns the most recently created jobs, ordered by creation date descending.
-    """
+    
     from datetime import datetime, timezone
     
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -551,10 +529,7 @@ async def get_job(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get job status and details.
-    Queries job from database, ensures user can only access their own jobs.
-    """
+    
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     job = await storage.get_job(job_id)
     
@@ -590,10 +565,7 @@ async def restart_job(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Restart the same job by resetting its status and re-executing it.
-    Resets progress, clears error, and re-queues the job for execution.
-    """
+    
     from datetime import datetime
     
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -712,18 +684,7 @@ async def get_job_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get findings from a job with pagination and incremental polling support.
     
-    Supports two modes:
-    1. Full pagination: Use offset/limit to paginate through all findings
-    2. Incremental polling: Use 'since' parameter to get only new findings since last poll
-       - 'since' can be an ISO timestamp (e.g., "2024-01-01T00:00:00") or a finding ID
-       - Returns only findings discovered after the specified timestamp or finding ID
-    
-    Returns findings in batches, allowing clients to retrieve data incrementally
-    to avoid timeout issues with large result sets.
-    """
     from datetime import datetime as dt
     
     job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -847,27 +808,7 @@ async def get_job_findings_incremental(
     last_timestamp: Optional[str] = Query(None, description="Last received timestamp (ISO format) for incremental polling"),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return")
 ):
-    """
-    Get new findings since last poll (incremental polling endpoint).
     
-    This endpoint is optimized for continuous polling. It returns only new findings
-    since the last poll, along with metadata to help clients track progress.
-    
-    Usage:
-    1. First call: Don't provide last_finding_id or last_timestamp to get initial findings
-    2. Subsequent calls: Use the last_finding_id or last_timestamp from previous response
-    3. Continue polling until has_more is False or job status is completed
-    
-    Returns:
-    {
-        "findings": [...],           # New findings since last poll
-        "has_more": bool,            # Whether there are more findings available
-        "total_findings": int,       # Total findings in job
-        "new_count": int,            # Number of new findings in this response
-        "last_finding_id": str,      # ID of last finding (for next poll)
-        "last_finding_timestamp": str # Timestamp of last finding (for next poll)
-    }
-    """
     from datetime import datetime as dt
     
     orchestrator = get_orchestrator()
@@ -944,17 +885,7 @@ async def get_job_findings_incremental(
 
 @router.get("/jobs/{job_id}/findings/stream")
 async def stream_job_findings(job_id: str):
-    """
-    Stream findings from a job as they become available using Server-Sent Events (SSE).
     
-    This endpoint allows real-time streaming of findings as they are discovered,
-    preventing timeouts for long-running dark web intelligence jobs.
-    
-    The stream sends:
-    - Findings as they are created (event: finding)
-    - Progress updates (event: progress)
-    - Completion status (event: complete)
-    """
     from app.config import settings
     
     if not settings.DARKWEB_STREAMING_ENABLED:
@@ -1065,10 +996,7 @@ async def list_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    List all findings with optional filtering.
-    Queries from database, filtered by current user.
-    """
+    
     cap_filter = None
     if capability:
         try:
@@ -1110,16 +1038,7 @@ async def resolve_finding(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Mark a finding as resolved.
     
-    Args:
-        finding_id: Finding ID to resolve
-        status: Resolution status (resolved, false_positive, accepted_risk)
-        
-    Returns:
-        Success message
-    """
     if status not in ["resolved", "false_positive", "accepted_risk"]:
         raise HTTPException(status_code=400, detail="Invalid status. Must be: resolved, false_positive, or accepted_risk")
     
@@ -1140,10 +1059,7 @@ async def get_finding(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get a single finding by ID.
-    Queries from database, ensures user can only access their own findings.
-    """
+    
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     finding = await finding_storage.get_finding(finding_id)
@@ -1171,10 +1087,7 @@ async def get_critical_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get critical and high severity findings that need immediate attention.
-    Queries from database, filtered by current user.
-    """
+    
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_critical_findings(limit=limit)
@@ -1202,9 +1115,7 @@ async def get_critical_findings(
 
 @router.get("/risk/{target}", response_model=RiskScoreResponse)
 async def get_risk_score(target: str):
-    """
-    Get the current risk score for a target.
-    """
+    
     risk_engine = get_risk_engine()
     orchestrator = get_orchestrator()
     
@@ -1227,9 +1138,7 @@ async def get_risk_history(
     target: str,
     days: int = Query(default=30, ge=1, le=365)
 ):
-    """
-    Get risk score history for a target.
-    """
+    
     risk_engine = get_risk_engine()
     history = risk_engine.get_risk_history(target, days=days)
     
@@ -1242,9 +1151,7 @@ async def get_risk_history(
 
 @router.get("/risk/{target}/breakdown")
 async def get_risk_breakdown(target: str):
-    """
-    Get detailed risk category breakdown for a target.
-    """
+    
     risk_engine = get_risk_engine()
     breakdown = risk_engine.get_category_breakdown(target)
     
@@ -1262,9 +1169,7 @@ async def get_top_risks(
     target: str,
     limit: int = Query(default=5, ge=1, le=10)
 ):
-    """
-    Get top risk areas for a target with recommendations.
-    """
+    
     risk_engine = get_risk_engine()
     top_risks = risk_engine.get_top_risks(target, limit=limit)
     
@@ -1280,12 +1185,7 @@ async def get_top_risks(
 
 @router.post("/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(request: QuickScanRequest):
-    """
-    Perform a quick security assessment of a domain.
     
-    This is the recommended starting point for new users. It runs
-    essential checks and provides an initial risk score.
-    """
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
@@ -1332,9 +1232,7 @@ async def quick_scan(request: QuickScanRequest):
 
 @router.get("/stats")
 async def get_stats():
-    """
-    Get overall capability and risk statistics.
-    """
+    
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
@@ -1351,10 +1249,7 @@ async def get_recent_events(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get recent capability events for live activity feed.
-    Generates events from database (jobs and findings) for current user.
-    """
+    
     from datetime import datetime, timezone
     
     events = []
@@ -1419,17 +1314,7 @@ async def get_recent_events(
 
 @router.websocket("/ws/darkweb/{job_id}")
 async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
-    """
-    WebSocket endpoint for real-time streaming of darkweb intelligence job results.
     
-    Connect to this endpoint after creating a darkweb job to receive findings
-    as they are discovered in real-time.
-    
-    Message format:
-    - type: "finding" | "progress" | "complete" | "error"
-    - data: Finding object, progress info, completion summary, or error message
-    - timestamp: ISO format timestamp
-    """
     await websocket.accept()
     orchestrator = get_orchestrator()
     
@@ -1625,17 +1510,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
 
 @router.websocket("/ws/exposure/{job_id}")
 async def websocket_exposure_job(websocket: WebSocket, job_id: str):
-    """
-    WebSocket endpoint for real-time streaming of exposure discovery job results.
     
-    Connect to this endpoint after creating an exposure discovery job to receive findings
-    as they are discovered in real-time.
-    
-    Message format:
-    - type: "finding" | "progress" | "complete" | "error"
-    - data: Finding object, progress info, completion summary, or error message
-    - timestamp: ISO format timestamp
-    """
     logger.info(f"[WebSocket] [exposure] [job_id={job_id}] Client attempting to connect")
     await websocket.accept()
     logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] WebSocket connection accepted")
@@ -1846,11 +1721,7 @@ async def get_email_history(
     domain: str,
     limit: int = Query(default=10, ge=1, le=50)
 ):
-    """
-    Get historical email security scan data for a domain.
     
-    Returns list of past scans with timestamps and scores.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -1890,11 +1761,7 @@ async def get_email_history(
 
 @router.get("/email/{domain}/compliance")
 async def get_email_compliance(domain: str):
-    """
-    Get compliance report for a domain's email security configuration.
     
-    Returns compliance scores for RFC standards and M3AAWG best practices.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -1930,11 +1797,7 @@ async def run_email_bypass_test(
     domain: str,
     background_tasks: BackgroundTasks
 ):
-    """
-    Run bypass vulnerability tests for a domain.
     
-    Creates a new email security job with bypass testing enabled.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -1962,11 +1825,7 @@ async def run_email_bypass_test(
 
 @router.get("/email/{domain}/infrastructure")
 async def get_email_infrastructure(domain: str):
-    """
-    Get email infrastructure graph data for a domain.
     
-    Returns graph representation of email infrastructure (MX, SPF includes, etc.)
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -2027,11 +1886,7 @@ async def export_email_report(
     domain: str,
     format: str = Query(default="json", regex="^(json|csv)$")
 ):
-    """
-    Export email security report for a domain.
     
-    Supports JSON and CSV formats.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -2105,11 +1960,7 @@ async def compare_email_scans(
     job_id1: str = Query(..., description="First job ID to compare"),
     job_id2: str = Query(..., description="Second job ID to compare")
 ):
-    """
-    Compare two email security scans for a domain.
     
-    Returns differences between the two scans.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -2170,11 +2021,7 @@ async def compare_email_scans(
 
 @router.get("/investigation/{job_id}/screenshot")
 async def get_investigation_screenshot(job_id: str):
-    """
-    Get screenshot from an investigation job.
     
-    Returns the captured screenshot as PNG image.
-    """
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2214,11 +2061,7 @@ async def get_investigation_screenshot(job_id: str):
 
 @router.get("/investigation/{job_id}/har")
 async def get_investigation_har(job_id: str):
-    """
-    Get HAR file from an investigation job.
     
-    Returns the captured HAR file as JSON.
-    """
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2252,11 +2095,7 @@ async def get_investigation_har(job_id: str):
 
 @router.get("/investigation/{job_id}/domain-tree")
 async def get_investigation_domain_tree(job_id: str):
-    """
-    Get domain tree graph from an investigation job.
     
-    Returns the domain tree structure as JSON for visualization.
-    """
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2319,11 +2158,7 @@ async def compare_investigations(
     job_id1: str = Query(..., description="First investigation job ID"),
     job_id2: str = Query(..., description="Second investigation job ID")
 ):
-    """
-    Compare two investigation results.
     
-    Returns comparison data including visual similarity, domain differences, etc.
-    """
     try:
         orchestrator = get_orchestrator()
         
@@ -2416,11 +2251,7 @@ async def export_investigation(
     job_id: str,
     format: str = Query(default="json", regex="^(json|html)$")
 ):
-    """
-    Export complete investigation results.
     
-    Returns investigation data in specified format (json or html).
-    """
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)

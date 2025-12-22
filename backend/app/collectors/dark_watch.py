@@ -119,7 +119,7 @@ class OnionSite:
 
 @dataclass
 class BrandMention:
-    """Brand or keyword mention on dark web"""
+    
     mention_id: str
     keyword: str
     context: str
@@ -146,7 +146,7 @@ class BrandMention:
 
 @dataclass
 class CrawlJob:
-    """Scheduled crawl job"""
+    
     job_id: str
     target_url: str
     priority: int  # Lower = higher priority
@@ -159,20 +159,7 @@ class CrawlJob:
 
 
 class DarkWatch:
-    """
-    Dark Web Monitoring Collector
     
-    Monitors and analyzes dark web content for threat intelligence.
-    Inspired by freshonions-torscraper's approach to onion site indexing.
-    
-    DSA Usage:
-    - BloomFilter: Efficient duplicate URL detection
-    - Graph: Site relationship mapping
-    - HashMap: Fast lookups for sites, entities, mentions
-    - Trie: Keyword/brand matching
-    - MinHeap: Priority queue for crawl scheduling
-    - DoublyLinkedList: Crawl history timeline
-    """
     
     # Regex patterns for entity extraction
     PATTERNS = {
@@ -204,12 +191,7 @@ class DarkWatch:
     }
     
     def __init__(self, monitored_keywords: List[str] = None):
-        """
-        Initialize DarkWatch collector
         
-        Args:
-            monitored_keywords: Keywords/brands to monitor
-        """
         # Bloom filter for URL deduplication (10M expected items, 0.1% FP rate)
         self.url_filter = BloomFilter(expected_items=10_000_000, false_positive_rate=0.001)
         
@@ -243,27 +225,27 @@ class DarkWatch:
         }
     
     def add_monitored_keyword(self, keyword: str):
-        """Add a keyword/brand to monitor"""
+        
         self.monitored_keywords.append(keyword)
         self.keyword_trie.insert(keyword.lower())
     
     def _generate_site_id(self, onion_url: str) -> str:
-        """Generate unique site ID from URL"""
+        
         return hashlib.sha256(onion_url.encode()).hexdigest()[:16]
     
     def _generate_mention_id(self, keyword: str, url: str) -> str:
-        """Generate unique mention ID"""
+        
         data = f"{keyword}:{url}:{datetime.now().isoformat()}"
         return hashlib.md5(data.encode()).hexdigest()[:12]
     
     def _hash_content(self, content: str) -> str:
-        """Generate content hash for clone detection"""
+        
         # Normalize content for comparison
         normalized = re.sub(r'\s+', ' ', content.lower().strip())
         return hashlib.sha256(normalized.encode()).hexdigest()
     
     def _detect_language(self, text: str) -> str:
-        """Detect language using language detector utility."""
+        
         if not text or len(text) < 10:
             return 'unknown'
         
@@ -277,7 +259,7 @@ class DarkWatch:
             return max(scores, key=scores.get) if max(scores.values()) > 0 else 'unknown'
     
     def _categorize_site(self, content: str, title: str) -> SiteCategory:
-        """Categorize site based on content analysis"""
+        
         text = f"{title} {content}".lower()
         
         scores = {}
@@ -291,7 +273,7 @@ class DarkWatch:
         return SiteCategory.UNKNOWN
     
     def _extract_entities(self, content: str, source_url: str) -> List[ExtractedEntity]:
-        """Extract entities from content using regex patterns"""
+        
         entities = []
         
         for entity_type, pattern in self.PATTERNS.items():
@@ -319,7 +301,7 @@ class DarkWatch:
         return entities
     
     def _extract_onion_links(self, content: str) -> List[str]:
-        """Extract .onion links from content"""
+        
         v2_pattern = r'[a-z2-7]{16}\.onion'
         v3_pattern = r'[a-z2-7]{56}\.onion'
         
@@ -337,7 +319,7 @@ class DarkWatch:
         entities: List[ExtractedEntity],
         keywords_matched: List[str]
     ) -> Tuple[float, ThreatLevel]:
-        """Calculate risk score and threat level"""
+        
         score = 0.0
         
         # Category-based scoring
@@ -387,7 +369,7 @@ class DarkWatch:
         return score, level
     
     def _check_keyword_matches(self, content: str) -> List[str]:
-        """Check content against monitored keywords"""
+        
         matches = []
         content_lower = content.lower()
         
@@ -398,15 +380,7 @@ class DarkWatch:
         return matches
     
     def _crawl_site_real(self, onion_url: str) -> Dict[str, Any]:
-        """
-        Crawl onion site using real tools.
         
-        Args:
-            onion_url: The .onion URL to crawl
-            
-        Returns:
-            Dictionary with site data
-        """
         # Use keyword-focused crawler if keywords are monitored
         if self.monitored_keywords:
             return self._crawl_with_keyword_monitor(onion_url)
@@ -415,15 +389,7 @@ class DarkWatch:
             return self._crawl_with_site_analyzer(onion_url)
     
     def _crawl_with_keyword_monitor(self, onion_url: str) -> Dict[str, Any]:
-        """
-        Crawl using keyword-focused approach.
         
-        Args:
-            onion_url: URL to crawl
-            
-        Returns:
-            Dictionary with site data
-        """
         crawl_start_time = time.time()
         logger.info(f"[DarkWatch] Starting keyword monitor crawl for {onion_url}")
         
@@ -489,15 +455,7 @@ class DarkWatch:
         return self._crawl_with_site_analyzer(onion_url)
     
     def _crawl_with_site_analyzer(self, onion_url: str) -> Dict[str, Any]:
-        """
-        Crawl using comprehensive site analysis.
         
-        Args:
-            onion_url: URL to crawl
-            
-        Returns:
-            Dictionary with site data
-        """
         crawl_start_time = time.time()
         logger.info(f"[DarkWatch] Starting site analyzer crawl for {onion_url}")
         
@@ -544,7 +502,7 @@ class DarkWatch:
         }
     
     def _map_category_from_string(self, category_str: str) -> SiteCategory:
-        """Map category string to SiteCategory enum."""
+        
         category_lower = category_str.lower()
         if "market" in category_lower:
             return SiteCategory.MARKETPLACE
@@ -564,17 +522,7 @@ class DarkWatch:
             return SiteCategory.UNKNOWN
     
     def _discover_urls_with_engines(self, keywords: Optional[List[str]] = None, on_engine_complete: Optional[Callable[[str, List[str]], None]] = None) -> List[str]:
-        """
-        Discover URLs using discovery engines in parallel.
         
-        Args:
-            keywords: List of search keywords to use for discovery (required for DarkWebEngine)
-            on_engine_complete: Optional callback function called as each engine completes.
-                               Receives (engine_name: str, urls: List[str]) as arguments.
-        
-        Returns:
-            List of discovered URLs
-        """
         urls = []
         discovery_start = time.time()
         discovery_timeout = settings.DARKWEB_DISCOVERY_TIMEOUT
@@ -690,16 +638,7 @@ class DarkWatch:
         return unique_urls
     
     def crawl_site(self, onion_url: str, depth: int = 1) -> OnionSite:
-        """
-        Crawl an onion site and extract intelligence
         
-        Args:
-            onion_url: The .onion URL to crawl
-            depth: How many levels of links to follow
-            
-        Returns:
-            OnionSite with extracted data
-        """
         crawl_start_time = time.time()
         logger.info(f"[DarkWatch] crawl_site called for {onion_url} (depth={depth})")
         
@@ -910,7 +849,7 @@ class DarkWatch:
         return site
     
     def process_crawl_queue(self, max_items: int = 10) -> List[OnionSite]:
-        """Process items from the crawl priority queue"""
+        
         results = []
         processed = 0
         
@@ -932,7 +871,7 @@ class DarkWatch:
         entity_type: Optional[str] = None,
         value_pattern: Optional[str] = None
     ) -> List[ExtractedEntity]:
-        """Search extracted entities"""
+        
         results = []
         
         for key in self.entities.keys():
@@ -951,7 +890,7 @@ class DarkWatch:
         keyword: Optional[str] = None,
         min_threat_level: ThreatLevel = ThreatLevel.INFO
     ) -> List[BrandMention]:
-        """Get brand/keyword mentions"""
+        
         results = []
         level_order = [ThreatLevel.INFO, ThreatLevel.LOW, ThreatLevel.MEDIUM, 
                        ThreatLevel.HIGH, ThreatLevel.CRITICAL]
@@ -970,7 +909,7 @@ class DarkWatch:
         return sorted(results, key=lambda m: m.discovered_at, reverse=True)
     
     def get_site_network(self, site_id: str, depth: int = 2) -> Dict[str, Any]:
-        """Get network of connected sites for visualization"""
+        
         if site_id not in self.site_graph:
             return {"nodes": [], "edges": []}
         
@@ -1023,7 +962,7 @@ class DarkWatch:
         return {"nodes": nodes, "edges": edges}
     
     def find_clones(self, site_id: str) -> List[OnionSite]:
-        """Find sites with similar content (potential clones)"""
+        
         target_site = self.sites.get(site_id)
         if not target_site:
             return []
@@ -1041,7 +980,7 @@ class DarkWatch:
         return clones
     
     def get_high_risk_sites(self, limit: int = 20) -> List[OnionSite]:
-        """Get sites with highest risk scores"""
+        
         sites = []
         for key in self.sites.keys():
             site = self.sites.get(key)
@@ -1051,7 +990,7 @@ class DarkWatch:
         return sorted(sites, key=lambda s: s.risk_score, reverse=True)[:limit]
     
     def get_recent_activity(self, hours: int = 24) -> Dict[str, Any]:
-        """Get recent crawling activity"""
+        
         cutoff = datetime.now() - timedelta(hours=hours)
         
         recent_sites = []
@@ -1077,7 +1016,7 @@ class DarkWatch:
         }
     
     def _count_categories(self, sites: List[OnionSite]) -> Dict[str, int]:
-        """Count sites by category"""
+        
         counts = {}
         for site in sites:
             cat = site.category.value
@@ -1085,7 +1024,7 @@ class DarkWatch:
         return counts
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get collector statistics"""
+        
         return {
             **self.stats,
             "url_filter_size": self.url_filter.count,
@@ -1096,7 +1035,7 @@ class DarkWatch:
         }
     
     def export_intel(self, format: str = "json") -> str:
-        """Export collected intelligence"""
+        
         data = {
             "exported_at": datetime.now().isoformat(),
             "statistics": self.get_statistics(),
