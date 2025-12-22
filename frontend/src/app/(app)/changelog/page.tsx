@@ -68,7 +68,6 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-mono font-bold text-white">Changelog</h1>
         <p className="text-sm text-white/50">
@@ -76,15 +75,12 @@ export default function ChangelogPage() {
         </p>
       </div>
 
-      {/* Timeline */}
       <div className="relative">
-        {/* Vertical line */}
         <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-amber-500/50 via-amber-500/20 to-transparent" />
 
         <div className="space-y-8">
           {releases.map((release) => (
             <div key={release.version} className="relative pl-16">
-              {/* Version dot */}
               <div className="absolute left-0 w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
                 <span className="font-mono text-sm font-bold text-amber-400">
                   {release.version.split(".")[0]}.{release.version.split(".")[1]}
@@ -116,7 +112,6 @@ export default function ChangelogPage() {
                   <span className="text-sm text-white/40">{release.date}</span>
                 </div>
 
-                {/* Changes */}
                 <div
                   className={cn(
                     "overflow-hidden transition-all duration-300",
@@ -142,7 +137,6 @@ export default function ChangelogPage() {
                   </div>
                 </div>
 
-                {/* Expand indicator */}
                 <div className="flex justify-center mt-3">
                   <svg
                     className={cn(
@@ -167,7 +161,6 @@ export default function ChangelogPage() {
         </div>
       </div>
 
-      {/* Subscribe CTA */}
       <GlassCard className="text-center">
         <h3 className="font-mono text-lg text-white mb-2">Stay Updated</h3>
         <p className="text-white/50 mb-4">

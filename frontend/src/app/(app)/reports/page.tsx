@@ -126,7 +126,6 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Reports</h1>
@@ -155,7 +154,6 @@ export default function ReportsPage() {
         </GlassButton>
       </div>
 
-      {/* Error message */}
       {error && (
         <GlassCard className="border-red-500/50">
           <div className="flex items-center gap-3">
@@ -175,7 +173,6 @@ export default function ReportsPage() {
         </GlassCard>
       )}
 
-      {/* Recent reports */}
       <GlassCard>
         <div className="mb-6">
           <h2 className="font-mono text-lg text-white">Recent Reports</h2>

@@ -14,7 +14,6 @@ interface ThreatLocation {
   count: number;
 }
 
-// Fetch threat locations from API
 async function fetchThreatLocations(): Promise<ThreatLocation[]> {
   try {
     const response = await fetch('/api/threats?with_location=true');
@@ -22,7 +21,6 @@ async function fetchThreatLocations(): Promise<ThreatLocation[]> {
       throw new Error('Failed to fetch threat locations');
     }
     const data = await response.json();
-    // Map threats to ThreatLocation format if needed
     return data.map((threat: any) => ({
       id: threat.id,
       lat: threat.metadata?.location?.lat || 0,
@@ -83,7 +81,6 @@ export default function MapPage() {
 
       ctx.clearRect(0, 0, width, height);
 
-      // Grid
       ctx.strokeStyle = "rgba(245, 158, 11, 0.03)";
       ctx.lineWidth = 1;
 
@@ -107,7 +104,6 @@ export default function MapPage() {
       ctx.shadowColor = "#f59e0b";
       ctx.shadowBlur = 10;
 
-      // North America (simplified)
       ctx.beginPath();
       ctx.moveTo(width * 0.1, height * 0.25);
       ctx.quadraticCurveTo(width * 0.15, height * 0.12, width * 0.28, height * 0.1);
@@ -116,7 +112,6 @@ export default function MapPage() {
       ctx.quadraticCurveTo(width * 0.1, height * 0.45, width * 0.1, height * 0.25);
       ctx.stroke();
 
-      // South America
       ctx.beginPath();
       ctx.moveTo(width * 0.2, height * 0.55);
       ctx.quadraticCurveTo(width * 0.28, height * 0.54, width * 0.32, height * 0.68);
@@ -124,7 +119,6 @@ export default function MapPage() {
       ctx.quadraticCurveTo(width * 0.18, height * 0.78, width * 0.2, height * 0.55);
       ctx.stroke();
 
-      // Europe
       ctx.beginPath();
       ctx.moveTo(width * 0.45, height * 0.15);
       ctx.quadraticCurveTo(width * 0.56, height * 0.1, width * 0.58, height * 0.25);
@@ -132,7 +126,6 @@ export default function MapPage() {
       ctx.quadraticCurveTo(width * 0.4, height * 0.26, width * 0.45, height * 0.15);
       ctx.stroke();
 
-      // Africa
       ctx.beginPath();
       ctx.moveTo(width * 0.44, height * 0.42);
       ctx.quadraticCurveTo(width * 0.56, height * 0.4, width * 0.6, height * 0.52);
@@ -140,7 +133,6 @@ export default function MapPage() {
       ctx.quadraticCurveTo(width * 0.42, height * 0.62, width * 0.44, height * 0.42);
       ctx.stroke();
 
-      // Asia
       ctx.beginPath();
       ctx.moveTo(width * 0.58, height * 0.12);
       ctx.quadraticCurveTo(width * 0.78, height * 0.08, width * 0.92, height * 0.18);
@@ -149,7 +141,6 @@ export default function MapPage() {
       ctx.quadraticCurveTo(width * 0.55, height * 0.25, width * 0.58, height * 0.12);
       ctx.stroke();
 
-      // Australia
       ctx.beginPath();
       ctx.moveTo(width * 0.8, height * 0.65);
       ctx.quadraticCurveTo(width * 0.92, height * 0.62, width * 0.95, height * 0.72);
@@ -159,7 +150,6 @@ export default function MapPage() {
 
       ctx.shadowBlur = 0;
 
-      // Draw threats
       filteredThreats.forEach((threat) => {
         const x = ((threat.lng + 180) / 360) * width;
         const y = ((90 - threat.lat) / 180) * height;
@@ -170,7 +160,6 @@ export default function MapPage() {
         const baseSize = 4 + threat.count * 0.3;
         const size = isHovered || isSelected ? baseSize * 1.5 : baseSize;
 
-        // Heat overlay
         const heatGradient = ctx.createRadialGradient(x, y, 0, x, y, size * 8);
         heatGradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.3 * pulse})`);
         heatGradient.addColorStop(1, "transparent");
@@ -179,13 +168,11 @@ export default function MapPage() {
         ctx.arc(x, y, size * 8, 0, Math.PI * 2);
         ctx.fill();
 
-        // Core
         ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`;
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fill();
 
-        // Ring
         if (isHovered || isSelected) {
           ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.8)`;
           ctx.lineWidth = 2;
@@ -204,7 +191,6 @@ export default function MapPage() {
 
     animate(0);
 
-    // Handle clicks
     const handleClick = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -288,12 +274,10 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Map container */}
       <div className="relative">
         <GlassCard padding="none" className="overflow-hidden">
           <canvas ref={canvasRef} className="w-full h-[500px]" />
 
-          {/* Legend */}
           <div className="absolute bottom-4 left-4 glass rounded-xl p-3">
             <p className="text-[10px] font-mono text-white/40 mb-2 uppercase tracking-wider">
               Severity
@@ -313,7 +297,6 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* Stats */}
           <div className="absolute top-4 right-4 glass rounded-xl p-3">
             <p className="text-[10px] font-mono text-white/40 mb-2 uppercase tracking-wider">
               Active Threats
@@ -327,7 +310,6 @@ export default function MapPage() {
           </div>
         </GlassCard>
 
-        {/* Selected threat details */}
         {selectedThreat && (
           <div className="absolute top-4 left-4 w-72">
             <GlassCard>
@@ -374,7 +356,6 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* Threat list */}
       <GlassCard>
         <h3 className="font-mono font-semibold text-white mb-4">Active Threats</h3>
         <div className="overflow-x-auto">

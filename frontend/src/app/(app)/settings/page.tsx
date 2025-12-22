@@ -20,7 +20,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-mono font-bold text-white">Settings</h1>
         <p className="text-sm text-white/50">
@@ -29,7 +28,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        {/* Sidebar */}
         <GlassCard padding="sm" className="lg:col-span-1 h-fit">
           <nav className="space-y-1">
             {sections.map((section) => (
@@ -50,7 +48,6 @@ export default function SettingsPage() {
           </nav>
         </GlassCard>
 
-        {/* Content */}
         <div className="lg:col-span-3">
           {activeSection === "profile" && <ProfileSection />}
           {activeSection === "company" && <CompanyProfileSection />}
@@ -68,7 +65,6 @@ function ProfileSection() {
     <GlassCard>
       <h2 className="font-mono text-lg text-white mb-6">Profile Settings</h2>
       <div className="space-y-6">
-        {/* Avatar */}
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-mono text-2xl font-bold">
             ??
@@ -213,7 +209,6 @@ function CompanyProfileSection() {
       </div>
 
       <div className="space-y-6">
-        {/* Basic Information */}
         <div>
           <h3 className="font-mono text-sm text-white/70 mb-4">Basic Information</h3>
           <div className="grid md:grid-cols-2 gap-4">
@@ -238,7 +233,6 @@ function CompanyProfileSection() {
           </div>
         </div>
 
-        {/* Contact Information */}
         {(profile.email || profile.phone || profile.website || profile.address) && (
           <div>
             <h3 className="font-mono text-sm text-white/70 mb-4">Contact Information</h3>
@@ -285,7 +279,6 @@ function CompanyProfileSection() {
           </div>
         )}
 
-        {/* Domains & Assets */}
         {(profile.primary_domain || 
           (profile.additional_domains && profile.additional_domains.length > 0) ||
           (profile.ip_ranges && profile.ip_ranges.length > 0) ||
@@ -508,7 +501,6 @@ function AutomationSection() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Status Overview */}
             <div className="grid md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                 <p className="text-xs font-mono text-white/50 mb-1">Status</p>
@@ -533,7 +525,6 @@ function AutomationSection() {
               </div>
             </div>
 
-            {/* Schedule Details */}
             {automationConfig.schedule && (
               <div>
                 <h3 className="font-mono text-sm text-white/70 mb-3">Schedule</h3>
@@ -552,7 +543,6 @@ function AutomationSection() {
               </div>
             )}
 
-            {/* Enabled Capabilities */}
             {enabledCapabilities.length > 0 && (
               <div>
                 <h3 className="font-mono text-sm text-white/70 mb-3">Enabled Capabilities</h3>
@@ -585,7 +575,6 @@ function AutomationSection() {
               </div>
             )}
 
-            {/* Scheduled Searches */}
             {scheduledSearches.length > 0 && (
               <div>
                 <h3 className="font-mono text-sm text-white/70 mb-3">Active Scheduled Searches</h3>
@@ -633,7 +622,6 @@ function AutomationSection() {
               </div>
             )}
 
-            {/* Actions */}
             <div className="pt-4 border-t border-white/[0.05] flex items-center justify-between">
               <div className="text-sm text-white/50">
                 {scheduledSearches.length === 0 && isEnabled && (

@@ -54,7 +54,6 @@ export default function CredentialsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Credentials</h1>
@@ -73,7 +72,6 @@ export default function CredentialsPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Leaked", value: credentials.length, color: "text-white" },
@@ -88,11 +86,8 @@ export default function CredentialsPage() {
         ))}
       </div>
 
-      {/* Split view */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* List */}
         <GlassCard padding="none" className="h-[600px] flex flex-col">
-          {/* Filters */}
           <div className="p-4 border-b border-white/[0.05] space-y-3">
             <GlassInput
               placeholder="Search by email..."
@@ -122,7 +117,6 @@ export default function CredentialsPage() {
             </div>
           </div>
 
-          {/* List items */}
           <div className="flex-1 overflow-y-auto">
             {filteredCredentials.map((cred) => (
               <div
@@ -153,7 +147,6 @@ export default function CredentialsPage() {
           </div>
         </GlassCard>
 
-        {/* Detail panel */}
         <GlassCard className="h-[600px]">
           {selectedCredential ? (
             <div className="space-y-6">

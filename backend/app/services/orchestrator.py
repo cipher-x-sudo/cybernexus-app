@@ -83,7 +83,6 @@ class Finding:
 
 @dataclass
 class Job:
-    """A capability execution job"""
     id: str
     capability: Capability
     target: str

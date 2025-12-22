@@ -43,12 +43,10 @@ export default function EmailSecurityPage() {
     run_bypass_tests: false,
   });
   
-  // Refs
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingRef = useRef(false);
   
-  // Color scheme
   const colors = {
     accent: "text-amber-400",
     bg: "bg-amber-500/10",
@@ -56,7 +54,6 @@ export default function EmailSecurityPage() {
     glow: "shadow-[0_0_30px_rgba(245,158,11,0.2)]",
   };
   
-  // Calculate stats
   const stats = useMemo(() => {
     const bySeverity = {
       critical: findings.filter((f) => f.severity === "critical").length,
@@ -66,7 +63,6 @@ export default function EmailSecurityPage() {
       info: findings.filter((f) => f.severity === "info").length,
     };
     
-    // Calculate security score (inverse of average risk)
     const avgRisk = findings.length > 0
       ? findings.reduce((sum, f) => sum + f.risk_score, 0) / findings.length
       : 0;
@@ -244,7 +240,6 @@ export default function EmailSecurityPage() {
   
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -442,10 +437,8 @@ export default function EmailSecurityPage() {
         </form>
       </GlassCard>
       
-      {/* Results */}
       {findings.length > 0 && (
         <>
-          {/* Dashboard Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ScoreCard
               score={stats.securityScore}
@@ -477,11 +470,8 @@ export default function EmailSecurityPage() {
             </GlassCard>
           </div>
           
-          {/* Grid Layout - All Sections */}
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column - Main Content Grid */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Overview - All Findings */}
               <GlassCard className="p-6">
                 <h2 className="font-mono text-lg font-semibold text-white mb-4">
                   All Findings ({findings.length})
@@ -516,7 +506,6 @@ export default function EmailSecurityPage() {
                 </div>
               </GlassCard>
 
-              {/* SPF Analysis */}
               {categorizedFindings.spf.length > 0 && (
                 <GlassCard className="p-6">
                   <h2 className="font-mono text-lg font-semibold text-white mb-4">
@@ -540,7 +529,6 @@ export default function EmailSecurityPage() {
                 </GlassCard>
               )}
 
-              {/* DKIM Analysis */}
               {categorizedFindings.dkim.length > 0 && (
                 <GlassCard className="p-6">
                   <h2 className="font-mono text-lg font-semibold text-white mb-4">
@@ -564,7 +552,6 @@ export default function EmailSecurityPage() {
                 </GlassCard>
               )}
 
-              {/* DMARC Analysis */}
               {categorizedFindings.dmarc.length > 0 && (
                 <GlassCard className="p-6">
                   <h2 className="font-mono text-lg font-semibold text-white mb-4">
@@ -588,7 +575,6 @@ export default function EmailSecurityPage() {
                 </GlassCard>
               )}
 
-              {/* Advanced Checks */}
               {([...categorizedFindings.bimi, ...categorizedFindings.mta_sts, ...categorizedFindings.other].length > 0) && (
                 <GlassCard className="p-6">
                   <h2 className="font-mono text-lg font-semibold text-white mb-4">Advanced Checks</h2>
@@ -610,7 +596,6 @@ export default function EmailSecurityPage() {
                 </GlassCard>
               )}
 
-              {/* Bypass Vulnerabilities */}
               {categorizedFindings.bypass.length > 0 && (
                 <GlassCard className="p-6 border-red-500/30">
                   <h2 className="font-mono text-lg font-semibold text-white mb-4">
@@ -642,7 +627,6 @@ export default function EmailSecurityPage() {
 
             </div>
             
-            {/* Finding Details Sidebar */}
             <div>
               <GlassCard className="p-6 sticky top-6">
                 <h2 className="font-mono text-lg font-semibold text-white mb-4">Details</h2>

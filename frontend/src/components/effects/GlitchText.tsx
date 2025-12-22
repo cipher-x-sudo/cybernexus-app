@@ -48,7 +48,6 @@ export function GlitchText({
       
       {isGlitching && (
         <>
-          {/* Red offset layer */}
           <span
             className="absolute inset-0 text-red-500 opacity-70 animate-glitch"
             style={{
@@ -61,7 +60,6 @@ export function GlitchText({
             {text}
           </span>
           
-          {/* Cyan offset layer */}
           <span
             className="absolute inset-0 text-cyan-400 opacity-70 animate-glitch"
             style={{

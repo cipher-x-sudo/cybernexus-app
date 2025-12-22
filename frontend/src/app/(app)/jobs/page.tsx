@@ -118,7 +118,6 @@ export default function JobHistoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Job History</h1>
@@ -128,7 +127,6 @@ export default function JobHistoryPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <GlassCard className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
@@ -195,7 +193,6 @@ export default function JobHistoryPage() {
         </div>
       </GlassCard>
 
-      {/* Jobs table */}
       <GlassCard className="p-6" padding="none">
         <div className="p-6 border-b border-white/[0.05]">
           <h2 className="font-mono text-lg font-semibold text-white">
@@ -306,7 +303,6 @@ export default function JobHistoryPage() {
               </table>
             </div>
             
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="p-6 border-t border-white/[0.05] flex items-center justify-between">
                 <p className="text-sm font-mono text-white/50">

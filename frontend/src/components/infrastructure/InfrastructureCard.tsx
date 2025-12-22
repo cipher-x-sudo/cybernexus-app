@@ -52,20 +52,16 @@ export function InfrastructureCard({
 
   const styles = severityStyles[finding.severity] || severityStyles.info;
 
-  // Format evidence preview
   const getEvidencePreview = (): string => {
     if (!finding.evidence || Object.keys(finding.evidence).length === 0) {
       return "No evidence available";
     }
 
-    // Special handling for security header findings
     if (finding.category === "headers") {
-      // Missing header
       if (finding.evidence.missing_header) {
         return `Missing: ${finding.evidence.missing_header}`;
       }
       
-      // Present headers
       if (finding.evidence.headers && typeof finding.evidence.headers === "object") {
         const headerNames = Object.keys(finding.evidence.headers);
         if (headerNames.length > 0) {
@@ -136,7 +132,6 @@ export function InfrastructureCard({
           {finding.description}
         </p>
 
-        {/* Evidence Preview */}
         <div className="p-2 rounded-lg bg-black/20 border border-white/5">
           <p className="text-[10px] font-mono text-white/50 line-clamp-2">
             {getEvidencePreview()}

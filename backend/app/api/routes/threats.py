@@ -51,7 +51,6 @@ async def get_optional_user(
 
 
 class ThreatSeverity(str, Enum):
-    """Threat severity levels."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -60,7 +59,6 @@ class ThreatSeverity(str, Enum):
 
 
 class ThreatStatus(str, Enum):
-    """Threat status."""
     ACTIVE = "active"
     INVESTIGATING = "investigating"
     MITIGATED = "mitigated"
@@ -69,7 +67,6 @@ class ThreatStatus(str, Enum):
 
 
 class ThreatCategory(str, Enum):
-    """Threat categories."""
     MALWARE = "malware"
     PHISHING = "phishing"
     DATA_LEAK = "data_leak"
@@ -81,7 +78,6 @@ class ThreatCategory(str, Enum):
 
 
 class Threat(BaseModel):
-    """Threat model."""
     id: str
     title: str
     description: str

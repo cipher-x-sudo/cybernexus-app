@@ -36,9 +36,8 @@ export default function GraphPage() {
   useEffect(() => {
     setMounted(true);
     
-    // Read query parameters
     const jobId = searchParams.get("jobId");
-    const findingId = searchParams.get("findingId"); // Legacy support - try to get job_id from finding
+    const findingId = searchParams.get("findingId");
     const nodeId = searchParams.get("nodeId");
     const depthParam = searchParams.get("depth");
     
@@ -49,21 +48,17 @@ export default function GraphPage() {
       }
     }
     
-    // Fetch graph data from API
     const fetchGraphData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        // Handle legacy findingId - try to get job_id from finding
         let actualJobId = jobId;
         if (!actualJobId && findingId) {
           try {
             const findingResult = await api.getFinding(findingId);
-            // Job ID is stored in finding evidence
             if (findingResult.evidence?.job_id) {
               actualJobId = findingResult.evidence.job_id;
-              // Redirect to use jobId instead
               router.replace(`/graph?jobId=${actualJobId}&depth=${depth}`);
             } else {
               setError("Finding does not have an associated job. Please use a job ID instead.");
@@ -93,19 +88,16 @@ export default function GraphPage() {
               target: jobResult.target,
               capability: jobResult.capabilities && jobResult.capabilities.length > 0 ? jobResult.capabilities[0] : "Unknown"
             });
-            // Set focused node to job target if available
             if (jobResult.target) {
               setFocusedNodeId(jobResult.target);
             }
           }
         } else if (nodeId) {
-          // Fetch node-focused graph
           const data = await api.getGraphDataForNode(nodeId, depth);
           setGraphData(data);
           setFocusedNodeId(nodeId);
           setJobInfo(null);
         } else {
-          // Fetch full graph
           const data = await api.getGraphData({ limit: 1000 });
           setGraphData(data);
           setFocusedNodeId(null);
@@ -121,7 +113,6 @@ export default function GraphPage() {
 
     fetchGraphData();
 
-    // Poll for updates every 60 seconds (only if not in focused mode)
     if (!jobId && !findingId && !nodeId) {
       const interval = setInterval(fetchGraphData, 60000);
       return () => clearInterval(interval);
@@ -146,7 +137,6 @@ export default function GraphPage() {
 
   return (
     <div className="space-y-4">
-      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Threat Graph</h1>
@@ -190,7 +180,6 @@ export default function GraphPage() {
         </div>
       </div>
 
-      {/* 3D Graph */}
       <div className="bg-[#0a0e1a] rounded-2xl overflow-hidden border border-white/5">
         {loading && !graphData ? (
           <div className="w-full flex items-center justify-center bg-[#0a0e1a]" style={{ height: "700px" }}>

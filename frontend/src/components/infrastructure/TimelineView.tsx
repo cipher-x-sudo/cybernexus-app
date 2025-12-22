@@ -35,7 +35,6 @@ export function TimelineView({
   const events = useMemo(() => {
     const timelineEvents: TimelineEvent[] = [];
 
-    // Add scan start
     if (scanStartTime) {
       timelineEvents.push({
         id: "scan-start",
@@ -46,17 +45,13 @@ export function TimelineView({
       });
     }
 
-    // Add findings
     findings.forEach((finding) => {
-      // Try to parse timestamp, fallback to current time
       let discoveredAt: Date;
       try {
-        // If timestamp is a relative time string like "2h ago", use current time
         if (finding.timestamp.includes("ago") || finding.timestamp === "Just now") {
           discoveredAt = new Date();
         } else {
           discoveredAt = new Date(finding.timestamp);
-          // If invalid date, use current time
           if (isNaN(discoveredAt.getTime())) {
             discoveredAt = new Date();
           }
@@ -75,7 +70,6 @@ export function TimelineView({
       });
     });
 
-    // Add scan end
     if (scanEndTime) {
       timelineEvents.push({
         id: "scan-end",
@@ -86,7 +80,6 @@ export function TimelineView({
       });
     }
 
-    // Sort by timestamp
     return timelineEvents.sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     );

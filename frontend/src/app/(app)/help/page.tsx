@@ -71,7 +71,6 @@ export default function HelpPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="text-center max-w-2xl mx-auto">
         <h1 className="text-3xl font-mono font-bold text-white mb-4">
           How can we help?
@@ -114,7 +113,6 @@ export default function HelpPage() {
         ))}
       </div>
 
-      {/* Articles */}
       <GlassCard>
         <h2 className="font-mono text-lg text-white mb-4">
           {selectedCategory
@@ -139,7 +137,6 @@ export default function HelpPage() {
         </div>
       </GlassCard>
 
-      {/* Contact support */}
       <div className="grid md:grid-cols-2 gap-6">
         <GlassCard>
           <h2 className="font-mono text-lg text-white mb-4">Contact Support</h2>

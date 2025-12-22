@@ -17,51 +17,23 @@ from app.config import settings
 
 
 class ReportGenerator:
-    """
-    Report Generator Service.
-    
-    Features:
-    - Executive summary reports
-    - Technical detail reports
-    - Custom templates
-    - PDF and HTML output
-    """
-    
     def __init__(self, templates_dir: Path = None):
-        """Initialize report generator.
-        
-        Args:
-            templates_dir: Path to templates directory
-        """
         self.templates_dir = templates_dir or Path(__file__).parent / "templates"
         self.output_dir = settings.DATA_DIR / "reports"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize Jinja2 environment
         if self.templates_dir.exists():
             self._env = Environment(loader=FileSystemLoader(str(self.templates_dir)))
         else:
             self._env = None
     
     def generate_executive_summary(self, data: Dict[str, Any], format: str = "pdf", report_id: Optional[str] = None) -> Dict[str, Any]:
-        """Generate executive summary report.
-        
-        Args:
-            data: Report data
-            format: Output format ("pdf" or "html")
-            report_id: Optional custom report ID
-            
-        Returns:
-            Report metadata
-        """
         if not report_id:
             report_id = f"RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
-        # Generate HTML content
         html_content = self._render_executive_summary(data)
         
         if format == "pdf":
-            # Generate PDF
             pdf_path = self.output_dir / f"{report_id}.pdf"
             HTML(string=html_content).write_pdf(str(pdf_path))
             
@@ -73,7 +45,6 @@ class ReportGenerator:
                 "generated_at": datetime.utcnow().isoformat()
             }
         else:
-            # Save HTML
             html_path = self.output_dir / f"{report_id}.html"
             with open(html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
@@ -87,14 +58,6 @@ class ReportGenerator:
             }
     
     def generate_pdf_bytes(self, data: Dict[str, Any]) -> bytes:
-        """Generate PDF report as bytes.
-        
-        Args:
-            data: Report data
-            
-        Returns:
-            PDF bytes
-        """
         html_content = self._render_executive_summary(data)
         pdf_bytes = BytesIO()
         HTML(string=html_content).write_pdf(pdf_bytes)

@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 export default function NetworkMonitoringPage() {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -37,15 +36,12 @@ export default function NetworkMonitoringPage() {
         </div>
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left Column - Live Stream and Tunnel Alerts */}
         <div className="lg:col-span-2 space-y-6">
           <LiveStream />
           <TunnelAlertsPanel />
         </div>
 
-        {/* Right Column - Filters, Stats, and Blocks */}
         <div className="space-y-6">
           <FilterPanel onFilterChange={(filters) => console.log("Filters:", filters)} />
           <StatisticsPanel />

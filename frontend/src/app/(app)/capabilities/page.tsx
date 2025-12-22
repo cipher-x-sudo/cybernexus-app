@@ -136,7 +136,6 @@ const getColorClasses = (color: string) => {
 export default function CapabilitiesPage() {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-mono font-bold text-white">Security Capabilities</h1>
         <p className="text-sm text-white/50 mt-1">
@@ -144,7 +143,6 @@ export default function CapabilitiesPage() {
         </p>
       </div>
 
-      {/* Capabilities Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {capabilities.map((cap, index) => {
           const colors = getColorClasses(cap.color);
@@ -167,16 +165,12 @@ export default function CapabilitiesPage() {
                 <div className={colors.text}>{cap.icon}</div>
               </div>
 
-              {/* Name */}
               <h3 className="font-mono font-semibold text-white mb-2">{cap.name}</h3>
 
-              {/* Question */}
               <p className={cn("text-lg font-medium mb-3", colors.text)}>{cap.question}</p>
 
-              {/* Description */}
               <p className="text-sm text-white/50 line-clamp-3">{cap.description}</p>
 
-              {/* Arrow */}
               <div className={cn(
                 "absolute bottom-6 right-6 opacity-0 group-hover:opacity-100",
                 "transform translate-x-2 group-hover:translate-x-0",
@@ -191,7 +185,6 @@ export default function CapabilitiesPage() {
         })}
       </div>
 
-      {/* Info Card */}
       <GlassCard className="p-6" hover={false}>
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">

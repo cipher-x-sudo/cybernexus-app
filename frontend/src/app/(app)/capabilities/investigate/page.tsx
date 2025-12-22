@@ -29,7 +29,6 @@ export default function InvestigationPage() {
   const [domainTree, setDomainTree] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   const [riskData, setRiskData] = useState<any>(null);
 
-  // Config options
   const [config, setConfig] = useState({
     capture_screenshot: true,
     map_resources: true,
@@ -56,11 +55,9 @@ export default function InvestigationPage() {
       setProgress(job.progress);
 
       if (job.status === "completed") {
-        // Fetch findings
         const apiFindings = await api.getJobFindings(jobId);
         setFindings(apiFindings);
         
-        // Load investigation-specific data
         try {
           const screenshot = await api.getInvestigationScreenshot(jobId);
           setScreenshotUrl(screenshot);
@@ -82,7 +79,6 @@ export default function InvestigationPage() {
           console.warn("Domain tree not available:", e);
         }
 
-        // Extract risk data from findings
         const riskFinding = apiFindings.find((f) => f.title.includes("Risk Score"));
         if (riskFinding && riskFinding.evidence) {
           setRiskData({
@@ -219,7 +215,6 @@ export default function InvestigationPage() {
         </div>
       </div>
 
-      {/* Scan Input */}
       <GlassCard className="p-6 border-orange-500/30" hover={false}>
         <form
           onSubmit={(e) => {
@@ -347,10 +342,8 @@ export default function InvestigationPage() {
         </form>
       </GlassCard>
 
-      {/* Results Grid */}
       {currentJob && currentJob.status === "completed" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Screenshot - Prominent */}
           {screenshotUrl && (
             <div className="lg:col-span-8">
               <ScreenshotViewer
@@ -367,7 +360,6 @@ export default function InvestigationPage() {
             </div>
           )}
 
-          {/* Risk Dashboard - Sidebar */}
           {riskData && (
             <div className="lg:col-span-4">
               <RiskDashboard
@@ -381,21 +373,18 @@ export default function InvestigationPage() {
             </div>
           )}
 
-          {/* Domain Tree - Full Width */}
           {domainTree && (
             <div className="lg:col-span-12">
               <DomainTreeView nodes={domainTree.nodes} edges={domainTree.edges} />
             </div>
           )}
 
-          {/* Findings - Full Width */}
           {findings.length > 0 && (
             <div className="lg:col-span-12">
               <InvestigationFindings findings={findings} />
             </div>
           )}
 
-          {/* Waterfall and HAR - Side by Side */}
           {harData && (
             <>
               <div className="lg:col-span-6">
@@ -407,7 +396,6 @@ export default function InvestigationPage() {
             </>
           )}
 
-          {/* Export Panel - Bottom */}
           {currentJob && (
             <div className="lg:col-span-12">
               <ExportPanel jobId={currentJob.id} />

@@ -33,14 +33,12 @@ export default function InfrastructurePage() {
   const [findings, setFindings] = useState<CapabilityFinding[]>([]);
   const [selectedFinding, setSelectedFinding] = useState<InfrastructureFinding | null>(null);
 
-  // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortOption>("severity");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  // Config states
   const [testConfig, setTestConfig] = useState({
     crlf: true,
     pathTraversal: true,
@@ -49,7 +47,6 @@ export default function InfrastructurePage() {
     bypassTechniques: false,
   });
 
-  // Refs for cleanup
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingRef = useRef(false);
@@ -61,7 +58,6 @@ export default function InfrastructurePage() {
     [findings]
   );
 
-  // Calculate stats
   const stats = useMemo(
     () => calculateInfrastructureStats(infrastructureFindings, testConfig),
     [infrastructureFindings, testConfig]
@@ -265,7 +261,6 @@ export default function InfrastructurePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -293,7 +288,6 @@ export default function InfrastructurePage() {
         </div>
       </div>
 
-      {/* Scan Input */}
       <GlassCard className={cn("p-6", colors.border)} hover={false}>
         <form
           onSubmit={(e) => {
@@ -421,7 +415,6 @@ export default function InfrastructurePage() {
         </form>
       </GlassCard>
 
-      {/* Statistics Dashboard */}
       {infrastructureFindings.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsTile
@@ -467,7 +460,6 @@ export default function InfrastructurePage() {
         </div>
       )}
 
-      {/* Export Actions */}
       {infrastructureFindings.length > 0 && (
         <div className="flex items-center justify-end gap-2">
           <GlassButton
@@ -494,10 +486,8 @@ export default function InfrastructurePage() {
         </div>
       )}
 
-      {/* Main Content Area */}
       {infrastructureFindings.length > 0 ? (
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Left Sidebar - Filters and Charts */}
           <div className="lg:col-span-1 space-y-4">
             <FilterPanel
               searchQuery={searchQuery}
@@ -536,7 +526,6 @@ export default function InfrastructurePage() {
               )}
             </div>
 
-            {/* Additional Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <RiskHeatmap findings={infrastructureFindings} />
               <TimelineChart timelineData={timelineData} />
@@ -555,7 +544,6 @@ export default function InfrastructurePage() {
         </GlassCard>
       )}
 
-      {/* Finding Details Sidebar */}
       {selectedFinding && (
         <GlassCard className="p-6 sticky top-6" hover={false}>
           <div className="flex items-center justify-between mb-4">

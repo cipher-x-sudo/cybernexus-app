@@ -134,7 +134,6 @@ export default function JobDetailsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -175,7 +174,6 @@ export default function JobDetailsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-white/[0.05]">
         {[
           { id: "overview", label: "Overview" },
@@ -198,10 +196,8 @@ export default function JobDetailsPage() {
         ))}
       </div>
 
-      {/* Overview Tab */}
       {activeTab === "overview" && (
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Basic Info */}
           <GlassCard className="p-6">
             <h2 className="font-mono text-lg font-semibold text-white mb-4">Basic Information</h2>
             <div className="space-y-4">
@@ -267,7 +263,6 @@ export default function JobDetailsPage() {
             </div>
           </GlassCard>
 
-          {/* Error Logs */}
           {job.error && (
             <GlassCard className="p-6 lg:col-span-2">
               <h2 className="font-mono text-lg font-semibold text-red-400 mb-4">Error</h2>
@@ -279,7 +274,6 @@ export default function JobDetailsPage() {
         </div>
       )}
 
-      {/* Findings Tab */}
       {activeTab === "findings" && (
         <GlassCard className="p-6">
           <h2 className="font-mono text-lg font-semibold text-white mb-4">
@@ -321,7 +315,6 @@ export default function JobDetailsPage() {
         </GlassCard>
       )}
 
-      {/* Execution Logs Tab */}
       {activeTab === "logs" && (
         <GlassCard className="p-6">
           <h2 className="font-mono text-lg font-semibold text-white mb-4">Execution Timeline</h2>
@@ -361,7 +354,6 @@ export default function JobDetailsPage() {
         </GlassCard>
       )}
 
-      {/* Configuration Tab */}
       {activeTab === "config" && (
         <div className="grid lg:grid-cols-2 gap-6">
           <GlassCard className="p-6">

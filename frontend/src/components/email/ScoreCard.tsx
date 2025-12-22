@@ -67,7 +67,6 @@ export function ScoreCard({
           <div className="text-2xl text-white/30 mb-1">/100</div>
         </div>
 
-        {/* Progress bar */}
         <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
           <div
             className={cn("h-full rounded-full transition-all duration-500", getScoreBg(score))}
@@ -75,7 +74,6 @@ export function ScoreCard({
           />
         </div>
 
-        {/* Breakdown */}
         {showBreakdown && breakdown.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-white/10">
             {breakdown.map((item, idx) => (

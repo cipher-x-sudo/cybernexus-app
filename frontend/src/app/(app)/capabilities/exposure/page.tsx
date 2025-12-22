@@ -16,7 +16,6 @@ import {
 import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 import { connectExposureJobWebSocket } from "@/lib/websocket";
 
-// TypeScript interfaces for exposure findings
 interface ExposureFinding {
   id: string;
   category: 'file' | 'endpoint' | 'subdomain' | 'config' | 'source_code' | 'admin_panel';
@@ -44,7 +43,6 @@ interface DashboardStats {
   average_risk_score: number;
 }
 
-// Category icons
 const categoryIcons: Record<string, string> = {
   file: "📄",
   endpoint: "🔗",
@@ -65,7 +63,6 @@ const sourceIcons: Record<string, string> = {
   config_detection: "⚙️",
 };
 
-// Extract exposure findings from API findings
 function extractExposureFindings(findings: CapabilityFinding[]): ExposureFinding[] {
   return findings.map((finding) => {
     const evidence = finding.evidence || {};
@@ -131,7 +128,6 @@ export default function ExposureDiscoveryPage() {
   const [findings, setFindings] = useState<CapabilityFinding[]>([]);
   const [selectedFinding, setSelectedFinding] = useState<ExposureFinding | null>(null);
   
-  // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
@@ -308,7 +304,6 @@ export default function ExposureDiscoveryPage() {
   
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -336,7 +331,6 @@ export default function ExposureDiscoveryPage() {
         </div>
       </div>
       
-      {/* Scan Input */}
       <GlassCard className={cn("p-6", colors.border)} hover={false}>
         <form
           onSubmit={(e) => {
@@ -459,7 +453,6 @@ export default function ExposureDiscoveryPage() {
         </form>
       </GlassCard>
       
-      {/* Statistics Cards */}
       {findings.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <GlassCard padding="lg">
@@ -486,12 +479,9 @@ export default function ExposureDiscoveryPage() {
         </div>
       )}
       
-      {/* Main Content */}
       {findings.length > 0 && (
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Findings List */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Search and Filters */}
             <GlassCard padding="lg">
               <GlassInput
                 placeholder="Search findings..."
@@ -628,14 +618,12 @@ export default function ExposureDiscoveryPage() {
             </GlassCard>
           </div>
           
-          {/* Detail Panel */}
           <div>
             <GlassCard className="p-6 sticky top-6" hover={false}>
               <h2 className="font-mono text-lg font-semibold text-white mb-4">Details</h2>
               
               {selectedFinding ? (
                 <div className="space-y-4 animate-fade-in">
-                  {/* Header with icon and severity */}
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{categoryIcons[selectedFinding.category] || '📋'}</span>
                     <div className="flex-1">
@@ -657,7 +645,6 @@ export default function ExposureDiscoveryPage() {
                     </div>
                   </div>
                   
-                  {/* Description */}
                   <div>
                     <p className="text-sm text-white/60">{selectedFinding.description}</p>
                   </div>
@@ -670,7 +657,6 @@ export default function ExposureDiscoveryPage() {
                     />
                   )}
                   
-                  {/* URL Section */}
                   {selectedFinding.url && (
                     <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
                       <div className="flex items-center justify-between mb-2">
@@ -701,10 +687,8 @@ export default function ExposureDiscoveryPage() {
                     </div>
                   )}
                   
-                  {/* Evidence Section - Structured Display */}
                   <ExpandableSection title="Evidence" defaultExpanded={true}>
                     <div className="space-y-3">
-                      {/* Key Evidence Fields */}
                       <div className="grid grid-cols-2 gap-2">
                         {selectedFinding.evidence?.status_code && (
                           <div className="p-2 rounded bg-white/[0.02] border border-white/[0.05]">
@@ -738,7 +722,6 @@ export default function ExposureDiscoveryPage() {
                         )}
                       </div>
                       
-                      {/* Dork Queries Special Display */}
                       {selectedFinding.evidence?.sample_dorks && Array.isArray(selectedFinding.evidence.sample_dorks) && (
                         <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
                           <div className="flex items-center justify-between mb-3">
@@ -800,7 +783,6 @@ export default function ExposureDiscoveryPage() {
                         </div>
                       )}
                       
-                      {/* Additional Evidence Fields */}
                       {Object.entries(selectedFinding.evidence || {})
                         .filter(([key]) => 
                           !['status_code', 'content_type', 'server', 'content_length', 'url', 'final_url', 'was_redirected', 'category', 'source', 'sample_dorks', 'dork_count'].includes(key)
@@ -816,7 +798,6 @@ export default function ExposureDiscoveryPage() {
                           </div>
                         ))}
                       
-                      {/* Raw JSON - Collapsed by default */}
                       <ExpandableSection title="Raw JSON" defaultExpanded={false}>
                         <div className="relative">
                           <div className="absolute top-2 right-2">
@@ -830,7 +811,6 @@ export default function ExposureDiscoveryPage() {
                     </div>
                   </ExpandableSection>
                   
-                  {/* Recommendations */}
                   {selectedFinding.recommendations.length > 0 && (
                     <ExpandableSection title="Recommendations" defaultExpanded={true}>
                       <ul className="space-y-2">
@@ -844,7 +824,6 @@ export default function ExposureDiscoveryPage() {
                     </ExpandableSection>
                   )}
                   
-                  {/* Affected Assets */}
                   {selectedFinding.affected_assets && selectedFinding.affected_assets.length > 0 && (
                     <ExpandableSection title="Affected Assets" defaultExpanded={false}>
                       <ul className="space-y-1">
@@ -892,7 +871,6 @@ export default function ExposureDiscoveryPage() {
         </div>
       )}
       
-      {/* Empty State */}
       {findings.length === 0 && !isScanning && (
         <GlassCard padding="lg" className="text-center py-12">
           <div className={cn("w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center", colors.bg)}>

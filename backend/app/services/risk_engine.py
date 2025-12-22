@@ -1,10 +1,3 @@
-"""
-CyberNexus Risk Engine
-
-Calculates organization-wide risk scores based on findings from all capabilities.
-Provides a unified security posture view without exposing underlying tools.
-"""
-
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -15,7 +8,6 @@ from app.core.dsa import HashMap, AVLTree, CircularBuffer
 
 
 class RiskLevel(str, Enum):
-    """Overall risk levels"""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -25,7 +17,6 @@ class RiskLevel(str, Enum):
 
 @dataclass
 class RiskFactor:
-    """A factor contributing to risk"""
     category: str
     weight: float  # 0-1, importance weight
     score: float   # 0-100, current score
@@ -36,7 +27,6 @@ class RiskFactor:
 
 @dataclass
 class RiskScore:
-    """Overall risk score for an organization/target"""
     target: str
     overall_score: float  # 0-100 (higher = better security)
     risk_level: RiskLevel
@@ -77,19 +67,6 @@ class RiskScore:
 
 
 class RiskEngine:
-    """
-    Calculates and tracks security risk scores.
-    
-    Risk Categories (mapped from capabilities):
-    - Exposure: How much is publicly discoverable (Exposure Discovery)
-    - Dark Web Presence: Mentions, leaks on dark web (Dark Web Intel)
-    - Email Security: SPF/DKIM/DMARC configuration (Email Security)
-    - Infrastructure: Server misconfigurations (Infrastructure Testing)
-    - Authentication: Credential strength (Auth Testing)
-    - Network: Tunneling/covert channel risks (Network Security)
-    """
-    
-    # Category weights (sum to 1.0)
     CATEGORY_WEIGHTS = {
         "exposure": 0.20,
         "dark_web": 0.20,

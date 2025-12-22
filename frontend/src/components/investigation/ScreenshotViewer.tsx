@@ -43,7 +43,6 @@ export function ScreenshotViewer({ screenshotUrl, className, onExport }: Screens
   return (
     <GlassCard className={cn("p-6", className)} hover={false}>
       <div className="space-y-4">
-        {/* Controls */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <button
@@ -89,7 +88,6 @@ export function ScreenshotViewer({ screenshotUrl, className, onExport }: Screens
           </div>
         </div>
 
-        {/* Screenshot Display */}
         <div className="border border-white/[0.08] rounded-lg bg-black/20 overflow-hidden">
           <TransformWrapper
             initialScale={zoom}
@@ -107,7 +105,6 @@ export function ScreenshotViewer({ screenshotUrl, className, onExport }: Screens
                 />
                 {showAnnotations && (
                   <div className="absolute inset-0 pointer-events-none">
-                    {/* Example annotations - in production, these would come from analysis */}
                     <div className="absolute top-10 left-10 w-32 h-8 border-2 border-red-500 rounded">
                       <div className="absolute -top-6 left-0 text-xs text-red-400 bg-black/80 px-2 py-1 rounded">
                         Suspicious Element

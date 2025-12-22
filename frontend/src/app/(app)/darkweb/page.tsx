@@ -100,7 +100,6 @@ export default function DarkWebPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Dark Web Monitoring</h1>
@@ -117,7 +116,6 @@ export default function DarkWebPage() {
         </GlassButton>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Mentions", value: mentions.length },
@@ -137,10 +135,8 @@ export default function DarkWebPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Main feed */}
         <div className="lg:col-span-2">
           <GlassCard padding="none">
-            {/* Filters */}
             <div className="p-4 border-b border-white/[0.05]">
               <GlassInput
                 placeholder="Search mentions..."
@@ -182,7 +178,6 @@ export default function DarkWebPage() {
               </div>
             </div>
 
-            {/* Feed items */}
             <div className="divide-y divide-white/[0.03]">
               {filteredMentions.length === 0 ? (
                 <div className="p-8 text-center text-white/50">
@@ -238,9 +233,7 @@ export default function DarkWebPage() {
           </GlassCard>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-4">
-          {/* Keyword alerts */}
           <GlassCard>
             <h3 className="font-mono font-semibold text-white mb-4">Keyword Alerts</h3>
             <div className="space-y-2">

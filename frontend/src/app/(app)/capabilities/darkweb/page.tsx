@@ -7,7 +7,6 @@ import { GlassCard, GlassButton, GlassInput, Badge, GlassSelect } from "@/compon
 import { api, CapabilityFinding, CapabilityJob } from "@/lib/api";
 import { connectDarkwebJobWebSocket } from "@/lib/websocket";
 
-// TypeScript interfaces for parsed data structures
 interface SiteData {
   site_id: string;
   onion_url: string;
@@ -59,7 +58,6 @@ interface DashboardStats {
   entity_types: Record<string, number>;
 }
 
-// Data extraction helper functions
 function extractSitesFromFindings(findings: CapabilityFinding[]): SiteData[] {
   const sitesMap = new Map<string, SiteData>();
   
@@ -119,7 +117,6 @@ function extractMentionsFromFindings(findings: CapabilityFinding[]): MentionData
   const mentions: MentionData[] = [];
   
   findings.forEach((finding) => {
-    // Brand mentions are findings with "Brand mention" in title and have site evidence
     if (finding.title.toLowerCase().includes("brand mention") && finding.evidence?.site) {
       const site = finding.evidence.site;
       mentions.push({
@@ -185,7 +182,6 @@ const categoryIcons: Record<string, string> = {
   unknown: "🌐",
 };
 
-// Entity type icons
 const entityTypeIcons: Record<string, string> = {
   email: "📧",
   bitcoin: "₿",
@@ -452,7 +448,6 @@ export default function DarkWebPage() {
   
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <Link
@@ -480,7 +475,6 @@ export default function DarkWebPage() {
         </div>
       </div>
       
-      {/* Scan Input */}
       <GlassCard className={cn("p-6", colors.border)} hover={false}>
         <form
           onSubmit={(e) => {
@@ -653,7 +647,6 @@ export default function DarkWebPage() {
         </form>
       </GlassCard>
       
-      {/* Statistics Cards */}
       {findings.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <GlassCard padding="lg">
@@ -681,12 +674,9 @@ export default function DarkWebPage() {
         </div>
       )}
       
-      {/* Dashboard Sections */}
       {findings.length > 0 && (
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Content - Sites and Mentions */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Search and Filters */}
             <GlassCard padding="lg">
               <GlassInput
                 placeholder="Search across all results..."
@@ -708,7 +698,6 @@ export default function DarkWebPage() {
               )}
             </GlassCard>
             
-            {/* Sites Discovered */}
             <GlassCard padding="lg">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-mono text-lg font-semibold text-white">
@@ -716,7 +705,6 @@ export default function DarkWebPage() {
                 </h2>
               </div>
               
-              {/* Site Filters */}
               <div className="flex flex-wrap gap-2 mb-4">
                 <GlassSelect
                   value={siteCategoryFilter}
@@ -816,7 +804,6 @@ export default function DarkWebPage() {
               )}
             </GlassCard>
             
-            {/* Brand Mentions */}
             <GlassCard padding="lg">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-mono text-lg font-semibold text-white">
@@ -824,7 +811,6 @@ export default function DarkWebPage() {
                 </h2>
               </div>
               
-              {/* Mention Filters */}
               {uniqueKeywords.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <GlassSelect
@@ -890,7 +876,6 @@ export default function DarkWebPage() {
               )}
             </GlassCard>
             
-            {/* Extracted Entities */}
             <GlassCard padding="lg">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-mono text-lg font-semibold text-white">
@@ -898,7 +883,6 @@ export default function DarkWebPage() {
                 </h2>
               </div>
               
-              {/* Entity Filters */}
               {uniqueEntityTypes.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <GlassSelect
@@ -986,7 +970,6 @@ export default function DarkWebPage() {
             </GlassCard>
           </div>
           
-          {/* Sidebar - Details */}
           <div>
             <GlassCard className="p-6 sticky top-6" hover={false}>
               <h2 className="font-mono text-lg font-semibold text-white mb-4">Details</h2>
@@ -1145,7 +1128,6 @@ export default function DarkWebPage() {
         </div>
       )}
       
-      {/* Empty State */}
       {findings.length === 0 && !isScanning && (
         <GlassCard className="p-12" hover={false}>
           <div className="text-center">
