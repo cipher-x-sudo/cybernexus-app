@@ -181,7 +181,7 @@ class DarkWatch:
     """Dark web intelligence collector with entity extraction and relationship mapping."""
     
     # Regex patterns for entity extraction
-    PATTERNS = { {
+    PATTERNS = { 
         "email": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
         "bitcoin": r'\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b',
         "bitcoin_bech32": r'\bbc1[a-zA-HJ-NP-Z0-9]{39,59}\b',
