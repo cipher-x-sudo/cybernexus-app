@@ -43,7 +43,7 @@ class WebRecon:
         'site:{domain} filetype:rar',
         'site:{domain} intitle:"index of" backup',
         'site:{domain} intitle:"index of" dump',
-        # Documents
+
         'site:{domain} filetype:pdf',
         'site:{domain} filetype:doc',
         'site:{domain} filetype:docx',
@@ -83,7 +83,7 @@ class WebRecon:
         'site:{domain} inurl:settings',
         'site:{domain} inurl:web.config',
         'site:{domain} inurl:.htaccess',
-        # Directory listings
+
         'site:{domain} intitle:"index of"',
         'site:{domain} intitle:"directory listing"',
         'site:{domain} intitle:"parent directory"',
@@ -209,7 +209,7 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(65, 'Checking for source code exposure...')")
                 progress_callback(65, "Checking for source code exposure...")
             
-            # Source code exposure detection
+
             source_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting source code exposure detection...")
             try:
@@ -228,7 +228,7 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(75, 'Scanning admin panels...')")
                 progress_callback(75, "Scanning admin panels...")
             
-            # Admin panel discovery
+
             admin_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Starting admin panel discovery...")
             try:
@@ -265,7 +265,7 @@ class WebRecon:
                 logger.info(f"[WebRecon] [domain={domain}] Calling progress_callback(95, 'Finalizing results...')")
                 progress_callback(95, "Finalizing results...")
             
-            # Cache results
+
             cache_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Caching results...")
             self._asset_cache.put(domain, results)
@@ -316,7 +316,7 @@ class WebRecon:
             'server', 'servers', 'host', 'hosting',
             'dev', 'development', 'staging', 'stage', 'test', 'testing',
             'qa', 'prod', 'production', 'preprod', 'pre-prod',
-            # Services
+
             'api', 'api1', 'api2', 'apis', 'rest', 'graphql',
             'cdn', 'static', 'assets', 'media', 'files', 'download',
             'upload', 'storage', 'backup', 'backups',
@@ -372,7 +372,7 @@ class WebRecon:
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for subdomain in resolved_subdomains:
-                # Check both HTTPS and HTTP
+
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{subdomain}"
                     tasks.append(self._check_subdomain(client, url, subdomain, protocol == 'https'))
@@ -383,7 +383,7 @@ class WebRecon:
                 f"(skipped {tasks_skipped} duplicates, {dns_failed} DNS failures)"
             )
             
-            # Run checks in parallel
+
             check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
             check_time = time.time() - check_start
@@ -397,13 +397,13 @@ class WebRecon:
                     logger.warning(f"[WebRecon] [domain={domain}] Subdomain check error: {type(result).__name__}: {result}")
                 elif isinstance(result, dict) and result:
                     successful += 1
-                    # Avoid duplicates
+
                     existing = next((s for s in subdomains if s["subdomain"] == result["subdomain"]), None)
                     if not existing:
                         subdomains.append(result)
                         logger.info(f"[WebRecon] [domain={domain}] Found subdomain: {result.get('subdomain')} (status: {result.get('status')})")
                     elif result.get("https") and not existing.get("https"):
-                        # Prefer HTTPS version
+
                         subdomains.remove(existing)
                         subdomains.append(result)
                         logger.info(f"[WebRecon] [domain={domain}] Upgraded subdomain to HTTPS: {result.get('subdomain')}")
@@ -455,7 +455,7 @@ class WebRecon:
             return None
         except httpx.ConnectError as e:
             request_time = time.time() - request_start
-            # Check if this is a DNS resolution error
+
             error_str = str(e).lower()
             is_dns_error = "name or service not known" in error_str or "errno -2" in error_str
             if is_dns_error:
@@ -465,7 +465,7 @@ class WebRecon:
             return None
         except Exception as e:
             request_time = time.time() - request_start
-            # Check if this is a DNS resolution error
+
             error_str = str(e).lower()
             is_dns_error = "name or service not known" in error_str or "errno -2" in error_str
             if is_dns_error:
@@ -491,41 +491,41 @@ class WebRecon:
         logger.info(f"[WebRecon] [domain={domain}] Starting endpoint scanning")
         endpoints = []
         
-        # Extended list of sensitive endpoints
+
         paths = [
-            # Source control
+
             '/.git/config', '/.git/HEAD', '/.git/index',
             '/.svn/entries', '/.svn/wc.db',
             '/.hg/requires',
-            # Environment and config
+
             '/.env', '/.env.local', '/.env.production',
             '/config.php', '/config.inc.php', '/configuration.php',
             '/web.config', '/.htaccess', '/.htpasswd',
-            # Admin and login
+
             '/admin', '/administrator', '/wp-admin', '/wp-login.php',
             '/login', '/signin', '/auth', '/dashboard',
             '/phpmyadmin', '/pma', '/adminer.php',
             '/cpanel', '/whm', '/plesk',
-            # API and docs
+
             '/api', '/api/v1', '/api/v2', '/graphql',
             '/swagger', '/swagger.json', '/swagger.yaml',
             '/openapi.json', '/openapi.yaml',
             '/docs', '/documentation', '/api-docs',
-            # Debug and info
+
             '/phpinfo.php', '/info.php', '/test.php',
             '/server-status', '/server-info',
             '/.well-known/security.txt', '/security.txt',
-            # Files and directories
+
             '/robots.txt', '/sitemap.xml', '/sitemap.txt',
             '/backup', '/backups', '/old', '/archive',
             '/dump', '/sql', '/database',
-            # Other
+
             '/.DS_Store', '/Thumbs.db',
         ]
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(paths)} endpoint paths")
         
-        # Follow redirects for all endpoints to get final status code and avoid false positives
+
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path in paths:
@@ -533,12 +533,12 @@ class WebRecon:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
-                        # Follow redirects for all endpoints to verify actual accessibility
+
                         tasks.append(self._check_endpoint(client, url, path, follow_redirects=True))
             
             logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} endpoint check tasks (all with redirect following)")
             
-            # Run checks in parallel with limit
+
             check_start = time.time()
             results = await asyncio.gather(*tasks, return_exceptions=True)
             check_time = time.time() - check_start
@@ -575,7 +575,7 @@ class WebRecon:
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
         
-        # Use a separate client if we need to follow redirects
+
         if follow_redirects:
             async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as redirect_client:
                 return await self._check_endpoint_with_client(redirect_client, url, path, request_start, protocol)
@@ -599,7 +599,7 @@ class WebRecon:
             content_type = response.headers.get("content-type", "unknown")
             server_header = response.headers.get("server", "unknown")
             
-            # Get final URL after redirects
+
             final_url = str(response.url)
             was_redirected = final_url != url
             
@@ -642,29 +642,29 @@ class WebRecon:
         logger.info(f"[WebRecon] [domain={domain}] Starting sensitive file detection")
         files = []
         
-        # Sensitive file patterns
+
         sensitive_files = [
-            # Environment files
+
             '/.env', '/.env.local', '/.env.production', '/.env.development',
             '/.env.test', '/.env.staging',
-            # Configuration files
+
             '/config.json', '/config.yml', '/config.yaml',
             '/settings.json', '/settings.py', '/settings.php',
             '/application.properties', '/application.yml',
-            # Key files
+
             '/id_rsa', '/id_dsa', '/id_ecdsa', '/id_ed25519',
             '/private.key', '/public.key', '/key.pem',
             '/certificate.pem', '/cert.pem',
-            # Database files
+
             '/database.sql', '/dump.sql', '/backup.sql',
             '/db.sqlite', '/database.db',
-            # Backup files
+
             '/backup.tar.gz', '/backup.zip', '/backup.rar',
             '/backup.bak', '/backup.old',
-            # Log files
+
             '/error.log', '/access.log', '/debug.log',
             '/application.log', '/server.log',
-            # Other sensitive
+
             '/.htpasswd', '/.gitignore', '/.dockerignore',
             '/composer.json', '/package.json', '/requirements.txt',
         ]
@@ -760,20 +760,20 @@ class WebRecon:
         logger.info(f"[WebRecon] [domain={domain}] Starting source code exposure detection")
         exposures = []
         
-        # Source control indicators
+
         vcs_indicators = [
-            # Git
+
             ('/.git/config', 'git'),
             ('/.git/HEAD', 'git'),
             ('/.git/index', 'git'),
             ('/.git/logs/HEAD', 'git'),
-            # SVN
+
             ('/.svn/entries', 'svn'),
             ('/.svn/wc.db', 'svn'),
-            # Mercurial
+
             ('/.hg/requires', 'hg'),
             ('/.hg/hgrc', 'hg'),
-            # Other
+
             ('/.bzr/README', 'bzr'),
             ('/_darcs/README', 'darcs'),
         ]
@@ -836,31 +836,31 @@ class WebRecon:
         logger.info(f"[WebRecon] [domain={domain}] Starting admin panel discovery")
         admin_panels = []
         
-        # Common admin panel paths
+
         admin_paths = [
-            # WordPress
+
             ('/wp-admin', 'WordPress Admin'),
             ('/wp-login.php', 'WordPress Login'),
-            # Joomla
+
             ('/administrator', 'Joomla Admin'),
-            # Drupal
+
             ('/user/login', 'Drupal Login'),
-            # Generic
+
             ('/admin', 'Generic Admin'),
             ('/admin/login', 'Admin Login'),
             ('/administrator/login', 'Administrator Login'),
             ('/login', 'Login Page'),
             ('/signin', 'Sign In'),
             ('/dashboard', 'Dashboard'),
-            # Database
+
             ('/phpmyadmin', 'phpMyAdmin'),
             ('/pma', 'phpMyAdmin (alt)'),
             ('/adminer.php', 'Adminer'),
-            # Control panels
+
             ('/cpanel', 'cPanel'),
             ('/whm', 'WHM'),
             ('/plesk', 'Plesk'),
-            # Other
+
             ('/manager', 'Tomcat Manager'),
             ('/jenkins', 'Jenkins'),
             ('/gitlab', 'GitLab'),
@@ -868,7 +868,7 @@ class WebRecon:
         
         logger.info(f"[WebRecon] [domain={domain}] Checking {len(admin_paths)} admin panel paths")
         
-        # Follow redirects for all admin panels to get final status code and avoid false positives
+
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             tasks = []
             for path, panel_name in admin_paths:
@@ -876,7 +876,7 @@ class WebRecon:
                     url = f"{protocol}://{domain}{path}"
                     if not self._seen_urls.contains(url):
                         self._seen_urls.add(url)
-                        # Follow redirects for all admin panels to verify actual accessibility
+
                         tasks.append(self._check_admin_panel(client, url, path, panel_name, follow_redirects=True))
             
             logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} admin panel check tasks")
@@ -915,7 +915,7 @@ class WebRecon:
         request_start = time.time()
         protocol = "HTTPS" if url.startswith("https://") else "HTTP"
         
-        # Use a separate client if we need to follow redirects
+
         if follow_redirects:
             async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as redirect_client:
                 return await self._check_admin_panel_with_client(redirect_client, url, path, panel_name, request_start, protocol)
@@ -939,17 +939,17 @@ class WebRecon:
             content_length = len(response.content) if response.content else 0
             server_header = response.headers.get("server", "unknown")
             
-            # Get final URL after redirects
+
             final_url = str(response.url)
             was_redirected = final_url != url
             
-            # Check for common indicators
+
             content_lower = response.text.lower() if response.text else ""
             is_login_page = any(keyword in content_lower for keyword in [
                 'login', 'password', 'username', 'sign in', 'log in'
             ])
             
-            # Skip if redirected to 404
+
             if response.status_code == 404:
                 redirect_info = f" -> {final_url} (404)" if was_redirected else ""
                 logger.info(f"[WebRecon] [admin_panel={panel_name}] HTTP {protocol} GET {url}{redirect_info} - Status: 404 (Not Found) - Time: {request_time:.3f}s")
@@ -997,7 +997,7 @@ class WebRecon:
         logger.info(f"[WebRecon] [domain={domain}] Starting configuration file detection")
         configs = []
         
-        # Configuration file patterns
+
         config_files = [
             '/config.php', '/config.inc.php', '/configuration.php',
             '/config.json', '/config.yml', '/config.yaml',
@@ -1060,7 +1060,7 @@ class WebRecon:
             content_type = response.headers.get("content-type", "unknown")
             
             if response.status_code == 200:
-                # Check if it looks like a config file
+
                 content = response.text if response.text else ""
                 is_config = any(keyword in content.lower() for keyword in [
                     'password', 'secret', 'key', 'api', 'database', 'db_',

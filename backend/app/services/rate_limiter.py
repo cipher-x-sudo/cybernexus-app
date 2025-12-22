@@ -48,7 +48,7 @@ class RateLimiter:
                 "retry_after": self.window_seconds
             }
         
-        # Increment counter
+
         await self._increment_sliding_window(key)
         
         return {
@@ -70,7 +70,7 @@ class RateLimiter:
                 "retry_after": self.window_seconds
             }
         
-        # Increment counter
+
         await self._increment_sliding_window(key)
         
         return {

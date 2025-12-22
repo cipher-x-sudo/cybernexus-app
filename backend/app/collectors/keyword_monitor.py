@@ -81,7 +81,7 @@ class KeywordMatch:
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __lt__(self, other):
-        # For heap comparison - higher score = higher priority
+
         return self.score < other.score
     
     def to_dict(self) -> Dict:
@@ -137,26 +137,26 @@ class KeywordMonitor:
     
     
     def __init__(self):
-        # Trie for efficient keyword matching
+
         self.keyword_trie = Trie()
         
-        # HashMap for rule storage
+
         self.rules = HashMap()  # rule_id -> MonitorRule
         
-        # MaxHeap for priority alerts (highest score first)
+
         self.alert_queue = MaxHeap()
         
-        # LinkedList for match history
+
         self.match_history = DoublyLinkedList()
         
-        # HashMap for matches and alerts
+
         self.matches = HashMap()  # match_id -> KeywordMatch
         self.alerts = HashMap()  # alert_id -> Alert
         
-        # Keyword to rule mapping for fast lookups
+
         self.keyword_rules = HashMap()  # keyword -> List[rule_id]
         
-        # Statistics
+
         self.stats = {
             "rules_count": 0,
             "total_matches": 0,
@@ -164,7 +164,7 @@ class KeywordMonitor:
             "content_scanned": 0
         }
         
-        # Alert callbacks
+
         self.alert_callbacks: List[Callable[[Alert], None]] = []
     
     def _generate_id(self, prefix: str, data: str) -> str:
@@ -176,12 +176,12 @@ class KeywordMonitor:
         
         self.rules.put(rule.rule_id, rule)
         
-        # Index keywords in Trie
+
         for keyword in rule.keywords:
             kw_lower = keyword.lower() if not rule.case_sensitive else keyword
             self.keyword_trie.insert(kw_lower)
             
-            # Map keyword to rule
+
             existing = self.keyword_rules.get(kw_lower)
             if existing:
                 existing.append(rule.rule_id)
@@ -216,7 +216,7 @@ class KeywordMonitor:
         if not rule:
             return False
         
-        # Remove from keyword mapping
+
         for keyword in rule.keywords:
             kw_lower = keyword.lower() if not rule.case_sensitive else keyword
             rule_list = self.keyword_rules.get(kw_lower)
@@ -237,13 +237,13 @@ class KeywordMonitor:
         if not rule.enabled:
             return None
         
-        # Check source filter
+
         if rule.source_filter and source_type not in rule.source_filter:
             return None
         
         content_check = content if rule.case_sensitive else content.lower()
         
-        # Check exclude keywords first
+
         for exclude in rule.exclude_keywords:
             exclude_check = exclude if rule.case_sensitive else exclude.lower()
             if exclude_check in content_check:
@@ -252,19 +252,19 @@ class KeywordMonitor:
         matched_keywords = []
         matched_patterns = []
         
-        # Check keywords
+
         for keyword in rule.keywords:
             kw_check = keyword if rule.case_sensitive else keyword.lower()
             if kw_check in content_check:
                 matched_keywords.append(keyword)
         
-        # Check regex patterns
+
         for pattern in rule.regex_patterns:
             flags = 0 if rule.case_sensitive else re.IGNORECASE
             if re.search(pattern, content, flags):
                 matched_patterns.append(pattern)
         
-        # Check if match criteria met
+
         if rule.require_all:
             if len(matched_keywords) < len(rule.keywords):
                 return None
@@ -287,11 +287,11 @@ class KeywordMonitor:
         
         base_score = rule.severity.value * 20  # 20-100 based on severity
         
-        # Bonus for multiple matches
+
         keyword_bonus = len(matched_keywords) * 5
         pattern_bonus = len(matched_patterns) * 10
         
-        # Source type multiplier
+
         source_multipliers = {
             SourceType.DARK_WEB: 1.5,
             SourceType.BREACH_DB: 1.4,
@@ -337,7 +337,7 @@ class KeywordMonitor:
         self.stats["content_scanned"] += 1
         matches = []
         
-        # Check each rule
+
         for rule_id in self.rules.keys():
             rule = self.rules.get(rule_id)
             if not rule:
@@ -350,16 +350,16 @@ class KeywordMonitor:
             matched_keywords = match_result["matched_keywords"]
             matched_patterns = match_result["matched_patterns"]
             
-            # Calculate score
+
             score = self._calculate_score(
                 rule, matched_keywords, matched_patterns, source_type
             )
             
-            # Get content snippet
+
             first_keyword = matched_keywords[0] if matched_keywords else ""
             snippet = self._get_snippet(content, first_keyword) if first_keyword else content[:200]
             
-            # Create match
+
             match_id = self._generate_id("match", f"{rule_id}:{source_url}")
             match = KeywordMatch(
                 match_id=match_id,
@@ -376,13 +376,13 @@ class KeywordMonitor:
                 metadata=metadata or {}
             )
             
-            # Store match
+
             self.matches.put(match_id, match)
             self.match_history.append(match.to_dict())
             matches.append(match)
             self.stats["total_matches"] += 1
             
-            # Generate alert for high-severity matches
+
             if rule.severity in [MatchSeverity.CRITICAL, MatchSeverity.HIGH]:
                 self._create_alert(match)
         
@@ -407,7 +407,7 @@ class KeywordMonitor:
         self.alert_queue.push(alert)
         self.stats["total_alerts"] += 1
         
-        # Trigger callbacks
+
         for callback in self.alert_callbacks:
             try:
                 callback(alert)
@@ -429,7 +429,7 @@ class KeywordMonitor:
                 alerts.append(alert)
             temp.append(alert)
         
-        # Put back
+
         for alert in temp:
             self.alert_queue.push(alert)
         
@@ -473,7 +473,7 @@ class KeywordMonitor:
             
             results.append(match)
         
-        # Sort by score descending
+
         results.sort(key=lambda m: m.score, reverse=True)
         return results[:limit]
     
@@ -491,17 +491,17 @@ class KeywordMonitor:
             if not match or match.discovered_at < cutoff:
                 continue
             
-            # Daily counts
+
             day_key = match.discovered_at.strftime("%Y-%m-%d")
             daily_counts[day_key] = daily_counts.get(day_key, 0) + 1
             
-            # Severity counts
+
             severity_counts[match.severity.name] += 1
             
-            # Source counts
+
             source_counts[match.source_type.value] += 1
             
-            # Rule counts
+
             rule_counts[match.rule_name] = rule_counts.get(match.rule_name, 0) + 1
         
         return {
@@ -569,7 +569,7 @@ class KeywordMonitor:
 if __name__ == "__main__":
     monitor = KeywordMonitor()
     
-    # Create rules
+
     monitor.create_rule(
         name="Company Brand Monitoring",
         keywords=["MyCorp", "mycorp.com", "Our CEO Name"],
@@ -583,7 +583,7 @@ if __name__ == "__main__":
         severity=MatchSeverity.CRITICAL
     )
     
-    # Scan content
+
     test_content = """
     New leak posted! MyCorp database dump available.
     Contains user credentials and passwords.

@@ -131,7 +131,7 @@ class RiskEngine:
             category_findings[category].append(finding)
             severity_counts[severity] = severity_counts.get(severity, 0) + 1
         
-        # Calculate weighted overall score
+
         overall_score = 0.0
         factors = []
         
@@ -139,7 +139,7 @@ class RiskEngine:
             cat_score = category_scores[category]
             overall_score += cat_score * weight
             
-            # Determine trend (compare with history if available)
+
             trend = self._calculate_trend(target, category, cat_score)
             
             factors.append(RiskFactor(
@@ -151,13 +151,13 @@ class RiskEngine:
                 trend=trend
             ))
         
-        # Determine risk level
+
         risk_level = self._score_to_risk_level(overall_score)
         
-        # Calculate overall trend
+
         overall_trend = self._calculate_overall_trend(target, overall_score)
         
-        # Create risk score
+
         risk_score = RiskScore(
             target=target,
             overall_score=overall_score,
@@ -171,13 +171,13 @@ class RiskEngine:
             trend=overall_trend
         )
         
-        # Store in history
+
         self._store_score(target, risk_score)
         
-        # Store category scores
+
         self._category_scores.put(target, category_scores)
         
-        # Store findings
+
         self._findings_by_target.put(target, findings)
         
         logger.info(f"Calculated risk score for {target}: {overall_score:.1f} ({risk_level.value})")

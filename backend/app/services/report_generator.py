@@ -61,7 +61,7 @@ class ReportGenerator:
     
     def _render_executive_summary(self, data: Dict[str, Any]) -> str:
         
-        # Default template with dark cyberpunk theme matching website
+
         return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -344,7 +344,7 @@ class ReportGenerator:
         
         report_id = f"THR-RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
-        # Aggregate data
+
         data = {
             "total_threats": len(threats),
             "critical_threats": len([t for t in threats if t.get("severity") == "critical"]),
@@ -359,17 +359,17 @@ class ReportGenerator:
         
         recommendations = []
         
-        # Check for critical threats
+
         critical = [t for t in threats if t.get("severity") == "critical"]
         if critical:
             recommendations.append(f"Immediately address {len(critical)} critical threats")
         
-        # Check for credential exposures
+
         cred_threats = [t for t in threats if t.get("category") == "credential_exposure"]
         if cred_threats:
             recommendations.append("Reset passwords for exposed credentials and enable MFA")
         
-        # Check for misconfigurations
+
         misconfig = [t for t in threats if t.get("category") == "misconfiguration"]
         if misconfig:
             recommendations.append("Review and fix security configurations")
@@ -383,7 +383,7 @@ class ReportGenerator:
         
         reports = []
         
-        # List both HTML and PDF reports
+
         for report_file in self.output_dir.glob("*.*"):
             if report_file.suffix in [".html", ".pdf"]:
                 reports.append({

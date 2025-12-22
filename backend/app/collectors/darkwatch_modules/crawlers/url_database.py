@@ -19,7 +19,7 @@ class URLDatabase:
         self.dbpath = dbpath
         self.dbname = dbname
         
-        # Ensure directory exists
+
         os.makedirs(self.dbpath, exist_ok=True)
         
         db_file = os.path.join(self.dbpath, self.dbname)
@@ -27,7 +27,7 @@ class URLDatabase:
         if not os.path.exists(db_file):
             self._create_database(db_file)
         else:
-            # Ensure table exists even if DB exists
+
             self._create_database(db_file)
     
     def _create_database(self, db_file: str):
@@ -99,28 +99,28 @@ class URLDatabase:
         cursor = conn.cursor()
         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        # Check which URLs already exist
+
         existing_urls = set()
         if urls:
-            # Use IN clause for efficient checking
+
             placeholders = ','.join(['?' for _ in urls])
             cursor.execute(f"SELECT url FROM URL WHERE url IN ({placeholders});", urls)
             existing_urls = {row[0] for row in cursor.fetchall()}
         
-        # Filter out existing URLs
+
         new_urls = [url for url in urls if url not in existing_urls]
         
         if not new_urls:
             conn.close()
             return 0
         
-        # Prepare batch insert data
+
         insert_data = [
             (type, url, source, baseurl, date)
             for url in new_urls
         ]
         
-        # Batch insert using executemany
+
         cursor.executemany(
             "INSERT INTO URL (type,url,source,baseurl,discovery_date) VALUES (?,?,?,?,?);",
             insert_data
@@ -139,7 +139,7 @@ class URLDatabase:
         conn = sqlite3.connect(os.path.join(self.dbpath, self.dbname))
         cursor = conn.cursor()
         
-        # Build query based on provided scores
+
         query = "SELECT * FROM URL WHERE (status IS NULL OR status != 'Offline')"
         params = []
         

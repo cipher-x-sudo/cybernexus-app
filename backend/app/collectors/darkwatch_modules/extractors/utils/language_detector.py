@@ -4,7 +4,7 @@ import re
 from typing import Optional
 
 
-# Common language patterns (simplified)
+
 LANGUAGE_PATTERNS = {
     'en': [r'\bthe\b', r'\band\b', r'\bor\b', r'\bis\b'],
     'es': [r'\bel\b', r'\bla\b', r'\bde\b', r'\bque\b'],
@@ -36,5 +36,5 @@ def detect_language(text: str) -> str:
         if scores[detected] > 0:
             return detected
     
-    # Default to English if no strong match
+
     return 'en'

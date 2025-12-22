@@ -116,7 +116,7 @@ class Predictor:
             typo = name[:i] + name[i+1] + name[i] + name[i+2:]
             typosquats.append({"domain": f"{typo}.{tld}", "type": "swap"})
         
-        # 4. Adjacent key replacement (QWERTY)
+
         qwerty_adjacent = {
             'q': 'wa', 'w': 'qeas', 'e': 'wrds', 'r': 'etdf', 't': 'ryfg',
             'y': 'tugh', 'u': 'yihj', 'i': 'uojk', 'o': 'ipkl', 'p': 'ol',
@@ -143,7 +143,7 @@ class Predictor:
                     typo = name[:i] + h + name[i+1:]
                     typosquats.append({"domain": f"{typo}.{tld}", "type": "homoglyph"})
         
-        # 6. TLD variations
+
         common_tlds = ['com', 'net', 'org', 'io', 'co', 'info', 'biz']
         for alt_tld in common_tlds:
             if alt_tld != tld:

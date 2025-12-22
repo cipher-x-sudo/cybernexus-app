@@ -168,7 +168,7 @@ class BrowserCaptureService:
             )
             screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
             
-            # Build HAR file
+
             logger.info(f"[BrowserCapture] Building HAR file")
             har = self._build_har(url, final_url, page, har_entries, redirect_chain)
             

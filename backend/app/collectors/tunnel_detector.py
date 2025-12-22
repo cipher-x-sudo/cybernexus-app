@@ -132,7 +132,7 @@ class BeaconingPattern:
 class TunnelDetector:
     
     
-    # Known tunnel indicators
+
     TUNNEL_INDICATORS = {
         "unusual_content_type": ["application/octet-stream", "binary/octet-stream"],
         "tunnel_headers": ["X-Tunnel", "X-Forwarded-TCP", "X-Socket-ID"],
@@ -140,7 +140,7 @@ class TunnelDetector:
         "webshell_patterns": [".php?cmd=", ".asp?exec=", ".jsp?c="]
     }
     
-    # Tunna-specific patterns
+
     TUNNA_PATTERNS = [
         r'/conn\?[a-f0-9]+',
         r'cmd=\w+&data=',
@@ -150,27 +150,27 @@ class TunnelDetector:
     
     def __init__(self, buffer_size: int = 10000):
         
-        # Circular buffer for recent requests (rolling window analysis)
+
         self.request_buffer = CircularBuffer(buffer_size)
         
-        # HashMap for connection tracking
+
         self.connections = HashMap()  # conn_key -> connection state
         self.requests = HashMap()  # request_id -> HTTPRequest
         
-        # MaxHeap for priority detections
+
         self.detection_queue = MaxHeap()
         
-        # Graph for connection relationships
+
         self.connection_graph = Graph(directed=True)
         
-        # Detection storage
+
         self.detections = HashMap()  # detection_id -> TunnelDetection
         self.beacons = HashMap()  # pattern_id -> BeaconingPattern
         
-        # Timing analysis per connection
+
         self.timing_data = HashMap()  # conn_key -> list of timestamps
         
-        # Statistics
+
         self.stats = {
             "requests_analyzed": 0,
             "tunnels_detected": 0,
@@ -192,19 +192,19 @@ class TunnelDetector:
         if not data:
             return 0.0
         
-        # Count byte frequencies
+
         freq = {}
         for byte in data:
             freq[byte] = freq.get(byte, 0) + 1
         
-        # Calculate entropy
+
         entropy = 0.0
         length = len(data)
         for count in freq.values():
             p = count / length
             entropy -= p * math.log2(p)
         
-        # Normalize to 0-1 range (max entropy for bytes is 8)
+
         return entropy / 8.0
     
     def analyze_request(
@@ -223,10 +223,10 @@ class TunnelDetector:
         
         request_id = self._generate_id("req", f"{source_ip}:{uri}")
         
-        # Calculate body entropy
+
         body_entropy = self._calculate_entropy(body) if body else 0.0
         
-        # Create request object
+
         request = HTTPRequest(
             request_id=request_id,
             timestamp=datetime.now(),
@@ -244,15 +244,15 @@ class TunnelDetector:
             user_agent=headers.get("User-Agent")
         )
         
-        # Store request
+
         self.requests.put(request_id, request)
         self.request_buffer.push(request.to_dict())
         
-        # Track connection
+
         conn_key = self._get_connection_key(source_ip, destination_ip, destination_port)
         self._track_connection(conn_key, request)
         
-        # Update graph
+
         if source_ip not in self.connection_graph:
             self.connection_graph.add_node(source_ip, label=source_ip, node_type="ip", data={"type": "client"})
         dest_key = f"{destination_ip}:{destination_port}"
@@ -262,42 +262,42 @@ class TunnelDetector:
         
         self.stats["requests_analyzed"] += 1
         
-        # Run detection checks
+
         indicators = []
         tunnel_type = TunnelType.UNKNOWN
         
-        # Check 1: Suspicious headers
+
         header_indicators = self._check_suspicious_headers(headers)
         indicators.extend(header_indicators)
         
-        # Check 2: Suspicious URI patterns
+
         uri_indicators, detected_type = self._check_uri_patterns(uri)
         indicators.extend(uri_indicators)
         if detected_type:
             tunnel_type = detected_type
         
-        # Check 3: High entropy body (encrypted/binary data)
+
         if body_entropy > 0.9 and len(body) > 100:
             indicators.append(f"High entropy body ({body_entropy:.2f})")
             if tunnel_type == TunnelType.UNKNOWN:
                 tunnel_type = TunnelType.HTTP_TUNNEL
         
-        # Check 4: Unusual content length patterns
+
         content_indicators = self._check_content_patterns(request)
         indicators.extend(content_indicators)
         
-        # Check 5: Beaconing behavior
+
         beacon = self._check_beaconing(conn_key)
         if beacon:
             indicators.append(f"Beaconing detected (interval: {beacon.interval_seconds:.1f}s)")
         
-        # Check 6: Long-polling pattern
+
         if response_time_ms > 30000:  # 30+ seconds
             indicators.append("Long-polling behavior")
             if tunnel_type == TunnelType.UNKNOWN:
                 tunnel_type = TunnelType.LONG_POLLING
         
-        # Create detection if indicators found
+
         if len(indicators) >= 2:  # Need at least 2 indicators
             detection = self._create_detection(
                 conn_key, request, indicators, tunnel_type
@@ -329,14 +329,14 @@ class TunnelDetector:
         conn_state["methods"].add(request.method)
         conn_state["uris"].add(request.uri)
         
-        # Track timing for beaconing detection
+
         timing = self.timing_data.get(conn_key)
         if timing is None:
             timing = []
             self.timing_data.put(conn_key, timing)
         timing.append(request.timestamp)
         
-        # Keep only last 100 timestamps
+
         if len(timing) > 100:
             timing.pop(0)
     
@@ -344,21 +344,21 @@ class TunnelDetector:
         
         indicators = []
         
-        # Check content type
+
         content_type = headers.get("Content-Type", "").lower()
         for suspicious in self.TUNNEL_INDICATORS["unusual_content_type"]:
             if suspicious in content_type:
                 indicators.append(f"Suspicious Content-Type: {content_type}")
                 break
         
-        # Check for tunnel-specific headers
+
         for header in self.TUNNEL_INDICATORS["tunnel_headers"]:
             if header in headers:
                 indicators.append(f"Tunnel header found: {header}")
         
-        # Check transfer encoding
+
         if headers.get("Transfer-Encoding", "").lower() == "chunked":
-            # Chunked encoding with specific patterns
+
             if "X-Accel-Buffering" in headers:
                 indicators.append("Chunked encoding with buffering disabled")
         
@@ -371,19 +371,19 @@ class TunnelDetector:
         
         uri_lower = uri.lower()
         
-        # Check suspicious paths
+
         for path in self.TUNNEL_INDICATORS["suspicious_paths"]:
             if path in uri_lower:
                 indicators.append(f"Suspicious path: {path}")
                 tunnel_type = TunnelType.HTTP_TUNNEL
         
-        # Check webshell patterns
+
         for pattern in self.TUNNEL_INDICATORS["webshell_patterns"]:
             if pattern in uri_lower:
                 indicators.append(f"Webshell pattern: {pattern}")
                 tunnel_type = TunnelType.HTTP_TUNNEL
         
-        # Check Tunna-specific patterns
+
         for pattern in self.TUNNA_PATTERNS:
             if re.search(pattern, uri, re.IGNORECASE):
                 indicators.append(f"Tunna-like pattern detected")
@@ -396,12 +396,12 @@ class TunnelDetector:
         
         indicators = []
         
-        # Large POST with small response (data exfil)
+
         if request.method == "POST" and request.content_length > 10000:
             if request.response_size < 100:
                 indicators.append("Large POST with minimal response")
         
-        # Rapid small requests (command channel)
+
         if request.content_length < 50 and request.response_size < 50:
             conn_key = self._get_connection_key(
                 request.source_ip, 
@@ -420,7 +420,7 @@ class TunnelDetector:
         if not timing or len(timing) < 10:
             return None
         
-        # Calculate intervals
+
         intervals = []
         for i in range(1, len(timing)):
             delta = (timing[i] - timing[i-1]).total_seconds()
@@ -430,21 +430,21 @@ class TunnelDetector:
         if len(intervals) < 5:
             return None
         
-        # Calculate statistics
+
         mean_interval = sum(intervals) / len(intervals)
         variance = sum((x - mean_interval) ** 2 for x in intervals) / len(intervals)
         std_dev = math.sqrt(variance)
         
-        # Coefficient of variation (lower = more regular)
+
         cv = std_dev / mean_interval if mean_interval > 0 else float('inf')
         
-        # Beaconing typically has CV < 0.3 and regular intervals
+
         if cv < 0.3 and mean_interval < 300:  # Less than 5 min intervals
             confidence = 1.0 - cv
             
             pattern_id = self._generate_id("beacon", conn_key)
             
-            # Parse connection key
+
             parts = conn_key.split("->")
             src_ip = parts[0]
             dest = parts[1] if len(parts) > 1 else "unknown"
@@ -478,14 +478,14 @@ class TunnelDetector:
         
         detection_id = self._generate_id("tunnel", conn_key)
         
-        # Calculate risk score
+
         risk_score = min(1.0, len(indicators) * 0.2 + 0.3)
         
-        # Boost for specific tunnel types
+
         if tunnel_type in [TunnelType.HTTP_TUNNEL, TunnelType.CHUNKED_ENCODING]:
             risk_score = min(1.0, risk_score + 0.2)
         
-        # Determine confidence
+
         if risk_score >= 0.8:
             confidence = DetectionConfidence.HIGH
         elif risk_score >= 0.6:
@@ -605,7 +605,7 @@ class TunnelDetector:
             if det and det.last_seen >= cutoff:
                 recent_detections += 1
         
-        # Count from buffer
+
         buffer_data = list(self.request_buffer.get_all())
         for req_data in buffer_data:
             try:
@@ -636,7 +636,7 @@ class TunnelDetector:
 if __name__ == "__main__":
     detector = TunnelDetector()
     
-    # Simulate suspicious traffic
+
     for i in range(20):
         detection = detector.analyze_request(
             source_ip="192.168.1.100",

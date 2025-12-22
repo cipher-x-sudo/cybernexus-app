@@ -68,7 +68,7 @@ class ConfigAudit:
         if config is None:
             config = {}
         
-        # Default config - enable all tests
+
         test_config = {
             "crlf": config.get("crlf", True),
             "pathTraversal": config.get("pathTraversal", True),
@@ -150,7 +150,7 @@ class ConfigAudit:
                 logger.error(f"Audit error for {target}: {e}")
                 results["error"] = str(e)
         
-        # Cache results
+
         self._results_cache.put(target, results)
         
         return results
@@ -190,7 +190,7 @@ class ConfigAudit:
                 })
             return findings
         
-        # Fetch latest nginx version from GitHub
+
         try:
             if config.get("cveLookup"):
                 latest_version = await self._get_latest_nginx_version(client)
@@ -238,7 +238,7 @@ class ConfigAudit:
             response = await client.get("https://github.com/nginx/nginx/tags", timeout=10.0)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                # Find first release tag link
+
                 tag_links = soup.find_all('a', href=re.compile(r'/nginx/nginx/releases/tag'))
                 if tag_links:
                     href = tag_links[0].get('href', '')
@@ -253,11 +253,11 @@ class ConfigAudit:
     async def _lookup_cves(self, nginx_version: str) -> List[str]:
         cves = []
         try:
-            # Use NVD API to search for CVEs
-            # Extract major.minor for broader search
+
+
             major_minor = '.'.join(nginx_version.split('.')[:2])
             
-            # Try NVD API
+
             async with httpx.AsyncClient() as client:
                 try:
                     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -453,7 +453,7 @@ class ConfigAudit:
                         })
                         break
                 
-                # Check for path traversal success
+
                 if response.status_code == 200:
                     content_lower = response.text.lower()
                     if 'root:' in content_lower or 'bin/bash' in content_lower or '[extensions]' in content_lower:
@@ -535,7 +535,7 @@ class ConfigAudit:
                     headers = {header: ip_value}
                     response = await client.get(target, headers=headers, timeout=10.0)
                     
-                    # Check for differences
+
                     status_diff = response.status_code != baseline_status
                     length_diff = abs(len(response.text) - baseline_length) > 20
                     
@@ -590,7 +590,7 @@ class ConfigAudit:
         
         for path, original_status in unauthorized_paths[:5]:
             try:
-                # Test with X-Accel-Redirect header
+
                 headers = {"X-Accel-Redirect": f"/{path}"}
                 bypass_url = f"{target.rstrip('/')}/randompath"
                 response = await client.get(bypass_url, headers=headers, timeout=10.0)
@@ -624,7 +624,7 @@ class ConfigAudit:
         php_detected = False
         detection_methods = []
         
-        # Check 1: /index.php
+
         try:
             php_response = await client.get(f"{target.rstrip('/')}/index.php", timeout=10.0)
             if php_response.status_code == 200:
@@ -637,7 +637,7 @@ class ConfigAudit:
             php_detected = True
             detection_methods.append("PHPSESSID cookie present")
         
-        # Check 3: Server header
+
         server_header = response.headers.get("server", "").lower()
         if "php" in server_header:
             php_detected = True
@@ -676,7 +676,7 @@ class ConfigAudit:
             content_length = int(response.headers.get('Content-Length', 0))
             
             if content_length > 0:
-                # Calculate malicious range
+
                 bytes_length = content_length + 623
                 range_value = f"bytes=-{bytes_length},-9223372036854{776000 - bytes_length}"
                 
@@ -729,7 +729,7 @@ class ConfigAudit:
     def _calculate_score(self, results: Dict[str, Any]) -> int:
         score = 100
         
-        # Deduct for missing headers
+
         for missing in results.get("headers_analysis", {}).get("missing", []):
             if missing['severity'] == 'high':
                 score -= 15

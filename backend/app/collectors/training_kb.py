@@ -180,25 +180,25 @@ class TrainingKB:
     
     
     def __init__(self):
-        # Graph for content relationships
+
         self.content_graph = Graph(directed=True)
         
-        # HashMap for content storage
+
         self.content = HashMap()  # content_id -> TrainingContent
         self.templates = HashMap()  # template_id -> PhishingTemplate
         self.labs = HashMap()  # scenario_id -> LabScenario
         self.quizzes = HashMap()  # quiz_id -> List[QuizQuestion]
         
-        # Trainee tracking
+
         self.trainees = HashMap()  # trainee_id -> TraineeProgress
         
-        # Trie for search
+
         self.search_trie = Trie()
         
-        # AVL Tree for difficulty-sorted content
+
         self.content_by_difficulty = AVLTree()
         
-        # Statistics
+
         self.stats = {
             "total_content": 0,
             "total_templates": 0,
@@ -207,7 +207,7 @@ class TrainingKB:
             "content_views": 0
         }
         
-        # Initialize with sample content
+
         self._init_sample_content()
     
     def _generate_id(self, prefix: str, data: str) -> str:
@@ -216,7 +216,7 @@ class TrainingKB:
     
     def _init_sample_content(self):
         
-        # Phishing basics
+
         self.add_content(TrainingContent(
             content_id=self._generate_id("content", "phishing_basics"),
             title="Phishing 101: Understanding Email-Based Attacks",
@@ -249,7 +249,7 @@ trusted entities to trick victims into revealing sensitive information.
             tags=["phishing", "email", "security-awareness", "beginner"]
         ))
         
-        # Vishing training
+
         self.add_content(TrainingContent(
             content_id=self._generate_id("content", "vishing_defense"),
             title="Vishing Defense: Protecting Against Phone Scams",
@@ -283,7 +283,7 @@ Attackers may impersonate IT support, banks, or government agencies.
             prerequisites=["phishing_basics"]
         ))
         
-        # Add phishing templates
+
         self.add_template(PhishingTemplate(
             template_id=self._generate_id("template", "password_reset"),
             name="Password Reset Urgency",
@@ -324,7 +324,7 @@ Attackers may impersonate IT support, banks, or government agencies.
             ]
         ))
         
-        # Add lab scenario
+
         self.add_lab(LabScenario(
             scenario_id=self._generate_id("lab", "phishing_analysis"),
             title="Phishing Email Analysis Lab",
@@ -364,7 +364,7 @@ Attackers may impersonate IT support, banks, or government agencies.
             solution="The email is from support@comp4ny.com (4 instead of a), uses generic greeting, creates urgency, and links to a different domain than displayed."
         ))
         
-        # Add quiz questions
+
         quiz_id = self._generate_id("quiz", "phishing_basics")
         self.quizzes.put(quiz_id, [
             QuizQuestion(
@@ -403,7 +403,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         
         self.content.put(content.content_id, content)
         
-        # Add to graph
+
         self.content_graph.add_node(
             content.content_id,
             label=content.title,
@@ -415,18 +415,18 @@ Attackers may impersonate IT support, banks, or government agencies.
             }
         )
         
-        # Add relationships for prerequisites
+
         for prereq in content.prerequisites:
             if self.content_graph.has_vertex(prereq):
                 self.content_graph.add_edge(prereq, content.content_id)
         
-        # Index for search
+
         for word in content.title.lower().split():
             self.search_trie.insert(word)
         for tag in content.tags:
             self.search_trie.insert(tag.lower())
         
-        # Add to difficulty tree
+
         self.content_by_difficulty.insert(
             content.difficulty.value * 1000 + hash(content.content_id) % 1000,
             content.content_id
@@ -465,7 +465,7 @@ Attackers may impersonate IT support, banks, or government agencies.
             if not content:
                 continue
             
-            # Check title and tags
+
             if query_lower in content.title.lower():
                 results.append(content)
             elif any(query_lower in tag for tag in content.tags):
@@ -504,15 +504,15 @@ Attackers may impersonate IT support, banks, or government agencies.
         
         path = []
         
-        # Get all content for category
+
         category_content = self.get_content_by_category(category)
         
-        # Filter by current level and above
+
         for content in category_content:
             if content.difficulty.value >= current_level.value:
                 path.append(content)
         
-        # Sort by difficulty then duration
+
         return sorted(path, key=lambda c: (c.difficulty.value, c.duration_minutes))
     
     def get_templates_by_difficulty(
@@ -711,17 +711,17 @@ Attackers may impersonate IT support, banks, or government agencies.
 if __name__ == "__main__":
     kb = TrainingKB()
     
-    # Search content
+
     results = kb.search_content("phishing")
     print(f"Found {len(results)} content items for 'phishing'")
     
-    # Get learning path
+
     path = kb.get_learning_path(SECategory.PHISHING)
     print(f"\nPhishing learning path ({len(path)} items):")
     for content in path:
         print(f"  - {content.title} ({content.difficulty.name})")
     
-    # Register trainee and record progress
+
     kb.register_trainee("user123")
     kb.record_content_completion("user123", path[0].content_id if path else "")
     progress = kb.get_trainee_progress("user123")

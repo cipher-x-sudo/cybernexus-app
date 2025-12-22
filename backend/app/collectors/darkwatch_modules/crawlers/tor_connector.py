@@ -40,7 +40,7 @@ class TorConnector:
         db_name: Optional[str] = None
     ):
         
-        # Use settings defaults if not provided
+
         self.proxy_host = proxy_host or settings.TOR_PROXY_HOST
         self.proxy_port = proxy_port or settings.TOR_PROXY_PORT
         self.proxy_type = proxy_type or settings.TOR_PROXY_TYPE
@@ -51,7 +51,7 @@ class TorConnector:
         
         logger.info(f"[TorConnector] Initializing with proxy={self.proxy_type}://{self.proxy_host}:{self.proxy_port}, timeout={self.timeout}")
         
-        # Initialize database
+
         db_path = db_path or str(settings.DATA_DIR / settings.CRAWLER_DB_PATH)
         db_name = db_name or settings.CRAWLER_DB_NAME
         logger.info(f"[TorConnector] Connecting to database: {db_path}/{db_name}")
@@ -146,14 +146,14 @@ class TorConnector:
                     count_categories=self.count_categories
                 )
                 
-                # Extract text content
+
                 logger.debug(f"[TorConnector] Extracting text content from {url_str}")
                 text_extract_start = time.time()
                 text_content = self.text(response=request.content).lower()
                 text_extract_time = time.time() - text_extract_start
                 logger.info(f"[TorConnector] Extracted {len(text_content)} chars of text in {text_extract_time:.3f}s")
                 
-                # Check YARA rules for categories
+
                 logger.debug(f"[TorConnector] Checking YARA rules for categories on {url_str}")
                 yara_file_categories = os.path.join(
                     os.path.dirname(__file__), "..", "..", "..", "..", "data", "yara", "categories.yar"
@@ -172,7 +172,7 @@ class TorConnector:
                     categorie = str(full_match_yara[0])
                     score_categorie = sum(int(match.meta.get('score', 0)) for match in full_match_yara)
                 
-                # Check YARA rules for keywords
+
                 logger.debug(f"[TorConnector] Checking YARA rules for keywords on {url_str}")
                 yara_file_keywords = os.path.join(
                     os.path.dirname(__file__), "..", "..", "..", "..", "data", "yara", "keywords.yar"
@@ -189,7 +189,7 @@ class TorConnector:
                     full_match_keywords_str = str(full_match_keywords)
                     score_keywords = sum(int(match.meta.get('score', 0)) for match in full_match_keywords)
                 
-                # Extract title
+
                 logger.debug(f"[TorConnector] Extracting title from {url_str}")
                 soup = BeautifulSoup(request.content, features="lxml")
                 try:
@@ -205,7 +205,7 @@ class TorConnector:
                     title = None
                     logger.warning(f"[TorConnector] Could not extract title from {url_str}")
                 
-                # Update database
+
                 logger.debug(f"[TorConnector] Updating database for {url_str}")
                 self.database.update_categorie(
                     id=url_id,
@@ -336,11 +336,11 @@ class TorConnector:
     
     def crawl_url(self, url_str: str) -> Dict[str, Any]:
         
-        # Check if URL exists in database
+
         existing = self.database.select_url(url=url_str)
         
         if len(existing) == 0:
-            # Save new URL
+
             self.database.save(
                 url=url_str,
                 source="Script",

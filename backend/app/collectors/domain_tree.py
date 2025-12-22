@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlparse, urljoin
 import json
 
-# Import our custom DSA
+
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -480,7 +480,7 @@ class DomainTree:
             req_domain = self._extract_domain(req_url)
             req_base = self._get_base_domain(req_domain)
             
-            # Generate request ID
+
             request_id = self._generate_request_id(req_url, req_data["method"])
             
             resource_type = ResourceType(req_data["type"])
@@ -501,7 +501,7 @@ class DomainTree:
             )
             captured_requests.append(captured_req)
             
-            # Update timeline
+
             self.request_timeline.append(captured_req.to_dict())
             
             self.request_cache.put(request_id, captured_req)
@@ -519,7 +519,7 @@ class DomainTree:
                 trackers[tracker_name].append(req_url)
             
             if req_domain not in domain_nodes:
-                # Find parent domain from initiator
+
                 parent_domain = None
                 depth = 1
                 if req_data.get("initiator"):
@@ -571,7 +571,7 @@ class DomainTree:
             redirect_count=len(redirect_chain) - 1
         )
         
-        # Create capture result
+
         result = CaptureResult(
             capture_id=capture_id,
             target_url=url,
@@ -591,7 +591,7 @@ class DomainTree:
         
         self.captures.put(capture_id, result)
         
-        # Update stats
+
         self.stats["total_captures"] += 1
         self.stats["total_domains_analyzed"] += len(unique_domains)
         self.stats["total_trackers_found"] += len(trackers)
@@ -640,7 +640,7 @@ class DomainTree:
             req_domain = self._extract_domain(req_url)
             req_base = self._get_base_domain(req_domain)
             
-            # Generate request ID
+
             request_id = self._generate_request_id(req_url, req_data["method"])
             
             resource_type = ResourceType(req_data["type"])
@@ -661,7 +661,7 @@ class DomainTree:
             )
             captured_requests.append(captured_req)
             
-            # Update timeline
+
             self.request_timeline.append(captured_req.to_dict())
             
             self.request_cache.put(request_id, captured_req)
@@ -679,7 +679,7 @@ class DomainTree:
                 trackers[tracker_name].append(req_url)
             
             if req_domain not in domain_nodes:
-                # Find parent domain from initiator
+
                 parent_domain = None
                 depth = 1
                 if req_data.get("initiator"):
@@ -731,7 +731,7 @@ class DomainTree:
             redirect_count=len(redirect_chain) - 1
         )
         
-        # Create capture result
+
         result = CaptureResult(
             capture_id=capture_id,
             target_url=url,
@@ -751,7 +751,7 @@ class DomainTree:
         
         self.captures.put(capture_id, result)
         
-        # Update stats
+
         self.stats["total_captures"] += 1
         self.stats["total_domains_analyzed"] += len(unique_domains)
         self.stats["total_trackers_found"] += len(trackers)
@@ -789,7 +789,7 @@ class DomainTree:
             score += 10
             factors.append("Trackers present")
         
-        # Redirects (max 15 points)
+
         if redirect_count > 3:
             score += 15
             factors.append("Excessive redirects (>3)")
@@ -991,11 +991,11 @@ class DomainTree:
         return None
 
 
-# Example usage and testing
+
 if __name__ == "__main__":
     collector = DomainTree()
     
-    # Capture a URL
+
     result = collector.capture_url("https://example.com")
     
     print(f"Capture ID: {result.capture_id}")

@@ -141,7 +141,7 @@ class NotificationService:
         
         logger.info(f"Created notification for user {user_id}: {channel} - {priority.name}")
         
-        # Also add to in-memory queue for immediate processing
+
         notification_dict = {
             "id": notification.id,
             "channel": channel,
@@ -152,7 +152,7 @@ class NotificationService:
         self._notification_queue.push(priority.value, notification_dict)
         self._history.push(notification_dict)
         
-        # Process immediately if high priority
+
         if priority.value <= NotificationPriority.HIGH.value:
             await self._process_notification(notification_dict)
         

@@ -3,7 +3,7 @@
 from typing import List, Set
 
 
-# Common interesting paths to check
+
 INTERESTING_PATHS = [
     '/admin',
     '/administrator',

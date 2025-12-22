@@ -477,7 +477,7 @@ async def get_recent_jobs(
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     jobs = await storage.list_jobs(limit=limit, offset=0)
     
-    # Get total count
+
     total_count = await storage.count_jobs()
     
     from app.core.database.finding_storage import DBFindingStorage
@@ -915,7 +915,7 @@ async def stream_job_findings(job_id: str):
             
             current_findings_count = len(current_job.findings)
             
-            # Send new findings
+
             if current_findings_count > last_finding_count:
                 new_findings = current_job.findings[last_finding_count:]
                 logger.debug(f"[API] Streaming {len(new_findings)} new findings for job_id={job_id}")
@@ -937,7 +937,7 @@ async def stream_job_findings(job_id: str):
                 
                 last_finding_count = current_findings_count
             
-            # Send progress update
+
             progress_data = {
                 "job_id": job_id,
                 "status": current_job.status.value,
@@ -982,9 +982,9 @@ async def stream_job_findings(job_id: str):
     )
 
 
-# ============================================================================
-# Findings Endpoints
-# ============================================================================
+
+
+
 
 @router.get("/findings", response_model=List[FindingResponse])
 async def list_findings(
@@ -1109,9 +1109,9 @@ async def get_critical_findings(
     ]
 
 
-# ============================================================================
-# Risk Score Endpoints
-# ============================================================================
+
+
+
 
 @router.get("/risk/{target}", response_model=RiskScoreResponse)
 async def get_risk_score(target: str):
@@ -1179,9 +1179,9 @@ async def get_top_risks(
     }
 
 
-# ============================================================================
-# Quick Scan Endpoint
-# ============================================================================
+
+
+
 
 @router.post("/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(request: QuickScanRequest):
@@ -1226,9 +1226,9 @@ async def quick_scan(request: QuickScanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Statistics Endpoint
-# ============================================================================
+
+
+
 
 @router.get("/stats")
 async def get_stats():
@@ -1308,9 +1308,9 @@ async def get_recent_events(
     }
 
 
-# ============================================================================
-# WebSocket Endpoints
-# ============================================================================
+
+
+
 
 @router.websocket("/ws/darkweb/{job_id}")
 async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
@@ -1319,7 +1319,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
     orchestrator = get_orchestrator()
     
     try:
-        # Verify job exists
+
         job = orchestrator.get_job(job_id)
         if not job:
             await websocket.send_json({
@@ -1341,10 +1341,10 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
         
         logger.info(f"[WebSocket] Client connected to darkweb job {job_id}")
         
-        # Register WebSocket connection
+
         await orchestrator.register_websocket(job_id, websocket)
         
-        # Send initial connection message
+
         await websocket.send_json({
             "type": "progress",
             "data": {
@@ -1354,13 +1354,13 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
             "timestamp": datetime.now().isoformat()
         })
         
-        # If job is already running or completed, send existing findings
+
         if job.status in [JobStatus.RUNNING, JobStatus.COMPLETED]:
             job = orchestrator.get_job(job_id)
             existing_findings = job.findings or []
             logger.info(f"[WebSocket] Job {job_id} is {job.status.value}, found {len(existing_findings)} existing findings")
             
-            # Send progress update first
+
             await websocket.send_json({
                 "type": "progress",
                 "data": {
@@ -1370,7 +1370,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Send all existing findings one by one
+
             for idx, finding in enumerate(existing_findings):
                 try:
                     finding_dict = finding.to_dict() if hasattr(finding, 'to_dict') else finding
@@ -1385,7 +1385,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
             
             logger.info(f"[WebSocket] Sent {len(existing_findings)} findings to client for job {job_id}")
             
-            # If job is completed, send completion message and close
+
             if job.status == JobStatus.COMPLETED:
                 logger.info(f"[WebSocket] Job {job_id} is completed, sending completion message with {len(existing_findings)} findings")
                 await websocket.send_json({
@@ -1403,22 +1403,22 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                 await orchestrator.unregister_websocket(job_id)
                 return
             
-            # Track how many findings we've already sent
+
             last_findings_count = len(existing_findings)
         else:
-            # Job is pending, start with 0 findings sent
+
             last_findings_count = 0
         
         try:
             while True:
-                # Wait for messages from client (ping/pong or close)
+
                 try:
                     data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                    # Handle ping/pong if needed
+
                     if data == "ping":
                         await websocket.send_text("pong")
                 except asyncio.TimeoutError:
-                    # Refresh job status to check for completion or new findings
+
                     job = orchestrator.get_job(job_id)
                     if not job:
                         logger.warning(f"[WebSocket] Job {job_id} not found during keepalive")
@@ -1427,9 +1427,9 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                     current_findings = job.findings or []
                     current_findings_count = len(current_findings)
                     
-                    # Check if job completed
+
                     if job.status == JobStatus.COMPLETED:
-                        # Send any new findings that weren't sent before
+
                         if current_findings_count > last_findings_count:
                             new_findings = current_findings[last_findings_count:]
                             logger.info(f"[WebSocket] Job {job_id} completed, sending {len(new_findings)} new findings")
@@ -1444,7 +1444,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                                 except Exception as e:
                                     logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
                         
-                        # Send completion message
+
                         logger.info(f"[WebSocket] Job {job_id} completed, sending completion message with {current_findings_count} total findings")
                         await websocket.send_json({
                             "type": "complete",
@@ -1459,7 +1459,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                         await websocket.close()
                         break
                     elif current_findings_count > last_findings_count:
-                        # Send new findings that appeared while job is running
+
                         new_findings = current_findings[last_findings_count:]
                         logger.info(f"[WebSocket] Found {len(new_findings)} new findings for running job {job_id}")
                         for finding in new_findings:
@@ -1474,7 +1474,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                                 logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
                         last_findings_count = current_findings_count
                     else:
-                        # Send periodic keepalive
+
                         await websocket.send_json({
                             "type": "progress",
                             "data": {
@@ -1489,7 +1489,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
         except Exception as e:
             logger.error(f"[WebSocket] Error in WebSocket connection for job {job_id}: {e}", exc_info=True)
         finally:
-            # Unregister WebSocket connection
+
             await orchestrator.unregister_websocket(job_id)
             logger.info(f"[WebSocket] Unregistered WebSocket connection for job {job_id}")
     
@@ -1517,7 +1517,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
     orchestrator = get_orchestrator()
     
     try:
-        # Verify job exists
+
         logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Verifying job exists")
         job = orchestrator.get_job(job_id)
         if not job:
@@ -1530,7 +1530,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             await websocket.close()
             return
         
-        # Verify job is for exposure discovery capability
+
         logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Verifying capability (current: {job.capability.value})")
         if job.capability != Capability.EXPOSURE_DISCOVERY:
             await websocket.send_json({
@@ -1544,12 +1544,12 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
         
         logger.info(f"[WebSocket] [exposure] [job_id={job_id}] Client connected to exposure discovery job (target: {job.target}, status: {job.status.value})")
         
-        # Register WebSocket connection
+
         logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] Registering WebSocket connection")
         await orchestrator.register_websocket(job_id, websocket)
         logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] WebSocket connection registered")
         
-        # Send initial connection message
+
         await websocket.send_json({
             "type": "progress",
             "data": {
@@ -1559,14 +1559,14 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             "timestamp": datetime.now().isoformat()
         })
         
-        # If job is already running or completed, send existing findings
+
         if job.status in [JobStatus.RUNNING, JobStatus.COMPLETED]:
-            # Refresh job to get latest findings
+
             job = orchestrator.get_job(job_id)
             existing_findings = job.findings or []
             logger.info(f"[WebSocket] Job {job_id} is {job.status.value}, found {len(existing_findings)} existing findings")
             
-            # Send progress update first
+
             await websocket.send_json({
                 "type": "progress",
                 "data": {
@@ -1576,7 +1576,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Send all existing findings one by one
+
             for idx, finding in enumerate(existing_findings):
                 try:
                     finding_dict = finding.to_dict() if hasattr(finding, 'to_dict') else finding
@@ -1591,7 +1591,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             
             logger.info(f"[WebSocket] Sent {len(existing_findings)} findings to client for job {job_id}")
             
-            # If job is completed, send completion message and close
+
             if job.status == JobStatus.COMPLETED:
                 logger.info(f"[WebSocket] Job {job_id} is completed, sending completion message with {len(existing_findings)} findings")
                 await websocket.send_json({
@@ -1607,23 +1607,23 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                 await orchestrator.unregister_websocket(job_id)
                 return
             
-            # Track how many findings we've already sent
+
             last_findings_count = len(existing_findings)
         else:
-            # Job is pending, start with 0 findings sent
+
             last_findings_count = 0
         
-        # Keep connection alive and wait for job to complete
+
         try:
             while True:
-                # Wait for messages from client (ping/pong or close)
+
                 try:
                     data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                    # Handle ping/pong if needed
+
                     if data == "ping":
                         await websocket.send_text("pong")
                 except asyncio.TimeoutError:
-                    # Refresh job status to check for completion or new findings
+
                     job = orchestrator.get_job(job_id)
                     if not job:
                         logger.warning(f"[WebSocket] Job {job_id} not found during keepalive")
@@ -1632,9 +1632,9 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                     current_findings = job.findings or []
                     current_findings_count = len(current_findings)
                     
-                    # Check if job completed
+
                     if job.status == JobStatus.COMPLETED:
-                        # Send any new findings that weren't sent before
+
                         if current_findings_count > last_findings_count:
                             new_findings = current_findings[last_findings_count:]
                             logger.info(f"[WebSocket] Job {job_id} completed, sending {len(new_findings)} new findings")
@@ -1649,7 +1649,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                                 except Exception as e:
                                     logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
                         
-                        # Send completion message
+
                         logger.info(f"[WebSocket] Job {job_id} completed, sending completion message with {current_findings_count} total findings")
                         await websocket.send_json({
                             "type": "complete",
@@ -1663,7 +1663,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                         await websocket.close()
                         break
                     elif current_findings_count > last_findings_count:
-                        # Send new findings that appeared while job is running
+
                         new_findings = current_findings[last_findings_count:]
                         logger.info(f"[WebSocket] Found {len(new_findings)} new findings for running job {job_id}")
                         for finding in new_findings:
@@ -1678,7 +1678,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
                                 logger.error(f"[WebSocket] Error sending finding {finding.id if hasattr(finding, 'id') else 'unknown'}: {e}", exc_info=True)
                         last_findings_count = current_findings_count
                     else:
-                        # Send periodic keepalive
+
                         await websocket.send_json({
                             "type": "progress",
                             "data": {
@@ -1693,7 +1693,7 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
         except Exception as e:
             logger.error(f"[WebSocket] Error in WebSocket connection for job {job_id}: {e}", exc_info=True)
         finally:
-            # Unregister WebSocket connection
+
             await orchestrator.unregister_websocket(job_id)
             logger.info(f"[WebSocket] Unregistered WebSocket connection for job {job_id}")
     
@@ -1712,9 +1712,9 @@ async def websocket_exposure_job(websocket: WebSocket, job_id: str):
             await orchestrator.unregister_websocket(job_id)
 
 
-# ============================================================================
-# Email Security Specific Endpoints
-# ============================================================================
+
+
+
 
 @router.get("/email/{domain}/history")
 async def get_email_history(
@@ -1725,13 +1725,13 @@ async def get_email_history(
     try:
         orchestrator = get_orchestrator()
         
-        # Get all email security jobs for this domain
+
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=limit * 2  # Get more to filter by target
         )
         
-        # Filter by domain and get most recent
+
         domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
         domain_jobs.sort(key=lambda x: x.created_at, reverse=True)
         domain_jobs = domain_jobs[:limit]
@@ -1741,7 +1741,7 @@ async def get_email_history(
             findings = job.findings
             score = 0
             if findings:
-                # Calculate average risk score (inverted to get security score)
+
                 avg_risk = sum(f.risk_score for f in findings) / len(findings)
                 score = max(0, 100 - avg_risk)
             
@@ -1765,7 +1765,7 @@ async def get_email_compliance(domain: str):
     try:
         orchestrator = get_orchestrator()
         
-        # Get most recent email security job for this domain
+
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1777,9 +1777,9 @@ async def get_email_compliance(domain: str):
         
         latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
         
-        # Get job results (we need to access the audit results)
-        # For now, return a message that compliance is calculated during scan
-        # In a full implementation, we'd store compliance data with jobs
+
+
+
         return {
             "domain": domain,
             "message": "Compliance data is included in scan results. Run a new scan to get latest compliance scores.",
@@ -1801,7 +1801,7 @@ async def run_email_bypass_test(
     try:
         orchestrator = get_orchestrator()
         
-        # Create job with bypass testing enabled
+
         job = orchestrator.create_job(
             capability=Capability.EMAIL_SECURITY,
             target=domain,
@@ -1809,7 +1809,7 @@ async def run_email_bypass_test(
             priority=JobPriority.NORMAL
         )
         
-        # Execute in background
+
         background_tasks.add_task(orchestrator.execute_job, job.id)
         
         return {
@@ -1829,7 +1829,7 @@ async def get_email_infrastructure(domain: str):
     try:
         orchestrator = get_orchestrator()
         
-        # Get most recent email security job
+
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1842,14 +1842,14 @@ async def get_email_infrastructure(domain: str):
         latest_job = sorted(domain_jobs, key=lambda x: x.created_at, reverse=True)[0]
         findings = latest_job.findings
         
-        # Extract infrastructure data from findings
+
         nodes = [{"id": domain, "type": "domain", "label": domain}]
         edges = []
         
         for finding in findings:
             evidence = finding.evidence or {}
             
-            # Extract MX records
+
             if "mx_records" in evidence:
                 for mx in evidence.get("mx_records", []):
                     mx_host = mx.get("exchange", "")
@@ -1857,13 +1857,13 @@ async def get_email_infrastructure(domain: str):
                         nodes.append({"id": mx_host, "type": "mx", "label": mx_host})
                         edges.append({"from": domain, "to": mx_host, "relation": "mx_record"})
             
-            # Extract SPF includes
+
             if "includes" in evidence:
                 for include in evidence.get("includes", []):
                     nodes.append({"id": include, "type": "spf_include", "label": include})
                     edges.append({"from": domain, "to": include, "relation": "spf_include"})
         
-        # Remove duplicate nodes
+
         unique_nodes = {}
         for node in nodes:
             if node["id"] not in unique_nodes:
@@ -1890,7 +1890,7 @@ async def export_email_report(
     try:
         orchestrator = get_orchestrator()
         
-        # Get most recent email security job
+
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1910,10 +1910,10 @@ async def export_email_report(
             output = StringIO()
             writer = csv.writer(output)
             
-            # Write header
+
             writer.writerow(["ID", "Severity", "Title", "Description", "Risk Score", "Discovered At"])
             
-            # Write findings
+
             for finding in findings:
                 writer.writerow([
                     finding.id,
@@ -1931,7 +1931,7 @@ async def export_email_report(
                 headers={"Content-Disposition": f"attachment; filename=email_report_{domain}.csv"}
             )
         else:
-            # JSON format
+
             return {
                 "domain": domain,
                 "scan_date": latest_job.created_at.isoformat(),
@@ -1976,14 +1976,14 @@ async def compare_email_scans(
         findings1 = job1.findings
         findings2 = job2.findings
         
-        # Compare findings
+
         findings1_ids = {f.id for f in findings1}
         findings2_ids = {f.id for f in findings2}
         
         new_findings = [f.to_dict() for f in findings2 if f.id not in findings1_ids]
         resolved_findings = [f.to_dict() for f in findings1 if f.id not in findings2_ids]
         
-        # Calculate score changes
+
         score1 = 100 - (sum(f.risk_score for f in findings1) / len(findings1) if findings1 else 0)
         score2 = 100 - (sum(f.risk_score for f in findings2) / len(findings2) if findings2 else 0)
         
@@ -2015,9 +2015,9 @@ async def compare_email_scans(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# Investigation Endpoints
-# ============================================================================
+
+
+
 
 @router.get("/investigation/{job_id}/screenshot")
 async def get_investigation_screenshot(job_id: str):
@@ -2032,14 +2032,14 @@ async def get_investigation_screenshot(job_id: str):
         if job.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Job is not an investigation job")
         
-        # Get screenshot from job metadata
+
         capture_data = getattr(job, 'metadata', {}).get('capture', {})
         screenshot_b64 = capture_data.get('screenshot')
         
         if not screenshot_b64:
             raise HTTPException(status_code=404, detail="Screenshot not available for this job. The investigation may not have captured a screenshot.")
         
-        # Decode and return as image
+
         try:
             screenshot_bytes = base64.b64decode(screenshot_b64)
         except Exception as e:
@@ -2072,7 +2072,7 @@ async def get_investigation_har(job_id: str):
         if job.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Job is not an investigation job")
         
-        # Get HAR from job metadata
+
         capture_data = getattr(job, 'metadata', {}).get('capture', {})
         har_data = capture_data.get('har')
         
@@ -2106,12 +2106,12 @@ async def get_investigation_domain_tree(job_id: str):
         if job.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Job is not an investigation job")
         
-        # Get domain tree from job metadata
+
         capture_data = getattr(job, 'metadata', {}).get('capture', {})
         domain_tree_data = capture_data.get('domain_tree')
         
         if not domain_tree_data:
-            # Fallback: try to extract from findings
+
             findings = job.findings
             domain_tree_data = {
                 "nodes": [],
@@ -2119,14 +2119,14 @@ async def get_investigation_domain_tree(job_id: str):
                 "summary": {}
             }
             
-            # Extract domain information from findings
+
             for finding in findings:
                 evidence = finding.evidence or {}
                 if 'domain_tree' in evidence:
                     domain_tree_data = evidence['domain_tree']
                     break
                 elif 'domains' in evidence:
-                    # Build simple tree from domain list
+
                     domains = evidence.get('domains', [])
                     for i, domain in enumerate(domains):
                         domain_tree_data['nodes'].append({
@@ -2140,7 +2140,7 @@ async def get_investigation_domain_tree(job_id: str):
                                 "target": domain
                             })
         
-        # Add summary if available
+
         summary = capture_data.get('domain_tree_summary', {})
         if summary:
             domain_tree_data['summary'] = summary
@@ -2171,7 +2171,7 @@ async def compare_investigations(
         if job1.capability != Capability.INVESTIGATION or job2.capability != Capability.INVESTIGATION:
             raise HTTPException(status_code=400, detail="Both jobs must be investigation jobs")
         
-        # Get capture data
+
         capture1 = getattr(job1, 'metadata', {}).get('capture', {})
         capture2 = getattr(job2, 'metadata', {}).get('capture', {})
         
@@ -2185,7 +2185,7 @@ async def compare_investigations(
             "findings_comparison": {}
         }
         
-        # Visual similarity comparison
+
         screenshot1 = capture1.get('screenshot')
         screenshot2 = capture2.get('screenshot')
         
@@ -2199,7 +2199,7 @@ async def compare_investigations(
             similarity_result = visual_similarity.compare_images(img1_data, img2_data)
             comparison['visual_similarity'] = similarity_result
         
-        # Domain differences
+
         har1 = capture1.get('har', {})
         har2 = capture2.get('har', {})
         
@@ -2227,7 +2227,7 @@ async def compare_investigations(
                 "common_domains": list(domains1 & domains2)
             }
         
-        # Findings comparison
+
         findings1 = job1.findings
         findings2 = job2.findings
         
@@ -2289,7 +2289,7 @@ async def export_investigation(
                 }
             )
         elif format == "html":
-            # Generate HTML report
+
             html_content = f"""
 <!DOCTYPE html>
 <html>

@@ -55,15 +55,15 @@ class ThreatRanker:
                 else:
                     score += 1
         
-        # Factor 4: Affected entities count (0-10 points)
+
         affected = len(threat.get("affected_entities", []))
         score += min(10, affected * 2)
         
-        # Factor 5: Has indicators (0-5 points)
+
         if threat.get("indicators"):
             score += 5
         
-        # Factor 6: Active status bonus
+
         status = threat.get("status", "active").lower()
         if status == "active":
             score *= 1.2
@@ -90,19 +90,19 @@ class ThreatRanker:
         if not existing:
             return
         
-        # Update fields
+
         existing.update(updates)
         
-        # Recalculate score
+
         new_score = self.calculate_score(existing)
         self._scores.put(threat_id, new_score)
         
-        # Re-add to heap (old entry will be ignored due to score mismatch)
+
         self._threat_heap.push(new_score, threat_id)
     
     def get_top_threats(self, n: int = 10) -> List[Dict[str, Any]]:
         
-        # Get from heap (creates new heap to preserve original)
+
         temp_heap = MaxHeap()
         for score, threat_id in self._threat_heap.to_list():
             temp_heap.push(score, threat_id)
@@ -117,12 +117,12 @@ class ThreatRanker:
             
             score, threat_id = item
             
-            # Skip if already seen (duplicate entries from updates)
+
             if threat_id in seen:
                 continue
             seen.add(threat_id)
             
-            # Verify score matches current score (skip stale entries)
+
             current_score = self._scores.get(threat_id)
             if current_score != score:
                 continue
@@ -150,7 +150,7 @@ class ThreatRanker:
                     "threat": threat
                 })
         
-        # Sort by score
+
         results.sort(key=lambda x: x["score"], reverse=True)
         return results
     
@@ -162,7 +162,7 @@ class ThreatRanker:
         
         self._threats.remove(threat_id)
         self._scores.remove(threat_id)
-        # Note: Entry remains in heap but will be skipped due to missing data
+
     
     def stats(self) -> Dict[str, Any]:
         

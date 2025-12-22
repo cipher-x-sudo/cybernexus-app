@@ -16,6 +16,6 @@ def is_valid_email(email: str) -> bool:
 def extract_emails(text: str) -> List[str]:
     
     emails = REGEX.findall(text)
-    # Filter valid emails
+
     valid_emails = [email for email in emails if is_valid_email(email)]
     return list(set(valid_emails))  # Return unique emails

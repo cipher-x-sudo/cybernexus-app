@@ -36,7 +36,7 @@ def crawl_onion_site(
         "http": f"{proxy_type}://{proxy_host}:{proxy_port}",
     }
     
-    # Ensure URL has http:// prefix
+
     if not url.startswith('http://') and not url.startswith('https://'):
         url = f"http://{url}"
     
@@ -74,35 +74,35 @@ def crawl_onion_site(
         result["status_code"] = response.status_code
         
         if response.status_code == 200:
-            # Extract title
+
             soup = BeautifulSoup(response.content, features="lxml")
             title_tag = soup.find('title')
             if title_tag:
                 result["title"] = title_tag.get_text().strip()
             
-            # Extract text content
+
             result["text"] = extract_text_from_html(response.content)
             result["content"] = response.text
             
-            # Detect language
+
             if result["text"]:
                 result["language"] = detect_language(result["text"])
             
-            # Extract entities
+
             result["emails"] = extract_emails(result["text"])
             result["bitcoin_addresses"] = extract_bitcoin_addresses(result["text"])
             
-            # Find interesting paths
+
             result["interesting_paths"] = list(
                 find_interesting_paths_in_content(result["content"], url)
             )
             
-            # Extract links
+
             links = []
             for link in soup.find_all('a', href=True):
                 href = link['href']
                 if href:
-                    # Normalize links
+
                     if href.startswith('http://') or href.startswith('https://'):
                         links.append(href)
                     elif href.startswith('/'):
@@ -111,10 +111,10 @@ def crawl_onion_site(
                         links.append(href)
             result["links"] = list(set(links))
             
-            # Scan ports (optional, can be slow)
-            # Extract hostname from URL
+
+
             hostname = url.replace('http://', '').replace('https://', '').split('/')[0]
-            # result["open_ports"] = scan_ports(hostname, timeout=1.0)  # Commented out for speed
+
     
     except requests.exceptions.ConnectionError as e:
         logger.debug(f"Connection error for {url}: {e}")
@@ -136,7 +136,7 @@ def extract_entities(content: str, url: str) -> List[Dict[str, Any]]:
     
     entities = []
     
-    # Extract emails
+
     emails = extract_emails(content)
     for email in emails:
         entities.append({
@@ -145,7 +145,7 @@ def extract_entities(content: str, url: str) -> List[Dict[str, Any]]:
             "source_url": url
         })
     
-    # Extract Bitcoin addresses
+
     bitcoin_addrs = extract_bitcoin_addresses(content)
     for addr in bitcoin_addrs:
         entities.append({

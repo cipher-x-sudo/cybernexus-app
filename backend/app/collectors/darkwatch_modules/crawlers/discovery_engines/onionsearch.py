@@ -19,7 +19,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Engine URLs
+
 ENGINES = {
     "ahmia": "http://juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion",
     "tor66": "http://tor66sewebgixwhcqfnp5inzp5x5uohhdy3kvtnyfxc2e5mxiuh34iid.onion",
@@ -158,7 +158,7 @@ def safe_request(
             logger.error(f"✗ Unexpected error for {url}: {type(e).__name__}: {e}")
             raise
     
-    # If we get here, all retries failed
+
     if last_exception:
         raise last_exception
 
@@ -178,7 +178,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
             )
 
     if engine_str == "ahmia":
-        # Try multiple selectors as Ahmia structure may have changed
+
         selectors = [
             'li.result h4 a',
             '.result h4 a',
@@ -251,7 +251,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
             for idx, i in enumerate(all_b_tags):
                 try:
                     anchor = i.find('a')
-                    # Fix: Check for href using get() instead of 'in' operator
+
                     if anchor and anchor.get('href'):
                         name = clear(anchor.get_text())
                         link = clear(anchor.get('href'))
@@ -262,7 +262,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
                                 f"href='{link[:100]}', name='{name[:50]}'"
                             )
                         
-                        # Filter out service info and other non-result links
+
                         if link and '.onion' in link and '/serviceinfo/' not in link:
                             add_link()
                             parsed_count += 1
@@ -304,11 +304,11 @@ def ahmia(
     engine_start = time.time()
     loguru_logger.info(f"[OnionSearch] [Ahmia] Starting search for: {searchstr}")
     results = []
-    # Ahmia requires a CSRF token from the search form
+
     ahmia_base = ENGINES['ahmia']
     
     try:
-        # First, get the search page to extract the CSRF token
+
         loguru_logger.debug(f"[OnionSearch] [Ahmia] Getting search page to extract CSRF token")
         if debug:
             logger.debug(f"Ahmia: Getting search page to extract CSRF token")
@@ -322,7 +322,7 @@ def ahmia(
         )
         search_page_soup = BeautifulSoup(search_page_resp.text, 'html5lib')
         
-        # Extract hidden form fields (CSRF token)
+
         csrf_params = {}
         forms = search_page_soup.find_all('form')
         for form in forms:
@@ -330,11 +330,11 @@ def ahmia(
             for inp in hidden_inputs:
                 csrf_params[inp.get('name')] = inp.get('value', '')
         
-        # Build search URL with CSRF token
+
         search_params = {'q': searchstr}
         search_params.update(csrf_params)
         
-        # Construct URL with parameters
+
         ahmia_search_url = ahmia_base + "/search/?" + urlencode(search_params)
         
         loguru_logger.debug(f"[OnionSearch] [Ahmia] Requesting search with CSRF token")
@@ -354,13 +354,13 @@ def ahmia(
         
         engine_time = time.time() - engine_start
         
-        # Debug logging: show sample results
+
         if results:
             sample_results = results[:5]
             loguru_logger.debug(
                 f"[OnionSearch] [Ahmia] Sample results (first 5): {sample_results}"
             )
-            # Log sample links
+
             sample_links = [r.get('link', '')[:100] for r in sample_results]
             loguru_logger.debug(
                 f"[OnionSearch] [Ahmia] Sample links: {sample_links}"
@@ -476,13 +476,13 @@ def tor66(
     
     engine_time = time.time() - engine_start
     
-    # Debug logging: show sample results
+
     if results:
         sample_results = results[:5]
         loguru_logger.debug(
             f"[OnionSearch] [Tor66] Sample results (first 5): {sample_results}"
         )
-        # Log sample links
+
         sample_links = [r.get('link', '')[:100] for r in sample_results]
         loguru_logger.debug(
             f"[OnionSearch] [Tor66] Sample links: {sample_links}"
@@ -511,7 +511,7 @@ def search_all_engines(
     if engines is None:
         engines = ['ahmia', 'tor66']
     
-    # Enforce minimum timeout of 300 seconds
+
     if timeout is not None and timeout < 300:
         loguru_logger.warning(
             f"[OnionSearch] [search_all_engines] Timeout {timeout}s is less than minimum 300s, "
@@ -542,7 +542,7 @@ def search_all_engines(
             logger.debug(f"Searching {engine_name} for: {searchstr}")
             engine_func = engine_functions[engine_name]
             
-            # Call engine function with appropriate parameters
+
             if engine_name == 'ahmia':
                 results = engine_func(searchstr, proxies, timeout, max_retries, debug)
             else:
@@ -550,7 +550,7 @@ def search_all_engines(
             
             engine_time = time.time() - engine_start
             
-            # Debug: log raw results before adding
+
             loguru_logger.debug(
                 f"[OnionSearch] [search_all_engines] {engine_name}: Raw results count: {len(results)}"
             )
@@ -576,7 +576,7 @@ def search_all_engines(
             logger.error(f"{engine_name}: Error during search: {e}", exc_info=debug)
             continue
     
-    # Extract unique URLs from results
+
     unique_urls = set()
     processed_count = 0
     rejected_count = 0
@@ -585,7 +585,7 @@ def search_all_engines(
     
     loguru_logger.info(f"[OnionSearch] [search_all_engines] Processing {len(all_results)} results for URL extraction")
     
-    # Log sample results for debugging (always log, not just in debug mode)
+
     if all_results and len(all_results) > 0:
         sample_results = all_results[:3]
         loguru_logger.info(
@@ -603,7 +603,7 @@ def search_all_engines(
                 loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - empty link, result={result}")
             continue
         
-        # Check if .onion is in the link (not just endswith)
+
         if '.onion' not in link:
             rejected_count += 1
             rejection_reasons['no_onion'] = rejection_reasons.get('no_onion', 0) + 1
@@ -611,15 +611,15 @@ def search_all_engines(
                 loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - no .onion in link: '{link}'")
             continue
         
-        # Extract and normalize the .onion URL
+
         try:
-            # Handle different URL formats:
-            # - http://something.onion/path?query
-            # - https://something.onion
-            # - something.onion
-            # - something.onion/path
+
+
+
+
+
             
-            # Extract the .onion domain part
+
             onion_match = re.search(r'([a-z2-7]{16,56}\.onion)', link, re.IGNORECASE)
             if not onion_match:
                 rejected_count += 1
@@ -630,10 +630,10 @@ def search_all_engines(
             
             onion_domain = onion_match.group(1).lower()
             
-            # Normalize to http://domain.onion format
+
             normalized_link = f"http://{onion_domain}"
             
-            # Check if this is a duplicate before adding
+
             if normalized_link in unique_urls:
                 duplicate_count += 1
                 if idx < 5:  # Log first 5 duplicates for debugging
@@ -699,9 +699,9 @@ class DarkWebEngine:
             "http": f"{self.proxy_type}://{self.proxy_host}:{self.proxy_port}",
         }
         
-        # Get configured engines (default: ahmia, tor66)
+
         self.engines = settings.ONIONSEARCH_ENGINES
-        # Enforce minimum timeout of 300 seconds
+
         if settings.ONIONSEARCH_TIMEOUT is not None and settings.ONIONSEARCH_TIMEOUT < 300:
             loguru_logger.warning(
                 f"[DarkWebEngine] Timeout {settings.ONIONSEARCH_TIMEOUT}s is less than minimum 300s, "
@@ -722,12 +722,12 @@ class DarkWebEngine:
         
         discovery_start = time.time()
         
-        # Require keywords - no fallback terms
+
         if not keywords or len(keywords) == 0:
             loguru_logger.error("[DarkWebEngine] No keywords provided. Keywords are required for discovery.")
             raise ValueError("Keywords are required for dark web discovery. No default fallback terms.")
         
-        # Clean and validate keywords
+
         search_queries = [kw.strip() for kw in keywords if kw.strip()]
         
         if not search_queries:
@@ -739,7 +739,7 @@ class DarkWebEngine:
         all_urls = []
         
         try:
-            # Search each query across all engines
+
             for query in search_queries:
                 loguru_logger.debug(f"[DarkWebEngine] Searching for: {query}")
                 query_start = time.time()
@@ -769,11 +769,11 @@ class DarkWebEngine:
                     )
                     continue
             
-            # Remove duplicates and filter to .onion URLs only
+
             unique_urls = []
             seen = set()
             for url in all_urls:
-                # Normalize URL
+
                 normalized = url.strip().lower()
                 if normalized not in seen and '.onion' in normalized:
                     seen.add(normalized)
