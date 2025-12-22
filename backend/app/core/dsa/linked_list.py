@@ -55,6 +55,14 @@ class DoublyLinkedList:
         node.data = value
     
     def _get_node(self, index: int) -> Optional[ListNode]:
+        """Get the node at a specific index using optimized traversal.
+        
+        Args:
+            index: Index of the node to retrieve
+        
+        Returns:
+            ListNode at the index, or None if index is out of range
+        """
         if index < 0:
             index += self._size
         
@@ -73,6 +81,11 @@ class DoublyLinkedList:
         return node
     
     def append(self, data: Any):
+        """Add an element to the end of the list.
+        
+        Args:
+            data: Data to append
+        """
         new_node = ListNode(data=data)
         
         if not self._tail:
@@ -85,6 +98,11 @@ class DoublyLinkedList:
         self._size += 1
     
     def prepend(self, data: Any):
+        """Add an element to the beginning of the list.
+        
+        Args:
+            data: Data to prepend
+        """
         new_node = ListNode(data=data)
         
         if not self._head:
@@ -97,6 +115,12 @@ class DoublyLinkedList:
         self._size += 1
     
     def insert(self, index: int, data: Any):
+        """Insert an element at a specific index.
+        
+        Args:
+            index: Index to insert at
+            data: Data to insert
+        """
         if index < 0:
             index += self._size + 1
         
@@ -119,6 +143,15 @@ class DoublyLinkedList:
         self._size += 1
     
     def insert_after(self, node: ListNode, data: Any) -> ListNode:
+        """Insert an element after a specific node.
+        
+        Args:
+            node: Node to insert after
+            data: Data to insert
+        
+        Returns:
+            The newly created node
+        """
         new_node = ListNode(data=data, prev=node, next=node.next)
         
         if node.next:
@@ -131,6 +164,15 @@ class DoublyLinkedList:
         return new_node
     
     def insert_before(self, node: ListNode, data: Any) -> ListNode:
+        """Insert an element before a specific node.
+        
+        Args:
+            node: Node to insert before
+            data: Data to insert
+        
+        Returns:
+            The newly created node
+        """
         new_node = ListNode(data=data, prev=node.prev, next=node)
         
         if node.prev:
@@ -143,6 +185,11 @@ class DoublyLinkedList:
         return new_node
     
     def pop_front(self) -> Optional[Any]:
+        """Remove and return the first element.
+        
+        Returns:
+            Data from the first element, or None if list is empty
+        """
         if not self._head:
             return None
         
@@ -158,6 +205,11 @@ class DoublyLinkedList:
         return data
     
     def pop_back(self) -> Optional[Any]:
+        """Remove and return the last element.
+        
+        Returns:
+            Data from the last element, or None if list is empty
+        """
         if not self._tail:
             return None
         
@@ -173,6 +225,14 @@ class DoublyLinkedList:
         return data
     
     def remove(self, data: Any) -> bool:
+        """Remove the first occurrence of an element.
+        
+        Args:
+            data: Data to remove
+        
+        Returns:
+            True if element was found and removed, False otherwise
+        """
         node = self._head
         
         while node:
@@ -184,6 +244,14 @@ class DoublyLinkedList:
         return False
     
     def remove_at(self, index: int) -> Optional[Any]:
+        """Remove and return the element at a specific index.
+        
+        Args:
+            index: Index of element to remove
+        
+        Returns:
+            Data from the removed element, or None if index is out of range
+        """
         node = self._get_node(index)
         if node is None:
             return None
@@ -193,6 +261,11 @@ class DoublyLinkedList:
         return data
     
     def _remove_node(self, node: ListNode):
+        """Remove a specific node from the list.
+        
+        Args:
+            node: Node to remove
+        """
         if node.prev:
             node.prev.next = node.next
         else:
@@ -206,6 +279,14 @@ class DoublyLinkedList:
         self._size -= 1
     
     def find(self, data: Any) -> Optional[ListNode]:
+        """Find the first node containing the specified data.
+        
+        Args:
+            data: Data to search for
+        
+        Returns:
+            ListNode if found, None otherwise
+        """
         node = self._head
         
         while node:
@@ -216,6 +297,14 @@ class DoublyLinkedList:
         return None
     
     def find_by(self, predicate: Callable[[Any], bool]) -> Optional[ListNode]:
+        """Find the first node matching a predicate function.
+        
+        Args:
+            predicate: Function that takes data and returns bool
+        
+        Returns:
+            ListNode if found, None otherwise
+        """
         node = self._head
         
         while node:
@@ -226,6 +315,14 @@ class DoublyLinkedList:
         return None
     
     def index_of(self, data: Any) -> int:
+        """Get the index of the first occurrence of an element.
+        
+        Args:
+            data: Data to search for
+        
+        Returns:
+            Index of the element, or -1 if not found
+        """
         node = self._head
         index = 0
         
@@ -238,27 +335,55 @@ class DoublyLinkedList:
         return -1
     
     def contains(self, data: Any) -> bool:
+        """Check if the list contains an element.
+        
+        Args:
+            data: Data to check for
+        
+        Returns:
+            True if element exists, False otherwise
+        """
         return self.find(data) is not None
     
     def forward(self) -> Generator[Any, None, None]:
+        """Generate elements in forward order.
+        
+        Yields:
+            Elements from head to tail
+        """
         node = self._head
         while node:
             yield node.data
             node = node.next
     
     def backward(self) -> Generator[Any, None, None]:
+        """Generate elements in backward order.
+        
+        Yields:
+            Elements from tail to head
+        """
         node = self._tail
         while node:
             yield node.data
             node = node.prev
     
     def nodes_forward(self) -> Generator[ListNode, None, None]:
+        """Generate nodes in forward order.
+        
+        Yields:
+            ListNode instances from head to tail
+        """
         node = self._head
         while node:
             yield node
             node = node.next
     
     def nodes_backward(self) -> Generator[ListNode, None, None]:
+        """Generate nodes in backward order.
+        
+        Yields:
+            ListNode instances from tail to head
+        """
         node = self._tail
         while node:
             yield node
@@ -281,11 +406,13 @@ class DoublyLinkedList:
         return self._tail
     
     def clear(self):
+        """Remove all elements from the list."""
         self._head = None
         self._tail = None
         self._size = 0
     
     def reverse(self):
+        """Reverse the list in-place."""
         current = self._head
         
         while current:
@@ -295,19 +422,45 @@ class DoublyLinkedList:
         self._head, self._tail = self._tail, self._head
     
     def to_list(self) -> list:
+        """Convert the linked list to a Python list.
+        
+        Returns:
+            List containing all elements in forward order
+        """
         return list(self.forward())
     
     @classmethod
     def from_list(cls, items: list) -> "DoublyLinkedList":
+        """Create a DoublyLinkedList from a list.
+        
+        Args:
+            items: List of items to add
+        
+        Returns:
+            New DoublyLinkedList instance
+        """
         dll = cls()
         for item in items:
             dll.append(item)
         return dll
     
     def copy(self) -> "DoublyLinkedList":
+        """Create a shallow copy of the list.
+        
+        Returns:
+            New DoublyLinkedList instance with copied elements
+        """
         return DoublyLinkedList.from_list(self.to_list())
     
     def filter(self, predicate: Callable[[Any], bool]) -> "DoublyLinkedList":
+        """Create a new list with elements matching a predicate.
+        
+        Args:
+            predicate: Function that takes data and returns bool
+        
+        Returns:
+            New DoublyLinkedList with filtered elements
+        """
         result = DoublyLinkedList()
         for data in self:
             if predicate(data):
@@ -315,6 +468,14 @@ class DoublyLinkedList:
         return result
     
     def map(self, func: Callable[[Any], Any]) -> "DoublyLinkedList":
+        """Create a new list with elements transformed by a function.
+        
+        Args:
+            func: Function to apply to each element
+        
+        Returns:
+            New DoublyLinkedList with transformed elements
+        """
         result = DoublyLinkedList()
         for data in self:
             result.append(func(data))
@@ -343,6 +504,11 @@ class SinglyLinkedList:
             node = node.next
     
     def append(self, data: Any):
+        """Add an element to the end of the list.
+        
+        Args:
+            data: Data to append
+        """
         new_node = SinglyLinkedList.Node(data=data)
         
         if not self._tail:
@@ -354,6 +520,11 @@ class SinglyLinkedList:
         self._size += 1
     
     def prepend(self, data: Any):
+        """Add an element to the beginning of the list.
+        
+        Args:
+            data: Data to prepend
+        """
         new_node = SinglyLinkedList.Node(data=data, next=self._head)
         self._head = new_node
         
@@ -363,6 +534,11 @@ class SinglyLinkedList:
         self._size += 1
     
     def pop_front(self) -> Optional[Any]:
+        """Remove and return the first element.
+        
+        Returns:
+            Data from the first element, or None if list is empty
+        """
         if not self._head:
             return None
         
@@ -376,6 +552,11 @@ class SinglyLinkedList:
         return data
     
     def to_list(self) -> list:
+        """Convert the linked list to a Python list.
+        
+        Returns:
+            List containing all elements
+        """
         return list(self)
 
 

@@ -101,7 +101,7 @@ class Correlator:
             
             current_depth = next_depth
         
-        
+
         correlations.sort(key=lambda x: x["correlation_score"], reverse=True)
         return correlations
     
@@ -120,13 +120,13 @@ class Correlator:
         if not entity_ids:
             return []
         
-        
+
         neighbor_sets = []
         for entity_id in entity_ids:
             neighbors = self.graph.get_neighbors(entity_id, depth=1)  # DSA-USED: Graph
             neighbor_sets.append(neighbors)
         
-        
+
         common = neighbor_sets[0]
         for ns in neighbor_sets[1:]:
             common = common.intersection(ns)
@@ -161,7 +161,7 @@ class Correlator:
                 "position": i
             }
             
-        
+
             if i < len(path) - 1:
                 edge = self.graph.get_edge(node_id, path[i + 1])  # DSA-USED: Graph
                 if edge:
@@ -216,7 +216,7 @@ class Correlator:
         """
         patterns = []
         
-        
+
         for node in self.graph:  # DSA-USED: Graph
             in_degree, out_degree = self.graph.get_degree(node.id)  # DSA-USED: Graph
             total_degree = in_degree + out_degree
@@ -231,7 +231,7 @@ class Correlator:
                     "significance": "Highly connected node, potential C2 or key infrastructure"
                 })
         
-        
+
         actors = self.graph.get_nodes_by_type("actor")  # DSA-USED: Graph
         for actor in actors:
 
@@ -269,12 +269,12 @@ class Correlator:
         
         score = 0.0
         
-        
+
         in_degree, out_degree = self.graph.get_degree(entity_id)  # DSA-USED: Graph
         connectivity_score = min(30, (in_degree + out_degree) * 3)
         score += connectivity_score
         
-        
+
         node = self.graph.get_node(entity_id)  # DSA-USED: Graph
         high_risk_types = {"malware", "actor", "cve"}
         
@@ -283,7 +283,7 @@ class Correlator:
             if neighbor and neighbor.node_type in high_risk_types:
                 score += 20
         
-        
+
         patterns = self.identify_attack_patterns()
         for pattern in patterns:
             if pattern.get("entity_id") == entity_id or \

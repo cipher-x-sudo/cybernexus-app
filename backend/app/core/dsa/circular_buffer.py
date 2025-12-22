@@ -62,6 +62,14 @@ class CircularBuffer:
         return self._size == 0
     
     def push(self, item: Any) -> Optional[Any]:
+        """Add an item to the buffer, overwriting oldest if full.
+        
+        Args:
+            item: Item to add
+        
+        Returns:
+            Overwritten item if buffer was full, None otherwise
+        """
         overwritten = None
         
         if self._size == self._capacity:
@@ -77,6 +85,11 @@ class CircularBuffer:
         return overwritten
     
     def pop(self) -> Optional[Any]:
+        """Remove and return the oldest item from the buffer.
+        
+        Returns:
+            Oldest item, or None if buffer is empty
+        """
         if self._size == 0:
             return None
         
@@ -88,17 +101,35 @@ class CircularBuffer:
         return item
     
     def peek_oldest(self) -> Optional[Any]:
+        """Get the oldest item without removing it.
+        
+        Returns:
+            Oldest item, or None if buffer is empty
+        """
         if self._size == 0:
             return None
         return self._buffer[self._tail]
     
     def peek_newest(self) -> Optional[Any]:
+        """Get the newest item without removing it.
+        
+        Returns:
+            Newest item, or None if buffer is empty
+        """
         if self._size == 0:
             return None
         index = (self._head - 1) % self._capacity
         return self._buffer[index]
     
     def push_many(self, items: List[Any]) -> List[Any]:
+        """Add multiple items to the buffer.
+        
+        Args:
+            items: List of items to add
+        
+        Returns:
+            List of overwritten items
+        """
         overwritten = []
         for item in items:
             result = self.push(item)
@@ -107,6 +138,14 @@ class CircularBuffer:
         return overwritten
     
     def pop_many(self, n: int) -> List[Any]:
+        """Remove and return multiple items from the buffer.
+        
+        Args:
+            n: Number of items to pop
+        
+        Returns:
+            List of popped items
+        """
         result = []
         for _ in range(min(n, self._size)):
             item = self.pop()
@@ -115,9 +154,22 @@ class CircularBuffer:
         return result
     
     def get_all(self) -> List[Any]:
+        """Get all items in the buffer in order.
+        
+        Returns:
+            List of all items from oldest to newest
+        """
         return list(self)
     
     def get_last_n(self, n: int) -> List[Any]:
+        """Get the last N items (newest items).
+        
+        Args:
+            n: Number of newest items to retrieve
+        
+        Returns:
+            List of the newest N items
+        """
         if n >= self._size:
             return self.get_all()
         
@@ -129,6 +181,14 @@ class CircularBuffer:
         return result
     
     def get_first_n(self, n: int) -> List[Any]:
+        """Get the first N items (oldest items).
+        
+        Args:
+            n: Number of oldest items to retrieve
+        
+        Returns:
+            List of the oldest N items
+        """
         if n >= self._size:
             return self.get_all()
         
@@ -139,12 +199,21 @@ class CircularBuffer:
         return result
     
     def clear(self):
+        """Remove all items from the buffer."""
         self._buffer = [None] * self._capacity
         self._head = 0
         self._tail = 0
         self._size = 0
     
     def resize(self, new_capacity: int):
+        """Resize the buffer to a new capacity.
+        
+        Args:
+            new_capacity: New capacity for the buffer
+        
+        Raises:
+            ValueError: If new_capacity is not positive
+        """
         if new_capacity <= 0:
             raise ValueError("Capacity must be positive")
         
@@ -160,6 +229,11 @@ class CircularBuffer:
             self.push(item)
     
     def stats(self) -> dict:
+        """Get statistics about the buffer.
+        
+        Returns:
+            Dictionary with buffer statistics
+        """
         return {
             "capacity": self._capacity,
             "size": self._size,
@@ -181,6 +255,15 @@ class TimestampedCircularBuffer(CircularBuffer):
         super().__init__(capacity)
     
     def push_with_time(self, item: Any, timestamp: float = None) -> Optional[Any]:
+        """Add an item with a timestamp to the buffer.
+        
+        Args:
+            item: Item to add
+            timestamp: Optional timestamp (defaults to current time)
+        
+        Returns:
+            Overwritten item if buffer was full, None otherwise
+        """
         import time
         if timestamp is None:
             timestamp = time.time()
@@ -196,11 +279,27 @@ class TimestampedCircularBuffer(CircularBuffer):
         return result
     
     def get_items_in_window(self, window_seconds: float) -> List[Any]:
+        """Get all items within a time window from now.
+        
+        Args:
+            window_seconds: Time window in seconds
+        
+        Returns:
+            List of items within the time window
+        """
         import time
         cutoff = time.time() - window_seconds
         return self.get_items_since(cutoff)
     
     def expire_old(self, max_age_seconds: float) -> int:
+        """Remove items older than the specified age.
+        
+        Args:
+            max_age_seconds: Maximum age in seconds
+        
+        Returns:
+            Number of items removed
+        """
         import time
         cutoff = time.time() - max_age_seconds
         removed = 0

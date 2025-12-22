@@ -64,6 +64,14 @@ class BloomFilter:
         return hashes
     
     def add(self, item: Any):
+        """Add an item to the bloom filter.
+        
+        DSA-USED:
+        - BloomFilter: O(k) insertion where k is number of hash functions
+        
+        Args:
+            item: Item to add to the filter
+        """
         for hash_val in self._get_hashes(item):
             self._bit_array[hash_val] = True
         self._count += 1
@@ -72,12 +80,28 @@ class BloomFilter:
         return self.contains(item)
     
     def contains(self, item: Any) -> bool:
+        """Check if an item might be in the filter (may have false positives).
+        
+        DSA-USED:
+        - BloomFilter: O(k) query where k is number of hash functions
+        
+        Args:
+            item: Item to check
+        
+        Returns:
+            True if item might be present (no false negatives, possible false positives)
+        """
         for hash_val in self._get_hashes(item):
             if not self._bit_array[hash_val]:
                 return False
         return True
     
     def add_many(self, items: List[Any]):
+        """Add multiple items to the bloom filter.
+        
+        Args:
+            items: List of items to add
+        """
         for item in items:
             self.add(item)
     
@@ -97,6 +121,11 @@ class BloomFilter:
         return self._num_hashes
     
     def current_false_positive_rate(self) -> float:
+        """Calculate the current false positive rate based on items added.
+        
+        Returns:
+            Current false positive rate as a float between 0 and 1
+        """
         if self._count == 0:
             return 0.0
         
@@ -104,9 +133,19 @@ class BloomFilter:
         return (1 - math.exp(exponent)) ** self._num_hashes
     
     def fill_ratio(self) -> float:
+        """Get the ratio of set bits in the bit array.
+        
+        Returns:
+            Fill ratio as a float between 0 and 1
+        """
         return sum(self._bit_array) / self._size
     
     def stats(self) -> dict:
+        """Get statistics about the bloom filter.
+        
+        Returns:
+            Dictionary with filter statistics
+        """
         return {
             "items_added": self._count,
             "expected_items": self._expected_items,
@@ -119,10 +158,22 @@ class BloomFilter:
         }
     
     def clear(self):
+        """Remove all items from the bloom filter."""
         self._bit_array = [False] * self._size
         self._count = 0
     
     def merge(self, other: "BloomFilter") -> "BloomFilter":
+        """Merge another bloom filter with this one.
+        
+        Args:
+            other: Another BloomFilter to merge with
+        
+        Returns:
+            New BloomFilter containing the union of both filters
+        
+        Raises:
+            ValueError: If filters have different sizes or hash counts
+        """
         if self._size != other._size or self._num_hashes != other._num_hashes:
             raise ValueError("Bloom filters must have same size and hash count")
         
@@ -168,11 +219,24 @@ class CountingBloomFilter:
         return hashes
     
     def add(self, item: Any):
+        """Add an item to the counting bloom filter.
+        
+        Args:
+            item: Item to add
+        """
         for hash_val in self._get_hashes(item):
             self._counters[hash_val] += 1
         self._count += 1
     
     def remove(self, item: Any) -> bool:
+        """Remove an item from the counting bloom filter.
+        
+        Args:
+            item: Item to remove
+        
+        Returns:
+            True if item was found and removed, False otherwise
+        """
         hashes = self._get_hashes(item)
         
         if not all(self._counters[h] > 0 for h in hashes):
@@ -188,16 +252,30 @@ class CountingBloomFilter:
         return all(self._counters[h] > 0 for h in self._get_hashes(item))
     
     def contains(self, item: Any) -> bool:
+        """Check if an item might be in the filter.
+        
+        Args:
+            item: Item to check
+        
+        Returns:
+            True if item might be present
+        """
         return item in self
     
     def __len__(self) -> int:
         return self._count
     
     def clear(self):
+        """Remove all items from the counting bloom filter."""
         self._counters = [0] * self._size
         self._count = 0
     
     def stats(self) -> dict:
+        """Get statistics about the counting bloom filter.
+        
+        Returns:
+            Dictionary with filter statistics
+        """
         non_zero = sum(1 for c in self._counters if c > 0)
         return {
             "items_added": self._count,

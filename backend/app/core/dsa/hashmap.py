@@ -123,6 +123,17 @@ class HashMap:
         return default
     
     def remove(self, key: Any) -> bool:
+        """Remove a key-value pair from the map.
+        
+        DSA-USED:
+        - HashMap: O(1) average case deletion using hash function and chaining
+        
+        Args:
+            key: Key to remove
+        
+        Returns:
+            True if key was found and removed, False otherwise
+        """
         index = self._hash(key)
         node = self._buckets[index]
         prev = None
@@ -141,6 +152,11 @@ class HashMap:
         return False
     
     def keys(self) -> Generator[Any, None, None]:
+        """Generate all keys in the map.
+        
+        Yields:
+            All keys in the map
+        """
         for bucket in self._buckets:
             node = bucket
             while node:
@@ -148,6 +164,11 @@ class HashMap:
                 node = node.next
     
     def values(self) -> Generator[Any, None, None]:
+        """Generate all values in the map.
+        
+        Yields:
+            All values in the map
+        """
         for bucket in self._buckets:
             node = bucket
             while node:
@@ -155,6 +176,11 @@ class HashMap:
                 node = node.next
     
     def items(self) -> Generator[Tuple[Any, Any], None, None]:
+        """Generate all key-value pairs in the map.
+        
+        Yields:
+            Tuples of (key, value) pairs
+        """
         for bucket in self._buckets:
             node = bucket
             while node:
@@ -162,10 +188,17 @@ class HashMap:
                 node = node.next
     
     def clear(self):
+        """Remove all key-value pairs from the map."""
         self._buckets = [None] * self._capacity
         self._size = 0
     
     def update(self, other: dict = None, **kwargs):
+        """Update the map with key-value pairs from another dict or keyword arguments.
+        
+        Args:
+            other: Dictionary to update from
+            **kwargs: Additional key-value pairs to add
+        """
         if other:
             for key, value in other.items():
                 self.put(key, value)
@@ -173,6 +206,15 @@ class HashMap:
             self.put(key, value)
     
     def setdefault(self, key: Any, default: Any = None) -> Any:
+        """Get value for key, or set to default if key doesn't exist.
+        
+        Args:
+            key: Key to look up
+            default: Default value to set if key not found
+        
+        Returns:
+            Value associated with key, or default if key was not present
+        """
         value = self.get(key)
         if value is None:
             self.put(key, default)
@@ -180,6 +222,15 @@ class HashMap:
         return value
     
     def pop(self, key: Any, default: Any = None) -> Any:
+        """Remove and return value for key, or return default if key not found.
+        
+        Args:
+            key: Key to remove
+            default: Default value to return if key not found
+        
+        Returns:
+            Value associated with key, or default if key was not present
+        """
         value = self.get(key)
         if value is not None:
             self.remove(key)
@@ -187,9 +238,19 @@ class HashMap:
         return default
     
     def load_factor(self) -> float:
+        """Calculate the current load factor (size / capacity).
+        
+        Returns:
+            Current load factor as a float
+        """
         return self._size / self._capacity
     
     def bucket_distribution(self) -> List[int]:
+        """Get the distribution of items across buckets.
+        
+        Returns:
+            List of item counts per bucket
+        """
         distribution = []
         for bucket in self._buckets:
             count = 0
@@ -201,6 +262,11 @@ class HashMap:
         return distribution
     
     def stats(self) -> dict:
+        """Get statistics about the hash map's distribution and performance.
+        
+        Returns:
+            Dictionary with size, capacity, load factor, and chain statistics
+        """
         distribution = self.bucket_distribution()
         non_empty = [d for d in distribution if d > 0]
         
@@ -214,10 +280,23 @@ class HashMap:
         }
     
     def to_dict(self) -> dict:
+        """Convert the hash map to a standard Python dictionary.
+        
+        Returns:
+            Dictionary representation of the hash map
+        """
         return dict(self.items())
     
     @classmethod
     def from_dict(cls, d: dict) -> "HashMap":
+        """Create a HashMap from a dictionary.
+        
+        Args:
+            d: Dictionary to convert
+        
+        Returns:
+            New HashMap instance with keys and values from the dictionary
+        """
         hashmap = cls()
         for key, value in d.items():
             hashmap.put(key, value)
@@ -239,18 +318,48 @@ class HashSet:
         yield from self._map.keys()
     
     def add(self, item: Any) -> bool:
+        """Add an item to the set.
+        
+        Args:
+            item: Item to add
+        
+        Returns:
+            True if item was newly added, False if it already existed
+        """
         return self._map.put(item, True)
     
     def remove(self, item: Any) -> bool:
+        """Remove an item from the set.
+        
+        Args:
+            item: Item to remove
+        
+        Returns:
+            True if item was found and removed, False otherwise
+        """
         return self._map.remove(item)
     
     def discard(self, item: Any):
+        """Remove an item from the set if present (no error if missing).
+        
+        Args:
+            item: Item to remove
+        """
         self._map.remove(item)
     
     def clear(self):
+        """Remove all items from the set."""
         self._map.clear()
     
     def union(self, other: "HashSet") -> "HashSet":
+        """Create a new set containing all items from both sets.
+        
+        Args:
+            other: Other HashSet to union with
+        
+        Returns:
+            New HashSet containing all unique items from both sets
+        """
         result = HashSet()
         for item in self:
             result.add(item)
@@ -259,6 +368,14 @@ class HashSet:
         return result
     
     def intersection(self, other: "HashSet") -> "HashSet":
+        """Create a new set containing items present in both sets.
+        
+        Args:
+            other: Other HashSet to intersect with
+        
+        Returns:
+            New HashSet containing items common to both sets
+        """
         result = HashSet()
         for item in self:
             if item in other:
@@ -266,6 +383,14 @@ class HashSet:
         return result
     
     def difference(self, other: "HashSet") -> "HashSet":
+        """Create a new set containing items in this set but not in the other.
+        
+        Args:
+            other: Other HashSet to compute difference with
+        
+        Returns:
+            New HashSet containing items only in this set
+        """
         result = HashSet()
         for item in self:
             if item not in other:
@@ -273,10 +398,23 @@ class HashSet:
         return result
     
     def to_list(self) -> List[Any]:
+        """Convert the set to a list.
+        
+        Returns:
+            List containing all items in the set
+        """
         return list(self)
     
     @classmethod
     def from_list(cls, items: List[Any]) -> "HashSet":
+        """Create a HashSet from a list of items.
+        
+        Args:
+            items: List of items to add to the set
+        
+        Returns:
+            New HashSet instance containing the items
+        """
         s = cls()
         for item in items:
             s.add(item)

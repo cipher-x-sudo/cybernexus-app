@@ -78,7 +78,17 @@ class BTree:
             yield from self._inorder(node.children[len(node.keys)])
     
     def search(self, key: Any) -> Optional[Any]:
+        """Search for a key in the B-tree.
         
+        DSA-USED:
+        - BTree: O(log n) search in balanced multi-way tree
+        
+        Args:
+            key: Key to search for
+        
+        Returns:
+            Associated value if found, None otherwise
+        """
         return self._search(self._root, key)
     
     def _search(self, node: BTreeNode, key: Any) -> Optional[Any]:
@@ -182,6 +192,17 @@ class BTree:
             self._insert_non_full(node.children[i], key, value)
     
     def delete(self, key: Any) -> bool:
+        """Delete a key from the B-tree.
+        
+        DSA-USED:
+        - BTree: O(log n) deletion with node merging and borrowing
+        
+        Args:
+            key: Key to delete
+        
+        Returns:
+            True if key was found and deleted, False otherwise
+        """
         if key not in self:
             return False
         
@@ -316,6 +337,11 @@ class BTree:
             self._range_query(node.children[i], low, high, results)
     
     def minimum(self) -> Optional[Tuple[Any, Any]]:
+        """Get the minimum key-value pair in the B-tree.
+        
+        Returns:
+            Tuple of (key, value) for the minimum key, or None if tree is empty
+        """
         if not self._root.keys:
             return None
         
@@ -326,6 +352,11 @@ class BTree:
         return (node.keys[0], node.values[0])
     
     def maximum(self) -> Optional[Tuple[Any, Any]]:
+        """Get the maximum key-value pair in the B-tree.
+        
+        Returns:
+            Tuple of (key, value) for the maximum key, or None if tree is empty
+        """
         if not self._root.keys:
             return None
         
@@ -336,10 +367,16 @@ class BTree:
         return (node.keys[-1], node.values[-1])
     
     def clear(self):
+        """Remove all keys from the B-tree."""
         self._root = BTreeNode()
         self._size = 0
     
     def height(self) -> int:
+        """Get the height of the B-tree.
+        
+        Returns:
+            Height of the tree (number of levels)
+        """
         h = 0
         node = self._root
         while not node.is_leaf:
@@ -348,6 +385,11 @@ class BTree:
         return h
     
     def to_dict(self) -> dict:
+        """Convert the B-tree to a dictionary representation.
+        
+        Returns:
+            Dictionary containing tree structure and properties
+        """
         return {
             "t": self._t,
             "size": self._size,
@@ -356,12 +398,25 @@ class BTree:
     
     @classmethod
     def from_dict(cls, data: dict) -> "BTree":
+        """Create a BTree from a dictionary.
+        
+        Args:
+            data: Dictionary containing tree structure
+        
+        Returns:
+            New BTree instance
+        """
         tree = cls(t=data["t"])
         tree._size = data["size"]
         tree._root = BTreeNode.from_dict(data["root"])
         return tree
     
     def to_list(self) -> List[Tuple[Any, Any]]:
+        """Convert the B-tree to a list in sorted order.
+        
+        Returns:
+            List of (key, value) tuples in sorted order
+        """
         return list(self)
 
 

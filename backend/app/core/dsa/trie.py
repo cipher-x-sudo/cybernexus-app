@@ -41,6 +41,18 @@ class Trie:
         yield from self.keys()
     
     def insert(self, key: str, value: Any = None) -> bool:
+        """Insert a key-value pair into the trie.
+        
+        DSA-USED:
+        - Trie: O(m) insertion where m is key length
+        
+        Args:
+            key: String key to insert
+            value: Value to associate with key (defaults to True)
+        
+        Returns:
+            True if key was newly inserted, False if it already existed
+        """
         if not key:
             return False
         
@@ -65,6 +77,17 @@ class Trie:
         return is_new
     
     def search(self, key: str) -> Optional[Any]:
+        """Search for a key in the trie.
+        
+        DSA-USED:
+        - Trie: O(m) search where m is key length
+        
+        Args:
+            key: String key to search for
+        
+        Returns:
+            Associated value if key exists, None otherwise
+        """
         node = self._find_node(key)
         
         if node and node.is_end:
@@ -72,6 +95,17 @@ class Trie:
         return None
     
     def delete(self, key: str) -> bool:
+        """Delete a key from the trie.
+        
+        DSA-USED:
+        - Trie: O(m) deletion with recursive cleanup where m is key length
+        
+        Args:
+            key: String key to delete
+        
+        Returns:
+            True if key was found and deleted, False otherwise
+        """
         if not key:
             return False
         
@@ -106,6 +140,14 @@ class Trie:
         return found
     
     def _find_node(self, prefix: str) -> Optional[TrieNode]:
+        """Find the node corresponding to a prefix.
+        
+        Args:
+            prefix: String prefix to search for
+        
+        Returns:
+            TrieNode if prefix exists, None otherwise
+        """
         node = self._root
         
         for char in prefix:
@@ -116,13 +158,41 @@ class Trie:
         return node
     
     def starts_with(self, prefix: str) -> bool:
+        """Check if any key in the trie starts with the given prefix.
+        
+        Args:
+            prefix: Prefix string to check
+        
+        Returns:
+            True if prefix exists in trie, False otherwise
+        """
         return self._find_node(prefix) is not None
     
     def count_prefix(self, prefix: str) -> int:
+        """Count how many keys have the given prefix.
+        
+        Args:
+            prefix: Prefix string to count
+        
+        Returns:
+            Number of keys with the given prefix
+        """
         node = self._find_node(prefix)
         return node.count if node else 0
     
     def get_prefix_matches(self, prefix: str, limit: int = None) -> List[Tuple[str, Any]]:
+        """Get all keys and values that start with the given prefix.
+        
+        DSA-USED:
+        - Trie: O(m + k) prefix matching where m is prefix length and k is number of results
+        
+        Args:
+            prefix: Prefix string to match
+            limit: Optional maximum number of results to return
+        
+        Returns:
+            List of (key, value) tuples matching the prefix
+        """
         results = []
         node = self._find_node(prefix)
         
@@ -145,10 +215,31 @@ class Trie:
         return results
     
     def autocomplete(self, prefix: str, limit: int = 10) -> List[str]:
+        """Get autocomplete suggestions for a prefix.
+        
+        Args:
+            prefix: Prefix string for autocomplete
+            limit: Maximum number of suggestions (default: 10)
+        
+        Returns:
+            List of key strings matching the prefix
+        """
         matches = self.get_prefix_matches(prefix, limit)
         return [key for key, _ in matches]
     
     def match_pattern(self, pattern: str, wildcard: str = "*") -> List[Tuple[str, Any]]:
+        """Find all keys matching a pattern with wildcards.
+        
+        DSA-USED:
+        - Trie: Pattern matching with wildcard support using DFS traversal
+        
+        Args:
+            pattern: Pattern string with wildcards
+            wildcard: Wildcard character (default: "*")
+        
+        Returns:
+            List of (key, value) tuples matching the pattern
+        """
         results = []
         
         def _match(node: TrieNode, pattern_idx: int, current_key: str):
@@ -169,6 +260,17 @@ class Trie:
         return results
     
     def match_regex_simple(self, pattern: str) -> List[Tuple[str, Any]]:
+        """Find all keys matching a simple regex pattern (supports . and *).
+        
+        DSA-USED:
+        - Trie: Simple regex matching with . (any char) and * (zero or more) support
+        
+        Args:
+            pattern: Regex pattern string
+        
+        Returns:
+            List of (key, value) tuples matching the pattern
+        """
         results = []
         
         def _match(node: TrieNode, pattern_idx: int, current_key: str):
@@ -197,6 +299,11 @@ class Trie:
         return results
     
     def keys(self) -> Generator[str, None, None]:
+        """Generate all keys in the trie.
+        
+        Yields:
+            All keys in the trie
+        """
         def _keys(node: TrieNode, prefix: str):
             if node.is_end:
                 yield prefix
@@ -206,6 +313,11 @@ class Trie:
         yield from _keys(self._root, "")
     
     def values(self) -> Generator[Any, None, None]:
+        """Generate all values in the trie.
+        
+        Yields:
+            All values in the trie
+        """
         def _values(node: TrieNode):
             if node.is_end:
                 yield node.value
@@ -215,6 +327,11 @@ class Trie:
         yield from _values(self._root)
     
     def items(self) -> Generator[Tuple[str, Any], None, None]:
+        """Generate all key-value pairs in the trie.
+        
+        Yields:
+            Tuples of (key, value) pairs
+        """
         def _items(node: TrieNode, prefix: str):
             if node.is_end:
                 yield (prefix, node.value)
@@ -224,10 +341,19 @@ class Trie:
         yield from _items(self._root, "")
     
     def clear(self):
+        """Remove all keys from the trie."""
         self._root = TrieNode()
         self._size = 0
     
     def get_longest_prefix(self, text: str) -> Optional[Tuple[str, Any]]:
+        """Find the longest key that is a prefix of the given text.
+        
+        Args:
+            text: Text to find longest prefix match for
+        
+        Returns:
+            Tuple of (key, value) for the longest matching prefix, or None if no match
+        """
         node = self._root
         last_match = None
         current_prefix = ""
@@ -245,6 +371,17 @@ class Trie:
         return last_match
     
     def find_all_in_text(self, text: str) -> List[Tuple[int, str, Any]]:
+        """Find all keys that appear as substrings in the given text.
+        
+        DSA-USED:
+        - Trie: O(n*m) substring matching where n is text length and m is average key length
+        
+        Args:
+            text: Text to search in
+        
+        Returns:
+            List of (start_index, matched_key, value) tuples
+        """
         results = []
         
         for i in range(len(text)):
@@ -261,10 +398,23 @@ class Trie:
         return results
     
     def to_dict(self) -> dict:
+        """Convert the trie to a standard Python dictionary.
+        
+        Returns:
+            Dictionary representation of the trie
+        """
         return dict(self.items())
     
     @classmethod
     def from_dict(cls, d: dict) -> "Trie":
+        """Create a Trie from a dictionary.
+        
+        Args:
+            d: Dictionary to convert
+        
+        Returns:
+            New Trie instance with keys and values from the dictionary
+        """
         trie = cls()
         for key, value in d.items():
             trie.insert(key, value)
@@ -272,6 +422,14 @@ class Trie:
     
     @classmethod
     def from_list(cls, keys: List[str]) -> "Trie":
+        """Create a Trie from a list of keys.
+        
+        Args:
+            keys: List of string keys to add
+        
+        Returns:
+            New Trie instance containing the keys
+        """
         trie = cls()
         for key in keys:
             trie.insert(key)

@@ -27,6 +27,11 @@ class GraphEdge:
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> dict:
+        """Convert the edge to a dictionary representation.
+        
+        Returns:
+            Dictionary containing edge properties
+        """
         return {
             "target": self.target,
             "weight": self.weight,
@@ -36,6 +41,14 @@ class GraphEdge:
     
     @classmethod
     def from_dict(cls, data: dict) -> "GraphEdge":
+        """Create a GraphEdge from a dictionary.
+        
+        Args:
+            data: Dictionary containing edge properties
+        
+        Returns:
+            New GraphEdge instance
+        """
         return cls(
             target=data["target"],
             weight=data.get("weight", 1.0),
@@ -53,11 +66,30 @@ class GraphNode:
     edges: List[GraphEdge] = field(default_factory=list)
     
     def add_edge(self, target: str, weight: float = 1.0, relation: str = "connected", metadata: dict = None):
+        """Add an edge from this node to a target node.
+        
+        Args:
+            target: Target node identifier
+            weight: Edge weight (default: 1.0)
+            relation: Relationship type (default: "connected")
+            metadata: Optional edge metadata
+        
+        Returns:
+            The created GraphEdge
+        """
         edge = GraphEdge(target=target, weight=weight, relation=relation, metadata=metadata or {})
         self.edges.append(edge)
         return edge
     
     def remove_edge(self, target: str) -> bool:
+        """Remove an edge to a target node.
+        
+        Args:
+            target: Target node identifier
+        
+        Returns:
+            True if edge was found and removed, False otherwise
+        """
         for i, edge in enumerate(self.edges):
             if edge.target == target:
                 self.edges.pop(i)
@@ -65,9 +97,19 @@ class GraphNode:
         return False
     
     def get_neighbors(self) -> List[str]:
+        """Get all neighbor node identifiers.
+        
+        Returns:
+            List of neighbor node IDs
+        """
         return [edge.target for edge in self.edges]
     
     def to_dict(self) -> dict:
+        """Convert the node to a dictionary representation.
+        
+        Returns:
+            Dictionary containing node properties and edges
+        """
         return {
             "id": self.id,
             "label": self.label,
@@ -78,6 +120,14 @@ class GraphNode:
     
     @classmethod
     def from_dict(cls, data: dict) -> "GraphNode":
+        """Create a GraphNode from a dictionary.
+        
+        Args:
+            data: Dictionary containing node properties
+        
+        Returns:
+            New GraphNode instance
+        """
         node = cls(
             id=data["id"],
             label=data["label"],
@@ -175,6 +225,14 @@ class Graph:
         return True
     
     def get_nodes_by_type(self, node_type: str) -> List[GraphNode]:
+        """Get all nodes of a specific type.
+        
+        Args:
+            node_type: Type of nodes to retrieve
+        
+        Returns:
+            List of GraphNode instances matching the type
+        """
         return [node for node in self.nodes.values() if node.node_type == node_type]
     
     def add_edge(self, source: str, target: str, weight: float = 1.0, 
@@ -219,6 +277,15 @@ class Graph:
         return True
     
     def remove_edge(self, source: str, target: str) -> bool:
+        """Remove an edge between two nodes.
+        
+        Args:
+            source: Source node identifier
+            target: Target node identifier
+        
+        Returns:
+            True if edge was found and removed, False otherwise
+        """
         if source not in self.nodes:
             return False
         
@@ -235,11 +302,29 @@ class Graph:
         return False
     
     def has_edge(self, source: str, target: str) -> bool:
+        """Check if an edge exists between two nodes.
+        
+        Args:
+            source: Source node identifier
+            target: Target node identifier
+        
+        Returns:
+            True if edge exists, False otherwise
+        """
         if source not in self.nodes:
             return False
         return any(edge.target == target for edge in self.nodes[source].edges)
     
     def get_edge(self, source: str, target: str) -> Optional[GraphEdge]:
+        """Get the edge between two nodes.
+        
+        Args:
+            source: Source node identifier
+            target: Target node identifier
+        
+        Returns:
+            GraphEdge if found, None otherwise
+        """
         if source not in self.nodes:
             return None
         for edge in self.nodes[source].edges:
@@ -276,6 +361,17 @@ class Graph:
                     queue.append(edge.target)
     
     def dfs(self, start: str) -> Generator[GraphNode, None, None]:
+        """Depth-first search traversal starting from a node.
+        
+        DSA-USED:
+        - Graph: DFS algorithm using stack and adjacency list traversal
+        
+        Args:
+            start: Starting node identifier
+        
+        Yields:
+            GraphNode instances in DFS order
+        """
         if start not in self.nodes:
             return
         
@@ -296,6 +392,15 @@ class Graph:
                     stack.append(edge.target)
     
     def get_neighbors(self, node_id: str, depth: int = 1) -> Set[str]:
+        """Get all neighbors within a specified depth.
+        
+        Args:
+            node_id: Node identifier
+            depth: Depth level for neighbor search (default: 1)
+        
+        Returns:
+            Set of neighbor node identifiers
+        """
         if node_id not in self.nodes:
             return set()
         
@@ -399,6 +504,18 @@ class Graph:
         return distances, predecessors
     
     def get_path(self, start: str, end: str) -> Optional[Tuple[List[str], float]]:
+        """Get the shortest path between two nodes using Dijkstra's algorithm.
+        
+        DSA-USED:
+        - Graph: Dijkstra's shortest path algorithm
+        
+        Args:
+            start: Starting node identifier
+            end: Target node identifier
+        
+        Returns:
+            Tuple of (path list, total weight) if path exists, None otherwise
+        """
         distances, predecessors = self.dijkstra(start, end)
         
         if end not in predecessors and end != start:
@@ -414,6 +531,14 @@ class Graph:
         return path, distances.get(end, 0)
     
     def connected_components(self) -> List[Set[str]]:
+        """Find all connected components in the graph.
+        
+        DSA-USED:
+        - Graph: DFS-based connected components detection
+        
+        Returns:
+            List of sets, each containing node IDs in a connected component
+        """
         visited = set()
         components = []
         
@@ -446,6 +571,14 @@ class Graph:
         return components
     
     def has_cycle(self) -> bool:
+        """Check if the graph contains a cycle.
+        
+        DSA-USED:
+        - Graph: Cycle detection using DFS with color coding (directed) or parent tracking (undirected)
+        
+        Returns:
+            True if cycle exists, False otherwise
+        """
         if not self.directed:
             visited = set()
             
@@ -493,6 +626,14 @@ class Graph:
             return False
     
     def get_degree(self, node_id: str) -> Tuple[int, int]:
+        """Get the in-degree and out-degree of a node.
+        
+        Args:
+            node_id: Node identifier
+        
+        Returns:
+            Tuple of (in_degree, out_degree)
+        """
         if node_id not in self.nodes:
             return (0, 0)
         
@@ -503,6 +644,11 @@ class Graph:
         return (in_degree, out_degree)
     
     def to_dict(self) -> dict:
+        """Convert the graph to a dictionary representation.
+        
+        Returns:
+            Dictionary containing graph structure and properties
+        """
         return {
             "directed": self.directed,
             "nodes": {node_id: node.to_dict() for node_id, node in self.nodes.items()}
@@ -510,6 +656,14 @@ class Graph:
     
     @classmethod
     def from_dict(cls, data: dict) -> "Graph":
+        """Create a Graph from a dictionary.
+        
+        Args:
+            data: Dictionary containing graph structure
+        
+        Returns:
+            New Graph instance
+        """
         graph = cls(directed=data.get("directed", True))
         
         for node_id, node_data in data.get("nodes", {}).items():
@@ -521,10 +675,23 @@ class Graph:
         return graph
     
     def to_json(self) -> str:
+        """Convert the graph to a JSON string.
+        
+        Returns:
+            JSON string representation of the graph
+        """
         return json.dumps(self.to_dict(), default=str)
     
     @classmethod
     def from_json(cls, json_str: str) -> "Graph":
+        """Create a Graph from a JSON string.
+        
+        Args:
+            json_str: JSON string containing graph structure
+        
+        Returns:
+            New Graph instance
+        """
         return cls.from_dict(json.loads(json_str))
     
     @property
@@ -536,6 +703,11 @@ class Graph:
         return self._edge_count
     
     def stats(self) -> dict:
+        """Get statistics about the graph.
+        
+        Returns:
+            Dictionary with graph statistics including node count, edge count, density, components, and cycle detection
+        """
         return {
             "nodes": self._node_count,
             "edges": self._edge_count,

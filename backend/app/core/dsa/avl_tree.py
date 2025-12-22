@@ -61,19 +61,52 @@ class AVLTree:
         yield from self.inorder()
     
     def _height(self, node: Optional[AVLNode]) -> int:
+        """Get the height of a node.
         
+        Args:
+            node: AVLNode to get height for
+        
+        Returns:
+            Height of the node, or 0 if node is None
+        """
         return node.height if node else 0
     
     def _balance_factor(self, node: Optional[AVLNode]) -> int:
+        """Calculate the balance factor of a node (left height - right height).
         
+        DSA-USED:
+        - AVLTree: Balance factor calculation for tree balancing
+        
+        Args:
+            node: AVLNode to calculate balance factor for
+        
+        Returns:
+            Balance factor (positive = left-heavy, negative = right-heavy, 0 = balanced)
+        """
         if not node:
             return 0
         return self._height(node.left) - self._height(node.right)
     
     def _update_height(self, node: AVLNode):
+        """Update the height of a node based on its children.
+        
+        Args:
+            node: AVLNode to update height for
+        """
         node.height = 1 + max(self._height(node.left), self._height(node.right))
     
     def _rotate_right(self, y: AVLNode) -> AVLNode:
+        """Perform a right rotation to rebalance the tree.
+        
+        DSA-USED:
+        - AVLTree: Right rotation operation for tree balancing
+        
+        Args:
+            y: Node to rotate around
+        
+        Returns:
+            New root node after rotation
+        """
         x = y.left
         T2 = x.right
         
@@ -86,6 +119,17 @@ class AVLTree:
         return x
     
     def _rotate_left(self, x: AVLNode) -> AVLNode:
+        """Perform a left rotation to rebalance the tree.
+        
+        DSA-USED:
+        - AVLTree: Left rotation operation for tree balancing
+        
+        Args:
+            x: Node to rotate around
+        
+        Returns:
+            New root node after rotation
+        """
         y = x.right
         T2 = y.left
         
@@ -98,6 +142,18 @@ class AVLTree:
         return y
     
     def _rebalance(self, node: AVLNode, key: Any) -> AVLNode:
+        """Rebalance the tree after insertion or deletion.
+        
+        DSA-USED:
+        - AVLTree: Tree rebalancing using rotations to maintain AVL property
+        
+        Args:
+            node: Node to rebalance
+            key: Key that was inserted/deleted (used to determine rotation direction)
+        
+        Returns:
+            Rebalanced node
+        """
         self._update_height(node)
         
         balance = self._balance_factor(node)
@@ -184,6 +240,17 @@ class AVLTree:
         return None
     
     def delete(self, key: Any) -> bool:
+        """Delete a key from the tree with automatic rebalancing.
+        
+        DSA-USED:
+        - AVLTree: Self-balancing BST deletion with rotation operations
+        
+        Args:
+            key: Key to delete
+        
+        Returns:
+            True if key was found and deleted, False otherwise
+        """
         def _min_value_node(node: AVLNode) -> AVLNode:
             current = node
             while current.left:
@@ -273,6 +340,14 @@ class AVLTree:
         return result
     
     def floor(self, key: Any) -> Optional[Tuple[Any, Any]]:
+        """Find the largest key less than or equal to the given key.
+        
+        Args:
+            key: Key to find floor for
+        
+        Returns:
+            Tuple of (key, value) for the floor, or None if no floor exists
+        """
         result = None
         node = self.root
         
@@ -290,6 +365,14 @@ class AVLTree:
         return result
     
     def ceiling(self, key: Any) -> Optional[Tuple[Any, Any]]:
+        """Find the smallest key greater than or equal to the given key.
+        
+        Args:
+            key: Key to find ceiling for
+        
+        Returns:
+            Tuple of (key, value) for the ceiling, or None if no ceiling exists
+        """
         result = None
         node = self.root
         
@@ -307,6 +390,11 @@ class AVLTree:
         return result
     
     def inorder(self) -> Generator[Tuple[Any, Any], None, None]:
+        """Generate key-value pairs in in-order traversal (sorted order).
+        
+        Yields:
+            Tuples of (key, value) in sorted order
+        """
         def _inorder(node: Optional[AVLNode]):
             if node:
                 yield from _inorder(node.left)
@@ -316,6 +404,11 @@ class AVLTree:
         yield from _inorder(self.root)
     
     def preorder(self) -> Generator[Tuple[Any, Any], None, None]:
+        """Generate key-value pairs in pre-order traversal.
+        
+        Yields:
+            Tuples of (key, value) in pre-order
+        """
         def _preorder(node: Optional[AVLNode]):
             if node:
                 yield (node.key, node.value)
@@ -325,6 +418,11 @@ class AVLTree:
         yield from _preorder(self.root)
     
     def postorder(self) -> Generator[Tuple[Any, Any], None, None]:
+        """Generate key-value pairs in post-order traversal.
+        
+        Yields:
+            Tuples of (key, value) in post-order
+        """
         def _postorder(node: Optional[AVLNode]):
             if node:
                 yield from _postorder(node.left)
@@ -350,6 +448,11 @@ class AVLTree:
                 queue.append(node.right)
     
     def minimum(self) -> Optional[Tuple[Any, Any]]:
+        """Get the minimum key-value pair in the tree.
+        
+        Returns:
+            Tuple of (key, value) for the minimum key, or None if tree is empty
+        """
         if not self.root:
             return None
         
@@ -360,6 +463,11 @@ class AVLTree:
         return (node.key, node.value)
     
     def maximum(self) -> Optional[Tuple[Any, Any]]:
+        """Get the maximum key-value pair in the tree.
+        
+        Returns:
+            Tuple of (key, value) for the maximum key, or None if tree is empty
+        """
         if not self.root:
             return None
         
@@ -370,6 +478,7 @@ class AVLTree:
         return (node.key, node.value)
     
     def clear(self):
+        """Remove all keys from the tree."""
         self.root = None
         self._size = 0
     
@@ -394,6 +503,11 @@ class AVLTree:
         return balanced
     
     def to_dict(self) -> dict:
+        """Convert the tree to a dictionary representation.
+        
+        Returns:
+            Dictionary containing tree structure
+        """
         return {
             "root": self.root.to_dict() if self.root else None,
             "size": self._size
@@ -404,6 +518,14 @@ class AVLTree:
     
     @classmethod
     def from_list(cls, items: List[Tuple[Any, Any]]) -> "AVLTree":
+        """Create an AVLTree from a list of key-value pairs.
+        
+        Args:
+            items: List of (key, value) tuples
+        
+        Returns:
+            New AVLTree instance
+        """
         tree = cls()
         for key, value in items:
             tree.insert(key, value)
