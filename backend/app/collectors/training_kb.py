@@ -95,7 +95,7 @@ class PhishingTemplate:
     sender_email: str
     html_body: str
     text_body: str
-    indicators: List[str]  # Red flags trainees should spot
+    indicators: List[str]
     learning_points: List[str]
     
     def to_dict(self) -> Dict:
@@ -184,13 +184,13 @@ class TrainingKB:
         self.content_graph = Graph(directed=True)
         
 
-        self.content = HashMap()  # content_id -> TrainingContent
-        self.templates = HashMap()  # template_id -> PhishingTemplate
-        self.labs = HashMap()  # scenario_id -> LabScenario
-        self.quizzes = HashMap()  # quiz_id -> List[QuizQuestion]
+        self.content = HashMap()
+        self.templates = HashMap() 
+        self.labs = HashMap()  
+        self.quizzes = HashMap() 
         
 
-        self.trainees = HashMap()  # trainee_id -> TraineeProgress
+        self.trainees = HashMap()
         
 
         self.search_trie = Trie()

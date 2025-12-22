@@ -809,7 +809,7 @@ class WebRecon:
                                     "content_length": content_length,
                                     "severity": "critical"
                                 })
-                                break  # Found, no need to check http if https works
+                                break
                             else:
                                 logger.info(f"[WebRecon] [vcs={vcs_type}] HTTP {protocol.upper()} GET {url} - Status: {response.status_code} - Time: {request_time:.3f}s")
                         except httpx.TimeoutException:

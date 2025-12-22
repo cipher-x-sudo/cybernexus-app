@@ -63,7 +63,7 @@ class ThreatLevel(Enum):
 class ExtractedEntity:
     entity_type: str
     value: str
-    context: str  # Surrounding text
+    context: str
     source_url: str
     discovered_at: datetime
     confidence: float = 1.0
@@ -149,7 +149,7 @@ class CrawlJob:
     
     job_id: str
     target_url: str
-    priority: int  # Lower = higher priority
+    priority: int
     scheduled_at: datetime
     depth: int = 1
     extract_entities: bool = True
@@ -199,9 +199,9 @@ class DarkWatch:
         self.site_graph = Graph(directed=True)
         
 
-        self.sites = HashMap()  # site_id -> OnionSite
-        self.entities = HashMap()  # entity_value -> ExtractedEntity
-        self.mentions = HashMap()  # mention_id -> BrandMention
+        self.sites = HashMap()
+        self.entities = HashMap()
+        self.mentions = HashMap()
         
 
         self.keyword_trie = Trie()
@@ -801,7 +801,7 @@ class DarkWatch:
                 job = CrawlJob(
                     job_id=f"job_{linked_id}",
                     target_url=linked_url,
-                    priority=10 - depth,  # Higher depth = higher priority number = lower priority
+                    priority=10 - depth,
                     scheduled_at=datetime.now(),
                     depth=depth - 1
                 )

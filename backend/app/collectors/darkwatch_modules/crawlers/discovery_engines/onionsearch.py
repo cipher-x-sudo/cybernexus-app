@@ -26,8 +26,8 @@ ENGINES = {
 }
 
 desktop_agents = [
-    'Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0',  # Tor Browser for Windows and Linux
-    'Mozilla/5.0 (Android 10; Mobile; rv:91.0) Gecko/91.0 Firefox/91.0',  # Tor Browser for Android
+    'Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0',
+    'Mozilla/5.0 (Android 10; Mobile; rv:91.0) Gecko/91.0 Firefox/91.0', 
     'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/602.2.14 (KHTML, like Gecko) Version/10.0.1 Safari/602.2.14',
@@ -107,7 +107,7 @@ def safe_request(
             
             if "Connection refused" in error_msg or "Failed to establish a new connection" in error_msg:
                 if retries <= max_retries:
-                    wait_time = min(2 ** retries, 10)  # Exponential backoff, max 10 seconds
+                    wait_time = min(2 ** retries, 10)
                     loguru_logger.warning(
                         f"[OnionSearch] [safe_request] Connection refused to {url[:100]}... "
                         f"Retrying {retries}/{max_retries} after {wait_time}s"
@@ -204,7 +204,7 @@ def link_finder(engine_str: str, data_obj, debug: bool = False) -> List[Dict[str
                         
                         if 'redirect_url=' in href:
                             name = clear(r.get_text())
-                            link = href.split('redirect_url=')[1].split('&')[0]  # Handle additional params
+                            link = href.split('redirect_url=')[1].split('&')[0] 
                             
                             if debug and idx < 3:
                                 loguru_logger.debug(
@@ -461,7 +461,7 @@ def tor66(
                     if debug:
                         import traceback
                         logger.debug(traceback.format_exc())
-                    break  # Stop if we hit an error on subsequent pages
+                    break 
 
     except Exception as e:
         engine_time = time.time() - engine_start
@@ -599,7 +599,7 @@ def search_all_engines(
         if not link:
             rejected_count += 1
             rejection_reasons['empty_link'] = rejection_reasons.get('empty_link', 0) + 1
-            if idx < 5:  # Log first 5 rejections for debugging
+            if idx < 5: 
                 loguru_logger.debug(f"[OnionSearch] [search_all_engines] Result {idx}: Rejected - empty link, result={result}")
             continue
         
@@ -636,14 +636,14 @@ def search_all_engines(
 
             if normalized_link in unique_urls:
                 duplicate_count += 1
-                if idx < 5:  # Log first 5 duplicates for debugging
+                if idx < 5:
                     loguru_logger.debug(
                         f"[OnionSearch] [search_all_engines] Result {idx}: Duplicate URL (already in set) - "
                         f"original='{link}', normalized='{normalized_link}'"
                     )
             else:
                 unique_urls.add(normalized_link)
-                if idx < 5:  # Log first 5 successful extractions
+                if idx < 5: 
                     loguru_logger.debug(
                         f"[OnionSearch] [search_all_engines] Result {idx}: Extracted - "
                         f"original='{link}', normalized='{normalized_link}'"

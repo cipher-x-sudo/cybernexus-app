@@ -195,7 +195,7 @@ def is_origin_allowed(origin: str, allowed_origins: list) -> bool:
     
     for allowed in allowed_origins:
         if allowed.startswith("*."):
-            domain = allowed[2:]  # Remove "*."
+            domain = allowed[2:]
             if origin.endswith(domain):
                 return True
     

@@ -110,8 +110,8 @@ class TorConnector:
             logger.warning("[TorConnector] Invalid URL tuple provided to crawler")
             return {}
         
-        url_str = url[2]  # URL is at index 2
-        url_id = url[0]   # ID is at index 0
+        url_str = url[2]
+        url_id = url[0]
         
         logger.info(f"[TorConnector] Starting crawl for URL: {url_str} (ID: {url_id})")
         crawl_start = time.time()

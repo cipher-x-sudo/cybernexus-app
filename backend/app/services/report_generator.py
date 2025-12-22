@@ -388,7 +388,7 @@ class ReportGenerator:
             if report_file.suffix in [".html", ".pdf"]:
                 reports.append({
                     "report_id": report_file.stem,
-                    "format": report_file.suffix[1:],  # Remove the dot
+                    "format": report_file.suffix[1:],
                     "path": str(report_file),
                     "size": report_file.stat().st_size,
                     "created": datetime.fromtimestamp(report_file.stat().st_ctime).isoformat()

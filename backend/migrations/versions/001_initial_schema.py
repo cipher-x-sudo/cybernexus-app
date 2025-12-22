@@ -38,7 +38,7 @@ def upgrade() -> None:
         sa.Column('type', sa.String(length=50), nullable=False),
         sa.Column('value', sa.String(length=500), nullable=False),
         sa.Column('severity', sa.String(length=20), nullable=False, server_default='info'),
-        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),  # Renamed from 'metadata' (reserved in SQLAlchemy)
+        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
@@ -75,7 +75,7 @@ def upgrade() -> None:
         sa.Column('target_id', sa.String(length=255), sa.ForeignKey('graph_nodes.id', ondelete='CASCADE'), nullable=False),
         sa.Column('relation', sa.String(length=50), nullable=False),
         sa.Column('weight', sa.Float(), nullable=False, server_default='1.0'),
-        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),  # Renamed from 'metadata' (reserved in SQLAlchemy)
+        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
@@ -97,7 +97,7 @@ def upgrade() -> None:
         sa.Column('resource_id', sa.String(length=255), nullable=True),
         sa.Column('ip_address', sa.String(length=45), nullable=True),
         sa.Column('user_agent', sa.Text(), nullable=True),
-        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),  # Renamed from 'metadata' (reserved in SQLAlchemy)
+        sa.Column('meta_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True), 
         sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )

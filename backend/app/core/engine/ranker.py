@@ -50,7 +50,7 @@ class ThreatRanker:
                     score += 10
                 elif age_hours < 24:
                     score += 7
-                elif age_hours < 168:  # 1 week
+                elif age_hours < 168:
                     score += 4
                 else:
                     score += 1

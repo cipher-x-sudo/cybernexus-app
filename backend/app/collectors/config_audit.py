@@ -314,7 +314,7 @@ class ConfigAudit:
                             "If 401/403 found, test X-Accel-Redirect header injection"
                         ]
                     })
-                    break  # Found one, no need to test more
+                    break
                 
                 if 'set-cookie' in headers_lower and 'test=injected' in headers_lower.get('set-cookie', ''):
                     findings.append({
@@ -336,7 +336,7 @@ class ConfigAudit:
         if not paths_to_test:
             paths_to_test = self.COMMON_PATHS
         
-        for path in paths_to_test[:10]:  # Limit to 10 paths
+        for path in paths_to_test[:10]:
             try:
                 test_url = f"{target.rstrip('/')}/{path}%0d%0aDetectify:%20clrf"
                 response = await client.get(test_url, timeout=10.0)
@@ -578,7 +578,7 @@ class ConfigAudit:
         
         unauthorized_paths = []
         
-        for path in paths_to_test[:20]:  # Limit to 20 paths
+        for path in paths_to_test[:20]:
             try:
                 test_url = f"{target.rstrip('/')}/{path}"
                 response = await client.get(test_url, timeout=10.0)

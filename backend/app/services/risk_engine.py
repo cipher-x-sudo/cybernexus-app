@@ -18,17 +18,17 @@ class RiskLevel(str, Enum):
 @dataclass
 class RiskFactor:
     category: str
-    weight: float  # 0-1, importance weight
-    score: float   # 0-100, current score
+    weight: float
+    score: float
     findings_count: int
     description: str
-    trend: str  # "improving", "stable", "worsening"
+    trend: str
 
 
 @dataclass
 class RiskScore:
     target: str
-    overall_score: float  # 0-100 (higher = better security)
+    overall_score: float
     risk_level: RiskLevel
     factors: List[RiskFactor]
     critical_issues: int
@@ -36,7 +36,7 @@ class RiskScore:
     medium_issues: int
     low_issues: int
     last_updated: datetime
-    trend: str  # "improving", "stable", "worsening"
+    trend: str
     
     def to_dict(self) -> Dict[str, Any]:
         return {

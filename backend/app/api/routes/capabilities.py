@@ -243,7 +243,7 @@ async def create_job(
             
             def log_thread_completion(future):
                 try:
-                    future.result()  # This will raise if task failed
+                    future.result()
                 except Exception as e:
                     logger.error(
                         f"[API] [create_job] Background job thread error for job {job.id}: {e}",
@@ -554,7 +554,7 @@ async def get_job(
         error=job.error,
         priority=job.priority.value if hasattr(job.priority, 'value') else job.priority,
         config=job.config or {},
-        metadata=job.metadata or {},  # JobDataclass uses 'metadata', not 'meta_data'
+        metadata=job.metadata or {},
         execution_logs=job.execution_logs or []
     )
 
@@ -901,8 +901,8 @@ async def stream_job_findings(job_id: str):
     
     async def generate_stream() -> AsyncGenerator[str, None]:
         last_finding_count = 0
-        check_interval = 1.0  # Check every second
-        max_wait_time = 300  # Wait up to 5 minutes for job completion
+        check_interval = 1.0
+        max_wait_time = 300
         elapsed_time = 0
         
         yield f"event: connected\ndata: {json.dumps({'job_id': job_id, 'status': job.status.value})}\n\n"
@@ -977,7 +977,7 @@ async def stream_job_findings(job_id: str):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+            "X-Accel-Buffering": "no"
         }
     )
 
@@ -1280,7 +1280,7 @@ async def get_recent_events(
         
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-        recent_findings = await finding_storage.get_findings(limit=limit * 2)  # Get more to have variety
+        recent_findings = await finding_storage.get_findings(limit=limit * 2)
         
         for finding in recent_findings:
             events.append({
@@ -1728,7 +1728,7 @@ async def get_email_history(
 
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
-            limit=limit * 2  # Get more to filter by target
+            limit=limit * 2 
         )
         
 

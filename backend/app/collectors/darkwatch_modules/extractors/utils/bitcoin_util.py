@@ -52,7 +52,7 @@ def is_valid_bitcoin(addr: str) -> bool:
     
     version = bin_addr[0]
     checksum = bin_addr[-4:]
-    vh160 = bin_addr[:-4]  # Version plus hash160
+    vh160 = bin_addr[:-4]
     
     h3 = SHA256.new(SHA256.new(vh160).digest()).digest()
     if h3[0:4] == checksum:
@@ -69,4 +69,4 @@ def extract_bitcoin_addresses(text: str) -> List[str]:
         if is_valid_bitcoin(match):
             addresses.append(match)
     
-    return list(set(addresses))  # Return unique addresses
+    return list(set(addresses))

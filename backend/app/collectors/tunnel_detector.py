@@ -154,8 +154,8 @@ class TunnelDetector:
         self.request_buffer = CircularBuffer(buffer_size)
         
 
-        self.connections = HashMap()  # conn_key -> connection state
-        self.requests = HashMap()  # request_id -> HTTPRequest
+        self.connections = HashMap()
+        self.requests = HashMap()
         
 
         self.detection_queue = MaxHeap()
@@ -164,11 +164,11 @@ class TunnelDetector:
         self.connection_graph = Graph(directed=True)
         
 
-        self.detections = HashMap()  # detection_id -> TunnelDetection
-        self.beacons = HashMap()  # pattern_id -> BeaconingPattern
+        self.detections = HashMap()
+        self.beacons = HashMap()
         
 
-        self.timing_data = HashMap()  # conn_key -> list of timestamps
+        self.timing_data = HashMap()
         
 
         self.stats = {
@@ -292,13 +292,13 @@ class TunnelDetector:
             indicators.append(f"Beaconing detected (interval: {beacon.interval_seconds:.1f}s)")
         
 
-        if response_time_ms > 30000:  # 30+ seconds
+        if response_time_ms > 30000:
             indicators.append("Long-polling behavior")
             if tunnel_type == TunnelType.UNKNOWN:
                 tunnel_type = TunnelType.LONG_POLLING
         
 
-        if len(indicators) >= 2:  # Need at least 2 indicators
+        if len(indicators) >= 2: 
             detection = self._create_detection(
                 conn_key, request, indicators, tunnel_type
             )
@@ -439,7 +439,7 @@ class TunnelDetector:
         cv = std_dev / mean_interval if mean_interval > 0 else float('inf')
         
 
-        if cv < 0.3 and mean_interval < 300:  # Less than 5 min intervals
+        if cv < 0.3 and mean_interval < 300:
             confidence = 1.0 - cv
             
             pattern_id = self._generate_id("beacon", conn_key)

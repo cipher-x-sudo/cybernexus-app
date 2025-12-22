@@ -18,4 +18,4 @@ def extract_emails(text: str) -> List[str]:
     emails = REGEX.findall(text)
 
     valid_emails = [email for email in emails if is_valid_email(email)]
-    return list(set(valid_emails))  # Return unique emails
+    return list(set(valid_emails))

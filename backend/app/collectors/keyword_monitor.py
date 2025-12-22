@@ -43,7 +43,7 @@ class MonitorRule:
     severity: MatchSeverity = MatchSeverity.MEDIUM
     enabled: bool = True
     case_sensitive: bool = False
-    require_all: bool = False  # Require all keywords to match
+    require_all: bool = False 
     exclude_keywords: List[str] = field(default_factory=list)
     source_filter: List[SourceType] = field(default_factory=list)
     score_multiplier: float = 1.0
@@ -141,7 +141,7 @@ class KeywordMonitor:
         self.keyword_trie = Trie()
         
 
-        self.rules = HashMap()  # rule_id -> MonitorRule
+        self.rules = HashMap()
         
 
         self.alert_queue = MaxHeap()
@@ -150,11 +150,11 @@ class KeywordMonitor:
         self.match_history = DoublyLinkedList()
         
 
-        self.matches = HashMap()  # match_id -> KeywordMatch
-        self.alerts = HashMap()  # alert_id -> Alert
+        self.matches = HashMap()
+        self.alerts = HashMap() 
         
 
-        self.keyword_rules = HashMap()  # keyword -> List[rule_id]
+        self.keyword_rules = HashMap()
         
 
         self.stats = {
@@ -285,7 +285,7 @@ class KeywordMonitor:
         source_type: SourceType
     ) -> float:
         
-        base_score = rule.severity.value * 20  # 20-100 based on severity
+        base_score = rule.severity.value * 20
         
 
         keyword_bonus = len(matched_keywords) * 5
@@ -304,7 +304,7 @@ class KeywordMonitor:
         source_mult = source_multipliers.get(source_type, 1.0)
         
         score = (base_score + keyword_bonus + pattern_bonus) * source_mult * rule.score_multiplier
-        return min(score, 100.0)  # Cap at 100
+        return min(score, 100.0)
     
     def _get_snippet(self, content: str, keyword: str, context_size: int = 100) -> str:
         

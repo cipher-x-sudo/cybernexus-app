@@ -46,7 +46,7 @@ class CapturedRequest:
     url: str
     method: RequestMethod
     resource_type: ResourceType
-    initiator: Optional[str]  # URL that initiated this request
+    initiator: Optional[str]
     timestamp: datetime
     response_status: int = 0
     response_size: int = 0

@@ -1685,7 +1685,7 @@ class Orchestrator:
                     f"[DarkWeb] [job_id={job.id}] URL discovery failed after {discovery_time:.2f}s: {e}",
                     exc_info=True
                 )
-                urls = []  # Continue with empty list, will try database fallback
+                urls = []  
                 job.progress = 20
             
 
@@ -1721,7 +1721,7 @@ class Orchestrator:
 
                         urls = []
                         extraction_start = time.time()
-                        for idx, record in enumerate(db_records[:10]):  # Limit to 10
+                        for idx, record in enumerate(db_records[:10]):
                             url = record[2] if len(record) > 2 and record[2] else None
                             baseurl = record[4] if len(record) > 4 and record[4] else None
                             if url:
@@ -1888,7 +1888,7 @@ class Orchestrator:
             
 
             batch_progress_base = 30
-            batch_progress_range = 60  # 30% to 90%
+            batch_progress_range = 60
             total_urls = len(urls_to_crawl)
             completed_count = 0
             
@@ -1905,7 +1905,7 @@ class Orchestrator:
                 for future in as_completed(future_to_url, timeout=crawl_timeout):
                     url = future_to_url[future]
                     try:
-                        url_findings = future.result(timeout=120)  # Individual URL timeout
+                        url_findings = future.result(timeout=120)
                         
 
                         if url_findings:
@@ -2086,8 +2086,8 @@ class Orchestrator:
             await send_progress(15, "Starting URL discovery from engines")
             
             urls = []
-            discovered_urls_by_engine = {}  # Track URLs per engine
-            pending_engine_findings = []  # Collect findings from callback to send after discovery
+            discovered_urls_by_engine = {}
+            pending_engine_findings = []
             
             def on_engine_complete(engine_name: str, engine_urls: List[str]):
                 discovered_urls_by_engine[engine_name] = engine_urls
@@ -2763,7 +2763,7 @@ class Orchestrator:
                     evidence={
                         "domain": domain,
                         "darkweb_findings_count": len(darkweb_findings),
-                        "related_findings": [f.id for f in darkweb_findings[:5]]  # Limit to 5
+                        "related_findings": [f.id for f in darkweb_findings[:5]] 
                     },
                     affected_assets=[target],
                     recommendations=[
