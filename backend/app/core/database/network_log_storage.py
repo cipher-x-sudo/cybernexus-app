@@ -53,7 +53,6 @@ class DBNetworkLogStorage:
             if owner_id:
                 existing.user_id = owner_id
         else:
-            # Create new log
             timestamp = datetime.utcnow()
             if "timestamp" in log_entry:
                 try:
@@ -84,18 +83,8 @@ class DBNetworkLogStorage:
         return request_id
     
     async def get_log(self, request_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a single log entry by request ID.
-        
-        Args:
-            request_id: Request ID
-            
-        Returns:
-            Log entry dictionary or None
-        """
         query = select(NetworkLog).where(NetworkLog.request_id == request_id)
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
@@ -119,30 +108,11 @@ class DBNetworkLogStorage:
         status: Optional[int] = None,
         has_tunnel: Optional[bool] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Get logs with filtering.
-        
-        Args:
-            limit: Maximum number of logs to return
-            offset: Offset for pagination
-            start_time: Start time filter
-            end_time: End time filter
-            ip: Filter by IP address
-            endpoint: Filter by endpoint path
-            method: Filter by HTTP method
-            status: Filter by status code
-            has_tunnel: Filter by tunnel detection (True/False)
-            
-        Returns:
-            List of log entry dictionaries
-        """
         query = select(NetworkLog)
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
-        # Apply filters
         conditions = []
         
         if start_time:
@@ -166,10 +136,8 @@ class DBNetworkLogStorage:
         if conditions:
             query = query.where(and_(*conditions))
         
-        # Order by timestamp descending
         query = query.order_by(NetworkLog.timestamp.desc())
         
-        # Apply pagination
         query = query.limit(limit).offset(offset)
         
         result = await self.db.execute(query)
@@ -178,16 +146,6 @@ class DBNetworkLogStorage:
         return [self._log_to_dict(log) for log in logs]
     
     async def search_logs(self, q: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Search logs by query string (searches path, query, body).
-        
-        Args:
-            q: Search query
-            limit: Maximum results
-            
-        Returns:
-            List of matching log entries
-        """
         query = select(NetworkLog).where(
             or_(
                 NetworkLog.path.ilike(f"%{q}%"),
@@ -197,7 +155,6 @@ class DBNetworkLogStorage:
             )
         )
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
@@ -213,16 +170,6 @@ class DBNetworkLogStorage:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
-        """
-        Get aggregate statistics for network logs.
-        
-        Args:
-            start_time: Start time filter
-            end_time: End time filter
-            
-        Returns:
-            Statistics dictionary
-        """
         query = select(
             func.count(NetworkLog.id).label("total_requests"),
             func.avg(NetworkLog.response_time_ms).label("avg_response_time"),
@@ -232,11 +179,9 @@ class DBNetworkLogStorage:
             func.count(func.distinct(NetworkLog.path)).label("unique_endpoints")
         )
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
-        # Apply time filters
         conditions = []
         if start_time:
             conditions.append(NetworkLog.timestamp >= start_time)
@@ -249,7 +194,6 @@ class DBNetworkLogStorage:
         result = await self.db.execute(query)
         stats = result.one()
         
-        # Get status code distribution
         status_query = select(
             NetworkLog.status,
             func.count(NetworkLog.id).label("count")
@@ -265,7 +209,6 @@ class DBNetworkLogStorage:
         status_result = await self.db.execute(status_query)
         status_dist = {row[0]: row[1] for row in status_result.fetchall()}
         
-        # Get tunnel detection count
         tunnel_query = select(func.count(NetworkLog.id))
         if not self.is_admin and self.user_id:
             tunnel_query = tunnel_query.where(NetworkLog.user_id == self.user_id)
@@ -292,21 +235,8 @@ class DBNetworkLogStorage:
         format: str = "json",
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        filters: Optional[Dict[str, Any]] = None
+            filters: Optional[Dict[str, Any]] = None
     ) -> str:
-        """
-        Export logs in various formats.
-        
-        Args:
-            format: Export format (json, csv)
-            start_time: Start time filter
-            end_time: End time filter
-            filters: Additional filters
-            
-        Returns:
-            Exported data as string
-        """
-        # Build query with filters
         query = select(NetworkLog)
         
         if not self.is_admin and self.user_id:
@@ -366,32 +296,16 @@ class DBNetworkLogStorage:
         limit: int = 100,
         min_confidence: str = "medium"
     ) -> List[Dict[str, Any]]:
-        """
-        Get tunnel detections.
-        
-        Args:
-            limit: Maximum results
-            min_confidence: Minimum confidence level (low, medium, high, confirmed)
-            
-        Returns:
-            List of tunnel detection dictionaries
-        """
         query = select(NetworkLog).where(NetworkLog.tunnel_detection.isnot(None))
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
-        # Filter by confidence if specified
-        # Note: Confidence is stored in tunnel_detection JSONB
-        # We'll filter after fetching since JSONB filtering is complex
-        
-        query = query.order_by(NetworkLog.timestamp.desc()).limit(limit * 2)  # Fetch more to filter
+        query = query.order_by(NetworkLog.timestamp.desc()).limit(limit * 2)
         
         result = await self.db.execute(query)
         logs = result.scalars().all()
         
-        # Filter by confidence and convert to detection format
         detections = []
         confidence_map = {"low": 0, "medium": 1, "high": 2, "confirmed": 3}
         min_conf_level = confidence_map.get(min_confidence, 1)
@@ -424,17 +338,10 @@ class DBNetworkLogStorage:
         return detections
     
     async def cleanup_old_logs(self) -> int:
-        """
-        Delete logs older than TTL.
-        
-        Returns:
-            Number of logs deleted
-        """
         cutoff_date = datetime.utcnow() - timedelta(days=self.ttl_days)
         
         query = delete(NetworkLog).where(NetworkLog.timestamp < cutoff_date)
         
-        # Apply user filter if not admin
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
@@ -444,7 +351,6 @@ class DBNetworkLogStorage:
         return result.rowcount or 0
     
     def _log_to_dict(self, log: NetworkLog) -> Dict[str, Any]:
-        """Convert NetworkLog model to dictionary."""
         return {
             "id": log.id,
             "request_id": log.request_id,
@@ -460,7 +366,7 @@ class DBNetworkLogStorage:
             "response_headers": log.response_headers,
             "body": log.request_body,
             "body_size": len(log.request_body) if log.request_body else 0,
-            "body_truncated": False,  # Database stores full body
+            "body_truncated": False,
             "response_body": log.response_body,
             "response_body_size": len(log.response_body) if log.response_body else 0,
             "response_body_truncated": False,

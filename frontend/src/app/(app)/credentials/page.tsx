@@ -15,7 +15,6 @@ interface Credential {
   status: "active" | "resolved" | "investigating";
 }
 
-// Fetch credentials from API
 async function fetchCredentials(): Promise<Credential[]> {
   try {
     const response = await fetch('/api/credentials');

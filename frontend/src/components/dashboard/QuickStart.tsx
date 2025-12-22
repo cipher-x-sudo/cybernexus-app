@@ -21,7 +21,6 @@ export function QuickStart({ onScan, className }: QuickStartProps) {
 
     setIsScanning(true);
     
-    // Simulate scan
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     if (onScan) {

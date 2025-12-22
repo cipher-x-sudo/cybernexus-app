@@ -85,7 +85,7 @@ class Threat(BaseModel):
     status: ThreatStatus = ThreatStatus.ACTIVE
     category: ThreatCategory
     source: str
-    score: float  # 0-100 severity score
+    score: float
     affected_entities: List[str] = []
     indicators: List[str] = []
     created_at: datetime
@@ -95,7 +95,6 @@ class Threat(BaseModel):
 
 
 class ThreatCreate(BaseModel):
-    """Create threat request."""
     title: str
     description: str
     severity: ThreatSeverity
@@ -109,7 +108,6 @@ class ThreatCreate(BaseModel):
 
 
 class ThreatUpdate(BaseModel):
-    """Update threat request."""
     status: Optional[ThreatStatus] = None
     severity: Optional[ThreatSeverity] = None
     score: Optional[float] = None
@@ -117,7 +115,6 @@ class ThreatUpdate(BaseModel):
 
 
 class ThreatStats(BaseModel):
-    """Threat statistics."""
     total: int
     active: int
     critical: int
@@ -128,23 +125,17 @@ class ThreatStats(BaseModel):
     avg_score: float
 
 
-# In-memory threat store (will be replaced with custom Heap DSA for ranking)
 threats_db: dict = {}
 threat_counter = 0
 
-# Threats will be populated from real collector findings
-# No sample data - threats are created dynamically from DarkWatch and other collectors
-
 
 def generate_threat_id() -> str:
-    """Generate a unique threat ID."""
     global threat_counter
     threat_counter += 1
     return f"THR-{threat_counter:08d}"
 
 
 def calculate_priority(threat: dict) -> float:
-    """Calculate threat priority for heap ordering."""
     severity_weights = {
         ThreatSeverity.CRITICAL: 5,
         ThreatSeverity.HIGH: 4,
@@ -178,10 +169,8 @@ async def list_threats(
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0)
 ):
-    """List all threats with optional filtering and sorting."""
     results = list(threats_db.values())
     
-    # Apply filters
     if severity:
         results = [t for t in results if t["severity"] == severity]
     if status:
@@ -193,7 +182,6 @@ async def list_threats(
     if min_score > 0:
         results = [t for t in results if t["score"] >= min_score]
     
-    # Sort by priority (using heap logic)
     if sort_by == "score":
         results.sort(key=lambda t: calculate_priority(t), reverse=True)
     elif sort_by == "created_at":
@@ -202,7 +190,6 @@ async def list_threats(
         severity_order = ["critical", "high", "medium", "low", "info"]
         results.sort(key=lambda t: severity_order.index(t["severity"]))
     
-    # Pagination
     results = results[offset:offset + limit]
     
     return [Threat(**t) for t in results]
@@ -210,10 +197,8 @@ async def list_threats(
 
 @router.get("/top", response_model=List[Threat])
 async def get_top_threats(n: int = Query(default=10, ge=1, le=100)):
-    """Get top N threats by priority (heap-based ranking)."""
     results = list(threats_db.values())
     
-    # Sort by priority (simulating max-heap extraction)
     results.sort(key=lambda t: calculate_priority(t), reverse=True)
     
     return [Threat(**t) for t in results[:n]]
@@ -221,7 +206,6 @@ async def get_top_threats(n: int = Query(default=10, ge=1, le=100)):
 
 @router.get("/stats", response_model=ThreatStats)
 async def get_threat_stats():
-    """Get threat statistics."""
     threats = list(threats_db.values())
     
     by_category = {}
@@ -252,7 +236,6 @@ async def get_threat_stats():
 
 @router.get("/{threat_id}", response_model=Threat)
 async def get_threat(threat_id: str):
-    """Get a specific threat by ID."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     return Threat(**threats_db[threat_id])
@@ -264,7 +247,6 @@ async def create_threat(
     current_user: Optional[UserModel] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new threat."""
     now = datetime.utcnow()
     threat_id = generate_threat_id()
     
@@ -287,10 +269,8 @@ async def create_threat(
     
     threats_db[threat_id] = threat_dict
     
-    # Create notification if user is authenticated
     if current_user:
         try:
-            # Map threat severity to notification priority and severity
             severity_map = {
                 ThreatSeverity.CRITICAL: (NotificationPriority.CRITICAL, "critical"),
                 ThreatSeverity.HIGH: (NotificationPriority.HIGH, "high"),
@@ -316,7 +296,6 @@ async def create_threat(
                 }
             )
         except Exception as e:
-            # Log error but don't fail threat creation
             from loguru import logger
             logger.error(f"Failed to create notification for threat {threat_id}: {e}")
     
@@ -325,7 +304,6 @@ async def create_threat(
 
 @router.put("/{threat_id}", response_model=Threat)
 async def update_threat(threat_id: str, threat: ThreatUpdate):
-    """Update an existing threat."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     
@@ -347,7 +325,6 @@ async def update_threat(threat_id: str, threat: ThreatUpdate):
 
 @router.delete("/{threat_id}")
 async def delete_threat(threat_id: str):
-    """Delete a threat."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     

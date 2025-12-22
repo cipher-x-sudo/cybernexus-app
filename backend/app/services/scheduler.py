@@ -81,23 +81,18 @@ class SchedulerService:
             logger.error(f"Error loading scheduled searches: {e}", exc_info=True)
     
     async def _add_scheduled_job(self, scheduled_search: ScheduledSearch, session: Optional[AsyncSession] = None):
-        """Add a scheduled search job to the scheduler."""
         if not self.scheduler:
             raise RuntimeError("Scheduler not initialized")
         
-        # Calculate next run time if cron expression is provided
         if scheduled_search.cron_expression:
             try:
-                # Get timezone
                 import pytz
                 tz = pytz.timezone(scheduled_search.timezone)
                 
-                # Calculate next run time
                 now = datetime.now(tz)
                 cron = croniter(scheduled_search.cron_expression, now)
                 next_run = cron.get_next(datetime)
                 
-                # Update next_run_at in database
                 if session:
                     scheduled_search.next_run_at = next_run.astimezone(timezone.utc)
                     await session.commit()
@@ -111,17 +106,13 @@ class SchedulerService:
                 logger.error(f"Error calculating next run time for {scheduled_search.id}: {e}")
                 return
         
-        # Create job function
         async def execute_search():
             await self._execute_scheduled_search(scheduled_search.id)
         
-        # Add job to scheduler
         try:
             if scheduled_search.cron_expression:
-                # Parse cron expression
                 cron_parts = scheduled_search.cron_expression.split()
                 if len(cron_parts) == 5:
-                    # Get timezone object
                     import pytz
                     tz_obj = pytz.timezone(scheduled_search.timezone)
                     
@@ -136,7 +127,6 @@ class SchedulerService:
                 logger.error(f"No cron expression for scheduled search {scheduled_search.id}")
                 return
             
-            # Add job with unique ID
             job_id = f"scheduled_search_{scheduled_search.id}"
             self.scheduler.add_job(
                 execute_search,
@@ -147,7 +137,6 @@ class SchedulerService:
                 max_instances=1
             )
             
-            # Format capabilities for logging
             capabilities_str = ", ".join(scheduled_search.capabilities) if scheduled_search.capabilities else "none"
             logger.info(
                 f"Added scheduled job {job_id} for search '{scheduled_search.name}' "
@@ -157,10 +146,8 @@ class SchedulerService:
             logger.error(f"Error adding scheduled job for {scheduled_search.id}: {e}", exc_info=True)
     
     async def _execute_scheduled_search(self, scheduled_search_id: str):
-        """Execute a scheduled search."""
         try:
             async with _async_session_maker() as session:
-                # Get scheduled search
                 scheduled_search = await session.get(ScheduledSearch, scheduled_search_id)
                 if not scheduled_search:
                     logger.error(f"Scheduled search {scheduled_search_id} not found")
@@ -170,11 +157,9 @@ class SchedulerService:
                     logger.warning(f"Scheduled search {scheduled_search_id} is disabled, skipping")
                     return
                 
-                # Get capabilities list (support both old single capability and new multiple capabilities)
                 if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
                     capabilities_list = scheduled_search.capabilities if isinstance(scheduled_search.capabilities, list) else [scheduled_search.capabilities]
                 elif hasattr(scheduled_search, 'capability') and scheduled_search.capability:
-                    # Backward compatibility: convert single capability to list
                     capabilities_list = [scheduled_search.capability]
                 else:
                     logger.error(f"Scheduled search {scheduled_search_id} has no capabilities")
@@ -185,10 +170,8 @@ class SchedulerService:
                     f"(capabilities: {capabilities_list}, target: {scheduled_search.target})"
                 )
                 
-                # Get orchestrator
                 orchestrator = get_orchestrator()
                 
-                # Execute all capabilities in parallel
                 jobs_created = []
                 for cap_str in capabilities_list:
                     try:
@@ -197,26 +180,21 @@ class SchedulerService:
                         logger.error(f"Invalid capability: {cap_str}, skipping")
                         continue
                     
-                    # Get capability-specific config if available
                     cap_config = scheduled_search.config or {}
                     if isinstance(cap_config, dict) and cap_str in cap_config:
                         cap_config = cap_config[cap_str]
                     
-                    # Prepare metadata to track that this was created by scheduler
                     metadata = {
                         "scheduled_search_id": scheduled_search_id,
                         "scheduled_search_name": scheduled_search.name,
                         "capability": cap_str
                     }
                     
-                    # Merge metadata into config
                     if isinstance(cap_config, dict):
                         cap_config = {**cap_config, "metadata": metadata}
                     else:
                         cap_config = {"metadata": metadata}
                     
-                    # Create job via orchestrator
-                    # Use background priority for scheduled searches
                     job = await orchestrator.create_job(
                         capability=capability,
                         target=scheduled_search.target,
@@ -231,11 +209,9 @@ class SchedulerService:
                     logger.error(f"No jobs created for scheduled search {scheduled_search_id}")
                     return
                 
-                # Update scheduled search record
                 scheduled_search.last_run_at = datetime.now(timezone.utc)
                 scheduled_search.run_count = (scheduled_search.run_count or 0) + 1
                 
-                # Calculate next run time
                 if scheduled_search.cron_expression:
                     try:
                         import pytz
@@ -259,7 +235,6 @@ class SchedulerService:
             )
     
     async def add_scheduled_search(self, scheduled_search: ScheduledSearch):
-        """Add a new scheduled search to the scheduler."""
         if not self._initialized:
             await self.initialize()
         
@@ -271,19 +246,16 @@ class SchedulerService:
             await self._add_scheduled_job(scheduled_search, session)
     
     async def update_scheduled_search(self, scheduled_search: ScheduledSearch):
-        """Update an existing scheduled search in the scheduler."""
         if not self._initialized:
             await self.initialize()
         
-        # Remove old job
         job_id = f"scheduled_search_{scheduled_search.id}"
         if self.scheduler:
             try:
                 self.scheduler.remove_job(job_id)
             except Exception:
-                pass  # Job might not exist
+                pass
         
-        # Add updated job
         async with _async_session_maker() as session:
             await session.merge(scheduled_search)
             await session.commit()
@@ -293,7 +265,6 @@ class SchedulerService:
                 await self._add_scheduled_job(scheduled_search, session)
     
     async def remove_scheduled_search(self, scheduled_search_id: str):
-        """Remove a scheduled search from the scheduler."""
         job_id = f"scheduled_search_{scheduled_search_id}"
         if self.scheduler:
             try:
@@ -303,16 +274,13 @@ class SchedulerService:
                 logger.warning(f"Error removing scheduled job {job_id}: {e}")
     
     async def trigger_scheduled_search(self, scheduled_search_id: str):
-        """Manually trigger a scheduled search execution."""
         await self._execute_scheduled_search(scheduled_search_id)
 
 
-# Global scheduler instance
 _scheduler_service: Optional[SchedulerService] = None
 
 
 def get_scheduler_service() -> SchedulerService:
-    """Get the global scheduler service instance."""
     global _scheduler_service
     if _scheduler_service is None:
         _scheduler_service = SchedulerService()

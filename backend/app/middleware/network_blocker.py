@@ -73,13 +73,11 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
                         }
                     )
             except Exception as e:
-                logger.error(f"Error checking rate limit: {e}")
+                    logger.error(f"Error checking rate limit: {e}")
         
-        # Request is allowed
         return await call_next(request)
     
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request."""
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
@@ -94,7 +92,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
         return "unknown"
     
     async def _is_ip_blocked(self, ip: str) -> bool:
-        """Check if IP is blocked."""
         if not self.block_manager:
             return False
         try:
@@ -104,7 +101,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
             return False
     
     async def _is_endpoint_blocked(self, path: str, method: str) -> bool:
-        """Check if endpoint is blocked."""
         if not self.block_manager:
             return False
         try:
@@ -114,7 +110,6 @@ class NetworkBlockerMiddleware(BaseHTTPMiddleware):
             return False
     
     async def _is_pattern_blocked(self, request: Request) -> bool:
-        """Check if request matches blocked pattern."""
         if not self.block_manager:
             return False
         try:

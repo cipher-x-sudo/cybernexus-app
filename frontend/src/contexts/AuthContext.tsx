@@ -36,7 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Load auth state from localStorage on mount
   useEffect(() => {
     const loadAuthState = async () => {
       try {
@@ -49,13 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(JSON.parse(storedUser));
             api.setToken(storedToken);
 
-            // Verify token is still valid by fetching current user
             try {
               const currentUser = await api.getCurrentUser();
               setUser(currentUser);
               localStorage.setItem("auth_user", JSON.stringify(currentUser));
             } catch (error) {
-              // Token invalid, clear auth state
               localStorage.removeItem("auth_token");
               localStorage.removeItem("auth_user");
               setToken(null);
@@ -85,11 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(response.token);
       api.setToken(response.token);
 
-      // Fetch user info
       const currentUser = await api.getCurrentUser();
       setUser(currentUser);
 
-      // Store in localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("auth_token", response.token);
         localStorage.setItem("auth_user", JSON.stringify(currentUser));

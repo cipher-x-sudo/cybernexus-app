@@ -98,7 +98,6 @@ export default function MapPage() {
         ctx.stroke();
       }
 
-      // Draw neon continent outlines
       ctx.strokeStyle = "rgba(245, 158, 11, 0.4)";
       ctx.lineWidth = 2;
       ctx.shadowColor = "#f59e0b";
@@ -246,7 +245,6 @@ export default function MapPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-mono font-bold text-white">Threat Map</h1>
@@ -255,7 +253,6 @@ export default function MapPage() {
           </p>
         </div>
 
-        {/* Filters */}
         <div className="flex gap-2">
           {["all", "critical", "high", "medium", "low"].map((f) => (
             <button

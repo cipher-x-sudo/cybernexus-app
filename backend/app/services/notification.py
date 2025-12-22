@@ -1,9 +1,3 @@
-"""
-Notification Service
-
-Real-time alerting and notification management.
-"""
-
 import asyncio
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime
@@ -16,7 +10,6 @@ from app.core.database.models import Notification as NotificationModel
 
 
 class NotificationPriority(Enum):
-    """Notification priority levels."""
     CRITICAL = 1
     HIGH = 2
     MEDIUM = 3
@@ -25,48 +18,20 @@ class NotificationPriority(Enum):
 
 
 class NotificationService:
-    """
-    Notification Service.
-    
-    Features:
-    - Priority-based alert queue
-    - Multi-channel delivery
-    - Notification history
-    - Rate limiting
-    
-    DSA Usage:
-    - MinHeap: Priority queue for notifications
-    - HashMap: Subscription management
-    - CircularBuffer: Recent notification history
-    """
-    
     def __init__(self):
-        """Initialize notification service."""
         self._notification_queue = MinHeap()
-        self._subscriptions = HashMap()  # channel -> callbacks
+        self._subscriptions = HashMap()
         self._history = CircularBuffer(capacity=1000)
-        self._rate_limits = HashMap()  # key -> (count, reset_time)
+        self._rate_limits = HashMap()
         self._handlers: Dict[str, List[Callable]] = {}
     
     def subscribe(self, channel: str, callback: Callable):
-        """Subscribe to a notification channel.
-        
-        Args:
-            channel: Channel name (e.g., 'threats', 'alerts', 'events')
-            callback: Async callback function
-        """
         callbacks = self._subscriptions.get(channel, [])
         callbacks.append(callback)
         self._subscriptions.put(channel, callbacks)
         logger.info(f"Subscribed to channel: {channel}")
     
     def unsubscribe(self, channel: str, callback: Callable):
-        """Unsubscribe from a notification channel.
-        
-        Args:
-            channel: Channel name
-            callback: Callback to remove
-        """
         callbacks = self._subscriptions.get(channel, [])
         if callback in callbacks:
             callbacks.remove(callback)
@@ -74,13 +39,6 @@ class NotificationService:
     
     async def notify(self, channel: str, message: Dict[str, Any], 
                     priority: NotificationPriority = NotificationPriority.MEDIUM):
-        """Send a notification.
-        
-        Args:
-            channel: Channel to send to
-            message: Notification message
-            priority: Notification priority
-        """
         notification = {
             "id": f"notif-{datetime.utcnow().timestamp()}",
             "channel": channel,
@@ -89,24 +47,16 @@ class NotificationService:
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Add to queue
         self._notification_queue.push(priority.value, notification)
         
-        # Add to history
         self._history.push(notification)
         
-        # Process immediately if high priority
         if priority.value <= NotificationPriority.HIGH.value:
             await self._process_notification(notification)
         
         logger.debug(f"Notification queued: {channel} - {priority.name}")
     
     async def _process_notification(self, notification: Dict[str, Any]):
-        """Process and deliver a notification.
-        
-        Args:
-            notification: Notification to process
-        """
         channel = notification["channel"]
         callbacks = self._subscriptions.get(channel, [])
         
@@ -120,7 +70,6 @@ class NotificationService:
                 logger.error(f"Notification callback error: {e}")
     
     async def process_queue(self):
-        """Process pending notifications from queue."""
         while self._notification_queue:
             result = self._notification_queue.pop()
             if result:
@@ -128,41 +77,14 @@ class NotificationService:
                 await self._process_notification(notification)
     
     def get_recent_notifications(self, n: int = 20) -> List[Dict[str, Any]]:
-        """Get recent notifications.
-        
-        Args:
-            n: Number of notifications
-            
-        Returns:
-            List of recent notifications
-        """
         return self._history.get_last_n(n)
     
     def get_notifications_by_channel(self, channel: str, n: int = 50) -> List[Dict[str, Any]]:
-        """Get notifications for a specific channel.
-        
-        Args:
-            channel: Channel name
-            n: Maximum notifications
-            
-        Returns:
-            List of notifications
-        """
         all_notifications = self._history.get_all()
         filtered = [n for n in all_notifications if n["channel"] == channel]
         return filtered[-n:]
     
     def check_rate_limit(self, key: str, limit: int, window_seconds: int) -> bool:
-        """Check if rate limit allows notification.
-        
-        Args:
-            key: Rate limit key
-            limit: Maximum notifications in window
-            window_seconds: Time window
-            
-        Returns:
-            True if allowed, False if rate limited
-        """
         now = datetime.utcnow().timestamp()
         state = self._rate_limits.get(key)
         
@@ -180,7 +102,6 @@ class NotificationService:
         return True
     
     def stats(self) -> Dict[str, Any]:
-        """Get service statistics."""
         return {
             "queue_size": len(self._notification_queue),
             "subscriptions": {ch: len(cb) for ch, cb in self._subscriptions.items()},

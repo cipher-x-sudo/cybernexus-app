@@ -30,9 +30,7 @@ interface CapabilityPageProps {
   configOptions?: React.ReactNode;
 }
 
-// Convert API finding to display finding
 function convertFinding(apiFinding: CapabilityFinding): Finding {
-  // Format evidence as string for display
   let evidenceStr = "";
   if (apiFinding.evidence) {
     try {
@@ -49,7 +47,6 @@ function convertFinding(apiFinding: CapabilityFinding): Finding {
     }
   }
 
-  // Format timestamp
   const timestamp = apiFinding.discovered_at
     ? formatRelativeTime(new Date(apiFinding.discovered_at))
     : "Just now";
@@ -99,16 +96,13 @@ export function CapabilityPage({
   const [error, setError] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<CapabilityJob | null>(null);
   
-  // Refs to track polling state and cleanup on unmount
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingRef = useRef(false);
   const websocketRef = useRef<WebSocket | null>(null);
   
-  // Check if this is a darkweb job (use WebSocket instead of polling)
   const isDarkwebJob = id === "dark_web_intelligence";
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -176,7 +170,6 @@ export function CapabilityPage({
 
   const colors = getColorClasses();
 
-  // Poll for job status
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
       const job = await api.getJobStatus(jobId);
@@ -184,19 +177,18 @@ export function CapabilityPage({
       setProgress(job.progress);
 
       if (job.status === "completed") {
-        // Fetch findings
         const apiFindings = await api.getJobFindings(jobId);
         const convertedFindings = apiFindings.map(convertFinding);
         setFindings(convertedFindings);
         setIsScanning(false);
         setProgress(100);
-        return true; // Done
+        return true;
       } else if (job.status === "failed") {
         setError(job.error || "Scan failed");
         setIsScanning(false);
-        return true; // Done
+        return true;
       }
-      return false; // Keep polling
+      return false;
     } catch (err) {
       console.error("Error polling job status:", err);
       return false;
@@ -206,7 +198,6 @@ export function CapabilityPage({
   const handleScan = async () => {
     if (!target.trim()) return;
     
-    // Clean up any existing polling or WebSocket
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -228,7 +219,6 @@ export function CapabilityPage({
     isPollingRef.current = false;
 
     try {
-      // Create job via API
       const job = await api.createCapabilityJob({
         capability: id,
         target: target.trim(),
@@ -237,17 +227,13 @@ export function CapabilityPage({
 
       setCurrentJob(job);
 
-      // Use WebSocket for darkweb jobs, polling for others
       if (isDarkwebJob) {
-        // Connect via WebSocket for real-time streaming
         const ws = connectDarkwebJobWebSocket(job.id, {
           onFinding: (finding) => {
             console.log("[WebSocket] Received finding:", finding);
-            // Convert and add finding immediately
             try {
               const convertedFinding = convertFinding(finding);
               setFindings((prev: Finding[]) => {
-                // Check if finding already exists to avoid duplicates
                 const exists = prev.some(f => f.id === convertedFinding.id);
                 if (exists) {
                   console.log("[WebSocket] Finding already exists, skipping:", convertedFinding.id);
@@ -262,7 +248,6 @@ export function CapabilityPage({
           onProgress: (progressValue, message) => {
             console.log("[WebSocket] Progress update:", progressValue, message);
             setProgress(progressValue);
-            // Update job status if needed
             setCurrentJob((prev) => {
               if (prev) {
                 return { ...prev, progress: progressValue };
@@ -274,14 +259,12 @@ export function CapabilityPage({
             console.log("[WebSocket] Job complete:", data);
             setIsScanning(false);
             setProgress(100);
-            // Update job status to completed
             setCurrentJob((prev) => {
               if (prev) {
                 return { ...prev, status: "completed", progress: 100 };
               }
               return prev;
             });
-            // Close WebSocket connection
             if (websocketRef.current) {
               websocketRef.current.close();
               websocketRef.current = null;
@@ -302,7 +285,6 @@ export function CapabilityPage({
         
         websocketRef.current = ws;
         
-        // Timeout after 10 minutes for darkweb jobs (they can take longer)
         timeoutRef.current = setTimeout(() => {
           if (websocketRef.current) {
             websocketRef.current.close();
@@ -315,16 +297,13 @@ export function CapabilityPage({
             }
             return current;
           });
-        }, 600000); // 10 minutes
+        }, 600000);
       } else {
-        // Immediate poll to get initial progress
         pollJobStatus(job.id).catch(err => {
           console.error("[Initial Poll] Error:", err);
         });
 
-        // Poll for job completion - slower interval to prevent request backlog
         pollIntervalRef.current = setInterval(async () => {
-          // Skip if previous request is still in flight
           if (isPollingRef.current) {
             console.warn("[Polling] Skipping poll - previous request still pending");
             return;
@@ -343,7 +322,6 @@ export function CapabilityPage({
             }
           } catch (err) {
             console.error("[Polling] Error polling job status:", err);
-            // On network error, stop polling to prevent backlog
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current);
               pollIntervalRef.current = null;
@@ -357,9 +335,8 @@ export function CapabilityPage({
           } finally {
             isPollingRef.current = false;
           }
-        }, 5000); // Poll every 5 seconds to reduce load and prevent CORS preflight backlog
+        }, 5000);
 
-        // Timeout after 5 minutes
         timeoutRef.current = setTimeout(() => {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);

@@ -31,7 +31,6 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [isLive, setIsLive] = useState(true);
 
-  // Update events when prop changes
   useEffect(() => {
     if (propEvents) {
       if (propEvents.length > 0) {
@@ -42,17 +41,14 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
     }
   }, [propEvents]);
 
-  // Fetch events on mount and poll for updates if live
   useEffect(() => {
-    if (!isLive || propEvents) return; // Don't fetch if events are provided via props
+    if (!isLive || propEvents) return;
 
-    // Fetch events immediately on mount
     const fetchEvents = async () => {
       try {
         const { api } = await import("@/lib/api");
         const response = await api.getCapabilityEvents(20);
         if (response.events && response.events.length > 0) {
-          // Filter to only job-related events (not findings/results)
           const jobEvents = response.events.filter((event: any) => {
             const type = event.type || "";
             return type === "job_started" || 
@@ -64,7 +60,6 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
           });
           setEvents(mapEventsToActivity(jobEvents));
         } else {
-          // Clear events if no events returned
           setEvents([]);
         }
       } catch (error) {
@@ -72,17 +67,13 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
       }
     };
 
-    // Fetch immediately on mount
     fetchEvents();
 
-    // Then start polling for updates every 15 seconds
     const interval = setInterval(fetchEvents, 15000);
 
     return () => clearInterval(interval);
   }, [isLive, propEvents]);
 
-  // Helper function to map API events to ActivityEvent format
-  // Handles both timeline events (with title/description) and orchestrator events (with message)
   function mapEventsToActivity(apiEvents: Array<{ 
     id?: string; 
     type: string; 
@@ -94,7 +85,6 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
     timestamp: string;
   }>): ActivityEvent[] {
     return apiEvents.map((event, index) => {
-      // Determine event type from API event type
       let activityType: "job_started" | "job_completed" | "finding" | "alert" = "alert";
       if (event.type === "job_started") activityType = "job_started";
       else if (event.type === "job_completed" || event.type === "scan_completed") activityType = "job_completed";
@@ -102,13 +92,10 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
         activityType = "finding";
       }
       
-      // Get message from timeline format (title/description) or orchestrator format (message)
       const message = event.title || event.description || event.message || "Unknown event";
       
-      // Extract severity from timeline events (direct field) or from message
       const severity = event.severity || extractSeverity(message);
       
-      // Extract capability from timeline events (source field) or from message
       const capability = event.source || extractCapability(message);
       
       return {
@@ -155,7 +142,6 @@ export function LiveActivity({ className, events: propEvents }: LiveActivityProp
       if (seconds > 0) return `${seconds}s ago`;
       return "Just now";
     } catch {
-      // Fallback to showing the timestamp as-is if parsing fails
       return new Date(timestamp).toLocaleString();
     }
   }

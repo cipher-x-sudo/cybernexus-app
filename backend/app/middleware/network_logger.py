@@ -66,15 +66,12 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
             username = payload.get("sub")
             
             if username:
-                # Get user_id from database
                 from app.core.database.database import init_db, _async_session_maker
                 from app.core.database.models import User as UserModel
                 from sqlalchemy import select
                 
-                # Ensure database is initialized
                 init_db()
                 
-                # Access session maker directly (it's needed for middleware context)
                 if _async_session_maker:
                     async with _async_session_maker() as db:
                         try:
@@ -87,14 +84,11 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
                         except Exception as e:
                             logger.debug(f"Error querying user: {e}")
         except (JWTError, Exception) as e:
-            # Token invalid or user not found - log as unauthenticated
             logger.debug(f"Could not extract user_id from request: {e}")
         
         return None
     
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request."""
-        # Check for forwarded IP (common in proxies/load balancers)
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
@@ -109,24 +103,19 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         return "unknown"
     
     async def _capture_request(self, request: Request, request_id: str, client_ip: str) -> Dict[str, Any]:
-        """Capture request data."""
-        # Read body
         body = b""
         try:
             body = await request.body()
         except Exception as e:
             logger.warning(f"Failed to read request body: {e}")
         
-        # Truncate large bodies
         max_size = settings.NETWORK_MAX_BODY_SIZE
         body_truncated = len(body) > max_size
         if body_truncated:
             body = body[:max_size]
         
-        # Parse query string
         query_string = str(request.url.query) if request.url.query else ""
         
-        # Get headers (sanitize sensitive ones)
         headers = dict(request.headers)
         headers = self._sanitize_headers(headers)
         
@@ -154,17 +143,10 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         request_id: str,
         response_time_ms: float
     ) -> Dict[str, Any]:
-        """Capture response data and create complete log entry."""
-        # Read response body
         response_body = b""
         response_body_truncated = False
         
-        # For streaming responses, we can't easily read the body
-        # We'll capture what we can from the response
-        # Note: Full body capture requires wrapping the response, which is complex
-        # For now, we'll capture headers and status, and note that body capture is limited
         try:
-            # Check if response has a body attribute we can read
             if hasattr(response, "body") and response.body:
                 body_bytes = response.body
                 if isinstance(body_bytes, bytes):
@@ -174,12 +156,10 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         except Exception:
             pass
         
-        # Truncate if needed
         if len(response_body) > settings.NETWORK_MAX_BODY_SIZE:
             response_body = response_body[:settings.NETWORK_MAX_BODY_SIZE]
             response_body_truncated = True
         
-        # Get response headers (sanitize)
         response_headers = dict(response.headers)
         response_headers = self._sanitize_headers(response_headers)
         
@@ -193,7 +173,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
             "response_time_ms": round(response_time_ms, 2),
         }
         
-        # Run tunnel detection if enabled
         if settings.NETWORK_ENABLE_TUNNEL_DETECTION and self.tunnel_analyzer:
             try:
                 tunnel_detection = await self.tunnel_analyzer.analyze_request(log_entry)
@@ -205,7 +184,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         return log_entry
     
     def _sanitize_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
-        """Sanitize sensitive headers."""
         sensitive_keys = [
             "authorization",
             "cookie",
@@ -227,15 +205,12 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
         return sanitized
     
     async def _store_log(self, log_entry: Dict[str, Any], user_id: Optional[str] = None):
-        """Store log entry in database."""
         try:
             from app.core.database.database import init_db, _async_session_maker
             from app.core.database.network_log_storage import DBNetworkLogStorage
             
-            # Ensure database is initialized
             init_db()
             
-            # Access session maker directly (needed for middleware context)
             if _async_session_maker:
                 async with _async_session_maker() as db:
                     try:
@@ -249,7 +224,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
             logger.error(f"Failed to store network log: {e}", exc_info=True)
     
     async def _broadcast_log(self, log_entry: Dict[str, Any]):
-        """Broadcast log entry to WebSocket clients."""
         if not self.websocket_clients:
             return
         
@@ -259,7 +233,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
                 "data": log_entry
             }
             
-            # If tunnel detected, also send tunnel alert
             if "tunnel_detection" in log_entry:
                 tunnel_message = {
                     "type": "tunnel_alert",
@@ -272,7 +245,6 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
             logger.error(f"Failed to broadcast log: {e}")
     
     async def _send_to_clients(self, message: Dict[str, Any]):
-        """Send message to all connected WebSocket clients."""
         if not self.websocket_clients:
             return
         
@@ -283,19 +255,15 @@ class NetworkLoggerMiddleware(BaseHTTPMiddleware):
             except Exception:
                 disconnected.add(client)
         
-        # Remove disconnected clients
         self.websocket_clients -= disconnected
     
     def register_websocket_client(self, client):
-        """Register a WebSocket client for real-time updates."""
         self.websocket_clients.add(client)
     
     def unregister_websocket_client(self, client):
-        """Unregister a WebSocket client."""
         self.websocket_clients.discard(client)
 
 
 def get_network_logger_middleware() -> Optional[NetworkLoggerMiddleware]:
-    """Get the global network logger middleware instance."""
     return _global_middleware_instance
 

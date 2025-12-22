@@ -56,7 +56,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
   const [timezone, setTimezone] = useState<string>(value.timezone || "UTC");
   const [nextRuns, setNextRuns] = useState<string[]>([]);
 
-  // Parse initial cron value
   useEffect(() => {
     if (value.cron) {
       const parts = value.cron.split(" ");
@@ -65,7 +64,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
         setMinute(min);
         setHour(hr);
 
-        // Detect frequency from pattern
         if (dom === "*" && mon === "*" && dow === "*") {
           setFrequency("daily");
         } else if (dom === "*" && mon === "*" && dow !== "*") {
@@ -83,7 +81,6 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
     setTimezone(value.timezone || "UTC");
   }, [value]);
 
-  // Generate cron expression and notify parent
   useEffect(() => {
     let cronExpression = "";
 
@@ -106,12 +103,10 @@ export default function SchedulePicker({ value, onChange, className }: ScheduleP
       onChange({ cron: cronExpression, timezone });
     }
 
-    // Calculate next runs (simplified - in production use a library like croniter)
     calculateNextRuns(cronExpression);
   }, [frequency, hour, minute, dayOfWeek, dayOfMonth, customCron, timezone]);
 
   const calculateNextRuns = (cron: string) => {
-    // Simplified next run calculation for display
     const parts = cron.split(" ");
     if (parts.length !== 5) {
       setNextRuns([]);

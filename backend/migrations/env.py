@@ -1,9 +1,3 @@
-"""
-Alembic Environment Configuration
-
-Handles database migrations using Alembic.
-"""
-
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -11,22 +5,17 @@ from alembic import context
 import os
 import sys
 
-# Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.database.models import Base
 from app.config import settings
 
-# this is the Alembic Config object
 config = context.config
 
-# Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set database URL from settings
 database_url = settings.DATABASE_URL
-# Convert postgresql:// to postgresql+psycopg2:// for Alembic (sync operations)
 if database_url.startswith("postgresql+asyncpg://"):
     database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
 elif database_url.startswith("postgresql://"):
@@ -36,12 +25,10 @@ elif database_url.startswith("postgres://"):
 
 config.set_main_option("sqlalchemy.url", database_url)
 
-# add your model's MetaData object here for 'autogenerate' support
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -55,7 +42,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

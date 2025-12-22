@@ -19,7 +19,6 @@ class DBStorage:
         self.is_admin = is_admin
     
     def _get_user_filter(self):
-        """Get user filter for queries (empty for admins)."""
         if self.is_admin:
             return None
         return Entity.user_id == self.user_id
@@ -47,7 +46,6 @@ class DBStorage:
             existing.severity = entity.get("severity", existing.severity)
             existing.meta_data = entity.get("metadata", existing.meta_data) or {}
         else:
-            # Create new entity
             db_entity = Entity(
                 id=entity_id,
                 user_id=owner_id,
@@ -62,18 +60,8 @@ class DBStorage:
         return entity_id
     
     async def get_entity(self, entity_id: str) -> Optional[dict]:
-        """
-        Get an entity by ID.
-        
-        Args:
-            entity_id: Entity identifier
-            
-        Returns:
-            Entity dictionary or None
-        """
         query = select(Entity).where(Entity.id == entity_id)
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(Entity.user_id == self.user_id)
         
@@ -88,23 +76,13 @@ class DBStorage:
             "type": entity.type,
             "value": entity.value,
             "severity": entity.severity,
-            "metadata": entity.meta_data or {},  # Map meta_data back to metadata in API response
+            "metadata": entity.meta_data or {},
             "created_at": entity.created_at.isoformat() if entity.created_at else None
         }
     
     async def delete_entity(self, entity_id: str) -> bool:
-        """
-        Delete an entity.
-        
-        Args:
-            entity_id: Entity identifier
-            
-        Returns:
-            True if deleted
-        """
         query = select(Entity).where(Entity.id == entity_id)
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(Entity.user_id == self.user_id)
         
@@ -114,8 +92,6 @@ class DBStorage:
         if not entity:
             return False
         
-        # Delete related graph nodes and edges
-        # Get graph nodes for this entity
         node_result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == entity_id)
         )
@@ -123,7 +99,6 @@ class DBStorage:
         node_ids = [node.id for node in nodes]
         
         if node_ids:
-            # Delete edges connected to these nodes
             await self.db.execute(
                 delete(GraphEdge).where(
                     or_(
@@ -132,12 +107,10 @@ class DBStorage:
                     )
                 )
             )
-            # Delete the nodes
             await self.db.execute(
                 delete(GraphNode).where(GraphNode.entity_id == entity_id)
             )
         
-        # Delete the entity using delete statement
         await self.db.execute(
             delete(Entity).where(Entity.id == entity_id)
         )
@@ -146,19 +119,8 @@ class DBStorage:
         return True
     
     async def search_by_prefix(self, prefix: str, limit: int = 100) -> List[str]:
-        """
-        Search entities by value prefix.
-        
-        Args:
-            prefix: Prefix to search for
-            limit: Maximum results
-            
-        Returns:
-            List of entity IDs
-        """
         query = select(Entity.id).where(Entity.value.ilike(f"{prefix}%"))
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(Entity.user_id == self.user_id)
         
@@ -168,18 +130,8 @@ class DBStorage:
         return [row[0] for row in result.fetchall()]
     
     async def get_by_type(self, entity_type: str) -> List[dict]:
-        """
-        Get all entities of a specific type.
-        
-        Args:
-            entity_type: Type to filter by
-            
-        Returns:
-            List of entity dictionaries
-        """
         query = select(Entity).where(Entity.type == entity_type)
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(Entity.user_id == self.user_id)
         
@@ -192,33 +144,21 @@ class DBStorage:
                 "type": e.type,
                 "value": e.value,
                 "severity": e.severity,
-                "metadata": e.meta_data or {},  # Map meta_data back to metadata in API response
+                "metadata": e.meta_data or {},
                 "created_at": e.created_at.isoformat() if e.created_at else None
             }
             for e in entities
         ]
     
     async def exists(self, value: str) -> bool:
-        """
-        Check if a value exists.
-        
-        Args:
-            value: Value to check
-            
-        Returns:
-            True if exists
-        """
         query = select(func.count(Entity.id)).where(Entity.value == value)
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(Entity.user_id == self.user_id)
         
         result = await self.db.execute(query)
         count = result.scalar_one()
         return count > 0
-    
-    # ==================== Graph Operations ====================
     
     async def add_relationship(
         self,
@@ -228,24 +168,12 @@ class DBStorage:
         weight: float = 1.0,
         metadata: dict = None
     ):
-        """
-        Add a relationship between entities.
-        
-        Args:
-            source_id: Source entity ID
-            target_id: Target entity ID
-            relation: Relationship type
-            weight: Edge weight
-            metadata: Additional edge data
-        """
-        # Get or create graph nodes for source and target
         source_node = await self._get_or_create_graph_node(source_id)
         target_node = await self._get_or_create_graph_node(target_id)
         
         if not source_node or not target_node:
             raise ValueError("Could not create graph nodes for entities")
         
-        # Check if edge already exists
         edge_id = f"{source_node.id}-{target_node.id}-{relation}"
         result = await self.db.execute(
             select(GraphEdge).where(GraphEdge.id == edge_id)
@@ -253,11 +181,9 @@ class DBStorage:
         existing_edge = result.scalar_one_or_none()
         
         if existing_edge:
-            # Update existing edge
             existing_edge.weight = weight
             existing_edge.meta_data = metadata or {}
         else:
-            # Create new edge
             edge = GraphEdge(
                 id=edge_id,
                 user_id=self.user_id,
@@ -272,13 +198,10 @@ class DBStorage:
         await self.db.commit()
     
     async def _get_or_create_graph_node(self, entity_id: str) -> Optional[GraphNode]:
-        """Get or create a graph node for an entity."""
-        # First, try to get the entity
         entity = await self.get_entity(entity_id)
         if not entity:
             return None
         
-        # Check if graph node exists
         result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == entity_id)
         )
@@ -287,7 +210,6 @@ class DBStorage:
         if node:
             return node
         
-        # Create new graph node
         node_id = f"node-{entity_id}"
         node = GraphNode(
             id=node_id,
@@ -303,17 +225,6 @@ class DBStorage:
         return node
     
     async def get_neighbors(self, entity_id: str, depth: int = 1) -> List[str]:
-        """
-        Get neighboring entity IDs.
-        
-        Args:
-            entity_id: Starting entity
-            depth: Maximum depth (currently supports depth=1)
-            
-        Returns:
-            List of neighbor entity IDs
-        """
-        # Get graph node for entity
         result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == entity_id)
         )
@@ -322,7 +233,6 @@ class DBStorage:
         if not node:
             return []
         
-        # Get edges connected to this node
         query = select(GraphEdge).where(
             or_(
                 GraphEdge.source_id == node.id,
@@ -330,14 +240,12 @@ class DBStorage:
             )
         )
         
-        # Apply user filter if not admin
         if not self.is_admin:
             query = query.where(GraphEdge.user_id == self.user_id)
         
         result = await self.db.execute(query)
         edges = result.scalars().all()
         
-        # Collect neighbor node IDs
         neighbor_node_ids = set()
         for edge in edges:
             if edge.source_id == node.id:
@@ -345,7 +253,6 @@ class DBStorage:
             else:
                 neighbor_node_ids.add(edge.source_id)
         
-        # Get entity IDs from neighbor nodes
         if neighbor_node_ids:
             node_query = select(GraphNode.entity_id).where(
                 GraphNode.id.in_(neighbor_node_ids)
@@ -360,17 +267,6 @@ class DBStorage:
         return []
     
     async def find_path(self, source_id: str, target_id: str) -> Optional[List[str]]:
-        """
-        Find path between two entities using BFS.
-        
-        Args:
-            source_id: Source entity ID
-            target_id: Target entity ID
-            
-        Returns:
-            List of entity IDs in path, or None
-        """
-        # Get graph nodes
         source_result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == source_id)
         )
@@ -384,7 +280,6 @@ class DBStorage:
         if not source_node or not target_node:
             return None
         
-        # BFS to find path
         queue = [(source_node.id, [source_id])]
         visited = {source_node.id}
         
@@ -394,7 +289,6 @@ class DBStorage:
             if current_node_id == target_node.id:
                 return path
             
-            # Get neighbors
             edge_query = select(GraphEdge).where(
                 or_(
                     GraphEdge.source_id == current_node_id,
@@ -412,7 +306,6 @@ class DBStorage:
                 
                 if neighbor_id not in visited:
                     visited.add(neighbor_id)
-                    # Get entity ID from node
                     node_result = await self.db.execute(
                         select(GraphNode.entity_id).where(GraphNode.id == neighbor_id)
                     )
@@ -423,13 +316,6 @@ class DBStorage:
         return None
     
     async def get_graph_data(self) -> dict:
-        """
-        Get full graph data for visualization.
-        
-        Returns:
-            Dictionary with nodes and edges
-        """
-        # Get all graph nodes
         node_query = select(GraphNode)
         if not self.is_admin:
             node_query = node_query.where(GraphNode.user_id == self.user_id)
@@ -437,7 +323,6 @@ class DBStorage:
         node_result = await self.db.execute(node_query)
         nodes = node_result.scalars().all()
         
-        # Get all graph edges
         edge_query = select(GraphEdge)
         if not self.is_admin:
             edge_query = edge_query.where(GraphEdge.user_id == self.user_id)
@@ -445,7 +330,6 @@ class DBStorage:
         edge_result = await self.db.execute(edge_query)
         edges = edge_result.scalars().all()
         
-        # Build graph structure
         graph_nodes = {}
         graph_edges = {}
         
@@ -464,7 +348,7 @@ class DBStorage:
                 "target": edge.target_id,
                 "relation": edge.relation,
                 "weight": edge.weight,
-                "metadata": edge.meta_data or {}  # Map meta_data back to metadata in API response
+                "metadata": edge.meta_data or {}
             }
         
         return {
@@ -472,11 +356,7 @@ class DBStorage:
             "edges": graph_edges
         }
     
-    # ==================== Statistics ====================
-    
     async def stats(self) -> dict:
-        """Get storage statistics."""
-        # Count entities
         entity_query = select(func.count(Entity.id))
         if not self.is_admin:
             entity_query = entity_query.where(Entity.user_id == self.user_id)
@@ -484,7 +364,6 @@ class DBStorage:
         result = await self.db.execute(entity_query)
         entity_count = result.scalar_one()
         
-        # Count graph nodes
         node_query = select(func.count(GraphNode.id))
         if not self.is_admin:
             node_query = node_query.where(GraphNode.user_id == self.user_id)
@@ -492,7 +371,6 @@ class DBStorage:
         result = await self.db.execute(node_query)
         node_count = result.scalar_one()
         
-        # Count graph edges
         edge_query = select(func.count(GraphEdge.id))
         if not self.is_admin:
             edge_query = edge_query.where(GraphEdge.user_id == self.user_id)

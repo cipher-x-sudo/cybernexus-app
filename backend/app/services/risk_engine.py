@@ -76,7 +76,6 @@ class RiskEngine:
         "network": 0.10
     }
     
-    # Severity score impacts
     SEVERITY_IMPACTS = {
         "critical": 25,
         "high": 15,
@@ -85,28 +84,22 @@ class RiskEngine:
         "info": 1
     }
     
-    # Capability to category mapping
     CAPABILITY_TO_CATEGORY = {
         "exposure_discovery": "exposure",
         "dark_web_intelligence": "dark_web",
         "email_security": "email_security",
         "infrastructure_testing": "infrastructure",
         "network_security": "network",
-        "investigation": "exposure"  # Maps to exposure for scoring
+        "investigation": "exposure"
     }
     
     def __init__(self):
-        """Initialize the risk engine"""
-        # Score history per target
-        self._score_history = HashMap()  # target -> CircularBuffer of scores
+        self._score_history = HashMap()
         
-        # Category scores per target
-        self._category_scores = HashMap()  # target -> {category: score}
+        self._category_scores = HashMap()
         
-        # Findings index
-        self._findings_by_target = HashMap()  # target -> [findings]
+        self._findings_by_target = HashMap()
         
-        # Global statistics
         self._global_stats = {
             "targets_tracked": 0,
             "avg_score": 0,
@@ -121,32 +114,17 @@ class RiskEngine:
         target: str,
         findings: List[Dict[str, Any]]
     ) -> RiskScore:
-        """
-        Calculate risk score for a target based on findings.
-        
-        Args:
-            target: Domain or organization identifier
-            findings: List of findings from orchestrator
-            
-        Returns:
-            RiskScore with overall and per-category scores
-        """
-        # Initialize category scores (start at 100 = perfect)
         category_scores = {cat: 100.0 for cat in self.CATEGORY_WEIGHTS.keys()}
         category_findings = {cat: [] for cat in self.CATEGORY_WEIGHTS.keys()}
         
-        # Count severities
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
         
-        # Process findings
         for finding in findings:
             capability = finding.get("capability", "")
             severity = finding.get("severity", "info").lower()
             
-            # Map capability to category
             category = self.CAPABILITY_TO_CATEGORY.get(capability, "exposure")
             
-            # Deduct from category score based on severity
             impact = self.SEVERITY_IMPACTS.get(severity, 1)
             category_scores[category] = max(0, category_scores[category] - impact)
             
@@ -207,7 +185,6 @@ class RiskEngine:
         return risk_score
     
     def _score_to_risk_level(self, score: float) -> RiskLevel:
-        """Convert numeric score to risk level"""
         if score >= 90:
             return RiskLevel.MINIMAL
         elif score >= 75:
@@ -220,7 +197,6 @@ class RiskEngine:
             return RiskLevel.CRITICAL
     
     def _get_category_description(self, category: str, score: float) -> str:
-        """Get human-readable description for category score"""
         descriptions = {
             "exposure": {
                 "good": "Minimal public exposure detected",
@@ -264,12 +240,10 @@ class RiskEngine:
             return cat_desc.get("bad", "Critical issues")
     
     def _calculate_trend(self, target: str, category: str, current_score: float) -> str:
-        """Calculate trend for a category"""
         history = self._score_history.get(target)
         if not history or len(history) < 2:
             return "stable"
         
-        # Get previous score for this category
         previous = history.get(-2) if len(history) >= 2 else None
         if not previous:
             return "stable"
@@ -288,12 +262,10 @@ class RiskEngine:
         return "stable"
     
     def _calculate_overall_trend(self, target: str, current_score: float) -> str:
-        """Calculate overall trend"""
         history = self._score_history.get(target)
         if not history or len(history) < 2:
             return "stable"
         
-        # Compare with previous score
         scores = list(history)
         if len(scores) < 2:
             return "stable"
@@ -308,19 +280,16 @@ class RiskEngine:
         return "stable"
     
     def _store_score(self, target: str, score: RiskScore):
-        """Store score in history"""
         history = self._score_history.get(target)
         if not history:
-            history = CircularBuffer(capacity=100)  # Keep last 100 scores
+            history = CircularBuffer(capacity=100)
             self._score_history.put(target, history)
         
         history.push(score)
         
-        # Update global stats
         self._update_global_stats()
     
     def _update_global_stats(self):
-        """Update global statistics"""
         total_score = 0
         count = 0
         total_critical = 0
@@ -344,7 +313,6 @@ class RiskEngine:
         }
     
     def get_risk_score(self, target: str) -> Optional[RiskScore]:
-        """Get latest risk score for a target"""
         history = self._score_history.get(target)
         if history and len(history) > 0:
             return history.get(-1)
@@ -355,7 +323,6 @@ class RiskEngine:
         target: str,
         days: int = 30
     ) -> List[Dict[str, Any]]:
-        """Get risk score history for a target"""
         history = self._score_history.get(target)
         if not history:
             return []
@@ -374,7 +341,6 @@ class RiskEngine:
         return results
     
     def get_category_breakdown(self, target: str) -> Dict[str, Any]:
-        """Get detailed category breakdown for a target"""
         risk_score = self.get_risk_score(target)
         if not risk_score:
             return {}
@@ -396,12 +362,10 @@ class RiskEngine:
         }
     
     def get_top_risks(self, target: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Get top risk areas for a target"""
         risk_score = self.get_risk_score(target)
         if not risk_score:
             return []
         
-        # Sort factors by score (ascending = worst first)
         sorted_factors = sorted(risk_score.factors, key=lambda f: f.score)
         
         return [
@@ -416,7 +380,6 @@ class RiskEngine:
         ]
     
     def _get_category_recommendations(self, category: str, score: float) -> List[str]:
-        """Get recommendations for a category"""
         recommendations = {
             "exposure": [
                 "Review and restrict publicly accessible resources",
@@ -456,11 +419,9 @@ class RiskEngine:
         return recommendations.get(category, ["Review security configuration"])
     
     def get_global_stats(self) -> Dict[str, Any]:
-        """Get global risk statistics"""
         return self._global_stats
     
     def compare_targets(self, targets: List[str]) -> Dict[str, Any]:
-        """Compare risk scores across multiple targets"""
         comparison = {
             "targets": [],
             "best_performer": None,
@@ -498,12 +459,10 @@ class RiskEngine:
         return comparison
 
 
-# Global risk engine instance
 _risk_engine: Optional[RiskEngine] = None
 
 
 def get_risk_engine() -> RiskEngine:
-    """Get the global risk engine instance"""
     global _risk_engine
     if _risk_engine is None:
         _risk_engine = RiskEngine()

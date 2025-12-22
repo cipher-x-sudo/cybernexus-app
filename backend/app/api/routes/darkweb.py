@@ -72,7 +72,6 @@ class BrandMentionResponse(BaseModel):
 
 
 class StatisticsResponse(BaseModel):
-    """Dark web intelligence statistics"""
     sites_indexed: int
     entities_extracted: int
     brand_mentions: int
@@ -86,7 +85,6 @@ class StatisticsResponse(BaseModel):
 
 
 class ActivityResponse(BaseModel):
-    """Recent activity summary"""
     period_hours: int
     sites_discovered: int
     brand_mentions: int
@@ -95,7 +93,6 @@ class ActivityResponse(BaseModel):
 
 
 class MentionResponse(BaseModel):
-    """Mention response for frontend compatibility"""
     id: str
     title: str
     content: str
@@ -107,12 +104,7 @@ class MentionResponse(BaseModel):
     author: Optional[str] = None
 
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
 def _get_darkwatch_instance(job_id: str):
-    """Get DarkWatch instance for a job"""
     orchestrator = get_orchestrator()
     job = orchestrator.get_job(job_id)
     
@@ -137,7 +129,6 @@ def _get_darkwatch_instance(job_id: str):
 
 
 def _map_threat_to_severity(threat_level: str) -> str:
-    """Map threat level to severity"""
     mapping = {
         "critical": "critical",
         "high": "high",
@@ -147,10 +138,6 @@ def _map_threat_to_severity(threat_level: str) -> str:
     }
     return mapping.get(threat_level.lower(), "info")
 
-
-# ============================================================================
-# API Endpoints
-# ============================================================================
 
 @router.get("/jobs/{job_id}/sites/{site_id}/network", response_model=SiteNetworkResponse)
 async def get_site_network(
@@ -271,15 +258,9 @@ async def get_brand_mentions(
     keyword: Optional[str] = Query(None, description="Filter by specific keyword"),
     min_threat_level: str = Query(default="info", description="Minimum threat level (critical, high, medium, low, info)")
 ):
-    """
-    Get brand/keyword mentions from dark web sites.
-    
-    Returns mentions matching the specified keyword and threat level.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
-        # Map string to ThreatLevel enum
         threat_level_map = {
             "critical": ThreatLevel.CRITICAL,
             "high": ThreatLevel.HIGH,
@@ -417,11 +398,7 @@ async def export_intelligence(
     job_id: str,
     format: str = Query(default="json", description="Export format (json)")
 ):
-    """
-    Export dark web intelligence data.
     
-    Returns complete intelligence export in JSON format.
-    """
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -462,7 +439,6 @@ async def get_all_mentions(
         mentions_list = []
         
         if job_id:
-            # Get mentions from specific job
             darkwatch, job = _get_darkwatch_instance(job_id)
             threat_level_map = {
                 "critical": ThreatLevel.CRITICAL,
@@ -476,8 +452,7 @@ async def get_all_mentions(
             mentions = darkwatch.get_brand_mentions(keyword=keyword, min_threat_level=min_level)
             
             for mention in mentions:
-                # Map to frontend-compatible format
-                source = "tor_site"  # Default source
+                source = "tor_site"
                 if "forum" in mention.source_url.lower():
                     source = "forum"
                 elif "market" in mention.source_url.lower() or "shop" in mention.source_url.lower():
@@ -496,7 +471,6 @@ async def get_all_mentions(
                     timestamp=mention.discovered_at.isoformat()
                 ))
         else:
-            # Aggregate mentions from all darkweb jobs
             darkweb_jobs = orchestrator.get_jobs(capability=Capability.DARK_WEB_INTELLIGENCE, limit=100)
             
             for job in darkweb_jobs:
@@ -533,7 +507,6 @@ async def get_all_mentions(
                             timestamp=mention.discovered_at.isoformat()
                         ))
         
-        # Sort by timestamp (most recent first)
         mentions_list.sort(key=lambda x: x.timestamp, reverse=True)
         
         return mentions_list

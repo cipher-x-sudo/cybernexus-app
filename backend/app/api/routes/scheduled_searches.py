@@ -18,7 +18,7 @@ class ScheduledSearchResponse(BaseModel):
     user_id: str
     name: str
     description: Optional[str]
-    capabilities: List[str]  # List of capabilities
+    capabilities: List[str]
     target: str
     config: Dict[str, Any]
     schedule_type: str
@@ -67,17 +67,12 @@ def scheduled_search_to_response(scheduled_search: ScheduledSearchModel) -> Sche
     )
 
 
-# ============================================================================
-# API Endpoints
-# ============================================================================
-
 @router.get("", response_model=List[ScheduledSearchResponse])
 async def list_scheduled_searches(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
     enabled: Optional[bool] = Query(None, description="Filter by enabled status")
 ):
-    """List all scheduled searches for the current user"""
     try:
         query = select(ScheduledSearchModel).where(ScheduledSearchModel.user_id == current_user.id)
         

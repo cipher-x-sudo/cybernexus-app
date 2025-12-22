@@ -43,10 +43,6 @@ class ExportRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = None
 
 
-# ============================================================================
-# Log Endpoints
-# ============================================================================
-
 @router.get("/logs")
 async def get_logs(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -303,7 +299,6 @@ async def block_pattern(request: BlockPatternRequest):
 
 @router.delete("/blocks/pattern/{block_id}")
 async def unblock_pattern(block_id: str):
-    """Unblock a pattern by ID."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_pattern(block_id)

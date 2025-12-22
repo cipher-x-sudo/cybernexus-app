@@ -91,7 +91,6 @@ export default function AutomationConfigStep({
     }
   );
 
-  // Auto-populate targets when capabilities are enabled
   const autoPopulateTargets = (capabilityId: string): string[] => {
     const capability = CAPABILITY_INFO.find((c) => c.id === capabilityId);
     if (!capability) return [];
@@ -120,7 +119,6 @@ export default function AutomationConfigStep({
             profileData.key_assets.forEach((asset) => {
               if (["domain", "url", "server"].includes(asset.type)) {
                 let value = asset.value;
-                // Add https:// prefix if it's a domain
                 if (asset.type === "domain" && !value.startsWith("http")) {
                   value = `https://${value}`;
                 }
@@ -132,7 +130,7 @@ export default function AutomationConfigStep({
       }
     });
 
-    return Array.from(new Set(targets)); // Remove duplicates
+    return Array.from(new Set(targets));
   };
 
   const toggleCapability = (capabilityId: string, enabled: boolean) => {

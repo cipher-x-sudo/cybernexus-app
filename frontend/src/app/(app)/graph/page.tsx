@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 
-// Dynamic import for 3D component to avoid SSR issues
 const Graph3D = dynamic(
   () => import("@/components/graph/Graph3D").then((mod) => mod.Graph3D),
   {
@@ -74,7 +73,6 @@ export default function GraphPage() {
         }
         
         if (actualJobId) {
-          // Fetch job-focused graph
           const [graphDataResult, jobResult] = await Promise.all([
             api.getGraphDataForJob(actualJobId, depth),
             api.getJobDetails(actualJobId).catch(() => null)

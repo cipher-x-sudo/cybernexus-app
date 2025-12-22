@@ -35,7 +35,6 @@ export default function JobHistoryPage() {
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(0);
   
-  // Filters
   const [capabilityFilter, setCapabilityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -55,8 +54,6 @@ export default function JobHistoryPage() {
       if (endDate) params.end_date = endDate;
       
       const response = await api.getJobHistory(params);
-      // Map and cast jobs to match CapabilityJob type
-      // Handle both capability (singular) and capabilities (array) from backend
       const mappedJobs: CapabilityJob[] = (response.jobs || []).map((job: any) => ({
         ...job,
         status: job.status as CapabilityJob["status"],
@@ -85,7 +82,6 @@ export default function JobHistoryPage() {
     e.stopPropagation();
     try {
       await api.restartJob(jobId);
-      // Refresh the job list
       fetchJobs();
     } catch (error) {
       console.error("Error restarting job:", error);

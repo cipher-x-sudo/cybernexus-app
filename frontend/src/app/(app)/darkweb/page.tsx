@@ -16,19 +16,14 @@ interface Mention {
   author?: string;
 }
 
-// Type declaration for process.env in client components (Next.js replaces these at build time)
 declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
-// API base URL - set via NEXT_PUBLIC_API_URL environment variable at build time
-// Next.js replaces process.env.NEXT_PUBLIC_* variables at build time with actual values
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-// Fetch mentions from API
 async function fetchMentions(): Promise<Mention[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/darkweb/mentions`);
     if (!response.ok) {
-      // If endpoint doesn't exist or returns error, return empty array
       if (response.status === 404) {
         console.warn('Darkweb mentions endpoint not available yet');
         return [];
@@ -37,7 +32,6 @@ async function fetchMentions(): Promise<Mention[]> {
     }
     const data = await response.json();
     
-    // Transform API response to frontend format
     return data.map((item: any) => ({
       id: item.id,
       title: item.title,

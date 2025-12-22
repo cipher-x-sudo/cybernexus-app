@@ -40,7 +40,6 @@ class GraphNode(BaseModel):
 
 
 class GraphEdge(BaseModel):
-    """Graph edge representation."""
     id: str
     source: str
     target: str
@@ -50,20 +49,17 @@ class GraphEdge(BaseModel):
 
 
 class GraphData(BaseModel):
-    """Complete graph data for visualization."""
     nodes: List[GraphNode]
     edges: List[GraphEdge]
 
 
 class PathResult(BaseModel):
-    """Path between two nodes."""
     path: List[str]
     total_weight: float
     edges: List[GraphEdge]
 
 
 class ClusterResult(BaseModel):
-    """Node cluster."""
     cluster_id: int
     nodes: List[str]
     center: Optional[str] = None
@@ -81,7 +77,6 @@ async def get_full_graph(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get the full graph data for visualization from database storage."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         graph_data = await storage.get_graph_data()
@@ -154,7 +149,6 @@ async def get_node(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get a specific node by ID from database storage."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
@@ -186,7 +180,6 @@ async def get_neighbors(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get neighbors of a node up to specified depth from database storage."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
@@ -256,7 +249,6 @@ async def get_graph_for_job(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get focused graph data for a specific job, showing relationships of discovered entities."""
     try:
         from urllib.parse import urlparse
         import re
@@ -274,7 +266,6 @@ async def get_graph_for_job(
         node_ids = []
         
         def detect_entity_type(value: str) -> str:
-            """Detect entity type: email, ip_address, or domain."""
             if not value:
                 return "domain"
             
@@ -289,7 +280,6 @@ async def get_graph_for_job(
             return "domain"
         
         def extract_domain_or_ip(value: str) -> str:
-            """Extract domain or IP from URL or return as-is. Preserves email addresses."""
             if not value:
                 return ""
             
@@ -309,7 +299,6 @@ async def get_graph_for_job(
                 return value
         
         async def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
-            """Find entity by value or create/update it if not found. Returns entity ID."""
             if not value:
                 return None
             
@@ -319,7 +308,6 @@ async def get_graph_for_job(
                 for entity in entities_by_type:
                     if entity.get("value") == value:
                         entity_id = entity.get("id")
-                        # If type is incorrect, update it
                         if entity.get("type") != entity_type:
                             logger.debug(f"Updating entity {entity_id} type from {entity.get('type')} to {entity_type}")
                             entity_data = {
@@ -332,13 +320,11 @@ async def get_graph_for_job(
                             await storage.save_entity(entity_data)
                         return entity_id
             
-            # Also check all entities in graph
             for node_id, node_data in graph_data.get("nodes", {}).items():
                 entity_id = node_data.get("data", {}).get("id") if isinstance(node_data.get("data"), dict) else None
                 if entity_id:
                     entity = await storage.get_entity(entity_id)
                     if entity and entity.get("value") == value:
-                        # If type is incorrect, update it
                         if entity.get("type") != entity_type:
                             logger.debug(f"Updating entity {entity_id} type from {entity.get('type')} to {entity_type}")
                             entity_data = {
@@ -351,7 +337,6 @@ async def get_graph_for_job(
                             await storage.save_entity(entity_data)
                         return entity_id
             
-            # If not found, create a new entity
             try:
                 from uuid import uuid4
                 entity_id = f"{entity_type}-{uuid4().hex[:8]}"
@@ -370,26 +355,17 @@ async def get_graph_for_job(
                 logger.warning(f"Failed to create entity for {value}: {e}")
                 return None
         
-        # Build hierarchical graph: keyword → websites → entities
-        # Structure based on job findings and evidence
-        
-        # Extract crawled URLs from job metadata (for website nodes)
         crawled_urls = []
         if job.metadata:
-            # Get crawled URLs from metadata
             if 'crawled_urls' in job.metadata:
                 crawled_urls = job.metadata.get('crawled_urls', [])
             elif 'discovered_urls' in job.metadata:
                 crawled_urls = job.metadata.get('discovered_urls', [])
         
-        # Extract entities from execution_logs
         if job.execution_logs:
             for log_entry in job.execution_logs:
                 if isinstance(log_entry, dict):
-                    # Look for entity mentions in log messages
                     message = log_entry.get('message', '') or log_entry.get('log', '') or str(log_entry)
-                    # Try to extract emails, domains/IPs from log messages using regex
-                    # Match email addresses first
                     email_pattern = r'\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+[a-zA-Z0-9]\b'
                     emails = re.findall(email_pattern, message)
                     for email in emails:
@@ -398,28 +374,23 @@ async def get_graph_for_job(
                             if entity_id and entity_id not in node_ids:
                                 node_ids.append(entity_id)
                     
-                    # Match common patterns like "discovered domain.com" or "found 1.2.3.4"
                     domain_pattern = r'\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)\b'
                     ip_pattern = r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b'
                     
-                    # Extract domains (excluding emails already extracted)
                     domains = re.findall(domain_pattern, message)
                     for domain in domains:
-                        # Filter out emails and common false positives
                         if domain and '@' not in domain and '.' in domain and not domain.startswith('http') and len(domain) > 3:
                             entity_type = detect_entity_type(domain)
                             entity_id = await find_or_create_entity(domain, entity_type)
                             if entity_id and entity_id not in node_ids:
                                 node_ids.append(entity_id)
                     
-                    # Extract IPs
                     ips = re.findall(ip_pattern, message)
                     for ip in ips:
                         entity_id = await find_or_create_entity(ip, "ip_address")
                         if entity_id and entity_id not in node_ids:
-                            node_ids.append(entity_id)
+                                node_ids.append(entity_id)
                     
-                    # Also check for structured data in logs
                     for key in ['domain', 'ip', 'email', 'target', 'url', 'host']:
                         if key in log_entry:
                             value = log_entry[key]
@@ -431,13 +402,10 @@ async def get_graph_for_job(
                                     if entity_id and entity_id not in node_ids:
                                         node_ids.append(entity_id)
         
-        # Build hierarchical graph: keyword → websites → entities
-        # Structure based on job findings and evidence
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         job_findings = await finding_storage.get_findings_for_job(job_id)
         
-        # Create keyword node from job target (search term)
         keyword_node_id = None
         if job.target:
             keyword_value = job.target.strip()
@@ -445,17 +413,14 @@ async def get_graph_for_job(
             if keyword_node_id and keyword_node_id not in node_ids:
                 node_ids.append(keyword_node_id)
         
-        # Track website nodes and their relationships
-        website_to_entities = {}  # website_id -> [entity_ids]
-        keyword_to_websites = []  # [website_ids]
-        processed_websites = set()  # Track which websites we've already processed
+        website_to_entities = {}
+        keyword_to_websites = []
+        processed_websites = set()
         
-        # First, create website nodes from crawled URLs (if not in findings)
         for url in crawled_urls:
             if not url or url in processed_websites:
                 continue
             
-            # Normalize URL - keep full .onion URL or extract domain
             if ".onion" in url:
                 website_value = url
             else:
@@ -471,44 +436,32 @@ async def get_graph_for_job(
                     website_to_entities[website_node_id] = []
                 processed_websites.add(url)
         
-        # Process findings to link entities to websites
         for finding in job_findings:
-            # Extract website URL from finding evidence
             website_url = None
             entity_type_from_evidence = None
             
             if finding.evidence:
-                # Check for site URL in evidence - can be string or dict
                 site_data = finding.evidence.get("site")
                 if isinstance(site_data, str):
-                    # Site is a URL string
                     website_url = site_data
                 elif isinstance(site_data, dict):
-                    # Site is a dict (from site.to_dict()), extract onion_url
                     website_url = site_data.get("onion_url") or site_data.get("url")
                 
-                # Also check other possible keys
                 if not website_url:
                     website_url = finding.evidence.get("url") or finding.evidence.get("source_url")
                 
-                # Get entity type from evidence if available
                 entity_data = finding.evidence.get("entity")
                 if entity_data:
                     entity_type_from_evidence = entity_data.get("type") or entity_data.get("entity_type")
             
-            # If no website in evidence, try finding target
             if not website_url and finding.target:
                 website_url = finding.target
             
-            # Create website node if we have a URL
             website_node_id = None
             if website_url:
-                # Normalize URL - extract domain or keep full URL for .onion sites
                 if ".onion" in website_url:
-                    # Keep full .onion URL
                     website_value = website_url
                 else:
-                    # Extract domain from URL
                     website_value = extract_domain_or_ip(website_url)
                 
                 if website_value:
@@ -521,7 +474,6 @@ async def get_graph_for_job(
                         website_to_entities[website_node_id] = []
                     processed_websites.add(website_url)
             
-            # Process affected_assets (entities extracted from website)
             for asset in finding.affected_assets:
                 if not asset:
                     continue
@@ -529,18 +481,15 @@ async def get_graph_for_job(
                 entity_id = None
                 entity_type = None
                 
-                # Try as entity ID first
                 entity = await storage.get_entity(asset)
                 if entity:
                     entity_type = entity.get("type", "unknown")
                     entity_id = asset
                 else:
-                    # Extract and detect type
                     domain_or_ip = extract_domain_or_ip(asset)
                     if not domain_or_ip:
                         continue
                     
-                    # Use entity type from evidence if available, otherwise detect
                     if entity_type_from_evidence:
                         entity_type = entity_type_from_evidence
                     else:
@@ -551,7 +500,6 @@ async def get_graph_for_job(
                 if entity_id and entity_id not in node_ids:
                     node_ids.append(entity_id)
                 
-                # Link entity to website if we have one
                 if website_node_id and entity_id:
                     if website_node_id not in website_to_entities:
                         website_to_entities[website_node_id] = []
@@ -559,19 +507,15 @@ async def get_graph_for_job(
                         website_to_entities[website_node_id].append(entity_id)
         
         if not node_ids:
-            # No nodes to show, return empty graph
             logger.warning(f"Job {job_id} has no associated nodes after processing")
             return GraphData(nodes=[], edges=[])
         
-        # Refresh graph data after creating entities
         graph_data = await storage.get_graph_data()
         
-        # Add job as a node and create relationships to discovered entities
         job_node_id = f"job-{job_id}"
         all_node_ids = set(node_ids)
         all_node_ids.add(job_node_id)
         
-        # Create job entity if it doesn't exist
         job_entity = await storage.get_entity(job_node_id)
         if not job_entity:
             job_entity = {
@@ -590,8 +534,6 @@ async def get_graph_for_job(
             await storage.save_entity(job_entity)
             logger.debug(f"Created job entity {job_node_id}")
         
-        # Create hierarchical relationships: keyword → websites → entities
-        # Link keyword to websites
         if keyword_node_id:
             for website_node_id in keyword_to_websites:
                 try:
@@ -605,7 +547,6 @@ async def get_graph_for_job(
                 except Exception as e:
                     logger.debug(f"Failed to create edge from keyword to website {website_node_id}: {e}")
         
-        # Link websites to entities
         for website_node_id, entity_ids in website_to_entities.items():
             for entity_id in entity_ids:
                 try:
@@ -619,7 +560,6 @@ async def get_graph_for_job(
                 except Exception as e:
                     logger.debug(f"Failed to create edge from website to entity {entity_id}: {e}")
         
-        # Also link job to keyword for backward compatibility
         if keyword_node_id:
             try:
                 await storage.add_relationship(
@@ -632,15 +572,12 @@ async def get_graph_for_job(
             except Exception as e:
                 logger.debug(f"Failed to create edge from job to keyword: {e}")
         
-        # Refresh graph data after adding edges
         graph_data = await storage.get_graph_data()
         
-        # Get neighbors for all discovered nodes
         visited = set()
         nodes = []
         edges = []
         
-        # Add job node
         job_node_data = graph_data.get("nodes", {}).get(job_node_id, {})
         nodes.append(GraphNode(
             id=job_node_id,
@@ -651,12 +588,10 @@ async def get_graph_for_job(
         ))
         visited.add(job_node_id)
         
-        # Get all nodes (discovered entities + their neighbors)
         for node_id in node_ids:
             if node_id in visited:
                 continue
             
-            # Get the node itself
             entity = await storage.get_entity(node_id)
             if entity:
                 node_data = graph_data.get("nodes", {}).get(node_id, {})
@@ -669,7 +604,6 @@ async def get_graph_for_job(
                 ))
                 visited.add(node_id)
             
-            # Get neighbors
             neighbor_ids = await storage.get_neighbors(node_id, depth=depth)
             for neighbor_id in neighbor_ids:
                 if neighbor_id not in visited:
@@ -687,14 +621,10 @@ async def get_graph_for_job(
                             metadata=neighbor_entity
                         ))
         
-        # Build mapping from GraphNode IDs to Entity IDs
-        # Edges in database use GraphNode IDs (e.g., "node-job-123") but we need entity IDs (e.g., "job-123")
         node_id_to_entity_id = {}
         
-        # Build list of GraphNode IDs to query (format: "node-{entity_id}")
         graph_node_ids_to_query = [f"node-{entity_id}" for entity_id in all_node_ids]
         
-        # Query all GraphNodes at once for better performance
         if graph_node_ids_to_query:
             result = await db.execute(
                 select(GraphNodeModel).where(GraphNodeModel.id.in_(graph_node_ids_to_query))
@@ -704,35 +634,30 @@ async def get_graph_for_job(
                 if graph_node.entity_id:
                     node_id_to_entity_id[graph_node.id] = graph_node.entity_id
         
-        # Get edges between all nodes
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
                 source_graph_node_id = edge_data.get("source")
                 target_graph_node_id = edge_data.get("target")
                 
-                # Map GraphNode IDs to Entity IDs
                 source_entity_id = node_id_to_entity_id.get(source_graph_node_id)
                 target_entity_id = node_id_to_entity_id.get(target_graph_node_id)
                 
-                # If mapping failed, try removing "node-" prefix as fallback
                 if not source_entity_id and source_graph_node_id and source_graph_node_id.startswith("node-"):
-                    source_entity_id = source_graph_node_id[5:]  # Remove "node-" prefix
+                    source_entity_id = source_graph_node_id[5:]
                 if not target_entity_id and target_graph_node_id and target_graph_node_id.startswith("node-"):
-                    target_entity_id = target_graph_node_id[5:]  # Remove "node-" prefix
+                    target_entity_id = target_graph_node_id[5:]
                 
-                # If still no mapping, use original value (might already be entity ID)
                 if not source_entity_id:
                     source_entity_id = source_graph_node_id
                 if not target_entity_id:
                     target_entity_id = target_graph_node_id
                 
-                # Only include edge if both entity_ids are in all_node_ids
                 if source_entity_id in all_node_ids and target_entity_id in all_node_ids:
                     relation = edge_data.get("relation", "associated_with")
                     edges.append(GraphEdge(
                         id=edge_key,
-                        source=source_entity_id,  # Use entity ID
-                        target=target_entity_id,  # Use entity ID
+                        source=source_entity_id,
+                        target=target_entity_id,
                         relation=RelationType(relation) if hasattr(RelationType, relation.upper().replace("-", "_")) else RelationType.ASSOCIATED_WITH,
                         weight=edge_data.get("weight", 1.0),
                         metadata=edge_data.get("metadata", {})
@@ -744,7 +669,6 @@ async def get_graph_for_job(
         raise
     except Exception as e:
         logger.error(f"Error getting graph for job {job_id}: {e}", exc_info=True)
-        # Fallback to empty graph
         return GraphData(nodes=[], edges=[])
 
 
@@ -756,19 +680,16 @@ async def find_path(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Find path between two nodes using database storage."""
     try:
         if source == target:
             return PathResult(path=[source], total_weight=0, edges=[])
     
-        # Use Storage's find_path method
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         path = await storage.find_path(source, target)
         
         if not path:
             raise HTTPException(status_code=404, detail="No path found between nodes")
         
-        # Get edges for the path
         graph_data = await storage.get_graph_data()
         edges_list = []
         total_weight = 0
@@ -777,7 +698,6 @@ async def find_path(
             source_id = path[i]
             target_id = path[i + 1]
             
-            # Find edge between these nodes
             if "edges" in graph_data:
                 for edge_key, edge_data in graph_data["edges"].items():
                     if (edge_data.get("source") == source_id and edge_data.get("target") == target_id) or \
@@ -806,8 +726,6 @@ async def find_path(
 
 @router.get("/clusters", response_model=List[ClusterResult])
 async def find_clusters(min_size: int = Query(default=2, ge=2)):
-    """Find clusters of connected nodes."""
-    # Simplified connected components (will use custom Graph DSA)
     adj = {}
     all_nodes = set()
     
@@ -827,7 +745,6 @@ async def find_clusters(min_size: int = Query(default=2, ge=2)):
     
     for node in all_nodes:
         if node not in visited:
-            # BFS to find connected component
             component = []
             queue = [node]
             while queue:
@@ -854,14 +771,13 @@ async def create_edge(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new edge between nodes."""
     storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
     await storage.add_relationship(
         source_id=edge.source,
         target_id=edge.target,
         relation=edge.relation.value if isinstance(edge.relation, RelationType) else edge.relation,
         weight=edge.weight,
-        metadata=edge.metadata  # Pydantic model uses 'metadata', storage maps to 'meta_data' in DB
+        metadata=edge.metadata
     )
     return edge
 
@@ -872,10 +788,8 @@ async def delete_edge(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete an edge."""
     from app.core.database.models import GraphEdge as GraphEdgeModel
     
-    # Find edge
     query = select(GraphEdgeModel).where(GraphEdgeModel.id == edge_id)
     if not is_admin(current_user):
         query = query.where(GraphEdgeModel.user_id == current_user.id)

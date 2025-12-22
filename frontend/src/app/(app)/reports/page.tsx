@@ -13,7 +13,6 @@ export default function ReportsPage() {
   const [generating, setGenerating] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  // Fetch reports from API
   useEffect(() => {
     const fetchReports = async () => {
       try {
@@ -31,7 +30,6 @@ export default function ReportsPage() {
 
     fetchReports();
 
-    // Poll for updates every 30 seconds
     const interval = setInterval(fetchReports, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -41,7 +39,6 @@ export default function ReportsPage() {
       setGenerating(true);
       setError(null);
 
-      // Use default report type and auto-generated name
       const reportName = `Report - ${new Date().toLocaleString()}`;
       const params = {
         title: reportName,
@@ -51,7 +48,6 @@ export default function ReportsPage() {
 
       await api.generateReport(params);
 
-      // Refresh reports list
       const reports = await api.getReports();
       setRecentReports(mapToReports(reports));
     } catch (err: any) {
@@ -67,7 +63,6 @@ export default function ReportsPage() {
       setDownloadingId(reportId);
       const blob = await api.downloadReport(reportId);
       
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -84,7 +79,6 @@ export default function ReportsPage() {
     }
   };
 
-  // Show loading state
   if (loading && recentReports.length === 0) {
     return (
       <div className="space-y-6">
@@ -104,7 +98,6 @@ export default function ReportsPage() {
     );
   }
 
-  // Show error state
   if (error && recentReports.length === 0) {
     return (
       <div className="space-y-6">

@@ -13,7 +13,6 @@ router = APIRouter()
 
 
 class Notification(BaseModel):
-    """Notification response model."""
     id: str
     user_id: str
     channel: str
@@ -67,7 +66,6 @@ async def get_notifications(
         result = await db.execute(query)
         notifications = result.scalars().all()
         
-        # Get unread count
         unread_count_query = select(func.count(NotificationModel.id)).where(
             and_(
                 NotificationModel.user_id == current_user.id,
@@ -77,7 +75,6 @@ async def get_notifications(
         unread_count_result = await db.execute(unread_count_query)
         unread_count = unread_count_result.scalar() or 0
         
-        # Convert to response models
         notification_list = []
         for notif in notifications:
             notification_list.append(Notification(
@@ -102,7 +99,6 @@ async def get_notifications(
     except Exception as e:
         from loguru import logger
         logger.error(f"Error fetching notifications: {e}", exc_info=True)
-        # Return empty list on error instead of crashing
         return NotificationListResponse(
             notifications=[],
             unread_count=0
@@ -114,7 +110,6 @@ async def get_unread_count(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get unread notification count for the current user."""
     query = select(func.count(NotificationModel.id)).where(
         and_(
             NotificationModel.user_id == current_user.id,
@@ -133,8 +128,6 @@ async def mark_notification_read(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Mark a notification as read."""
-    # Get notification
     query = select(NotificationModel).where(
         and_(
             NotificationModel.id == notification_id,
@@ -147,7 +140,6 @@ async def mark_notification_read(
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     
-    # Mark as read
     notification.read = True
     notification.read_at = datetime.utcnow()
     
@@ -161,8 +153,6 @@ async def mark_all_notifications_read(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Mark all notifications as read for the current user."""
-    # Get all unread notifications
     query = select(NotificationModel).where(
         and_(
             NotificationModel.user_id == current_user.id,
@@ -172,7 +162,6 @@ async def mark_all_notifications_read(
     result = await db.execute(query)
     notifications = result.scalars().all()
     
-    # Mark all as read
     now = datetime.utcnow()
     count = 0
     for notification in notifications:

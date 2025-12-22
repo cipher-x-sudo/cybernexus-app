@@ -15,11 +15,9 @@ interface ActivityItem {
   timestamp: Date;
 }
 
-// Fetch activities from timeline API
 async function fetchActivities(): Promise<ActivityItem[]> {
   try {
     const data = await api.getRecentTimelineEvents(20);
-    // Map timeline events to ActivityItem format
     return data.map((event: any) => ({
       id: event.id,
       type: event.type === 'threat_detected' ? 'threat' : 
@@ -42,11 +40,9 @@ export function ActivityFeed() {
   const [displayedCount, setDisplayedCount] = useState(0);
 
   useEffect(() => {
-    // Fetch activities from API
     fetchActivities().then((fetchedActivities) => {
       setActivities(fetchedActivities);
       
-      // Simulate typing effect for activity items
       const timer = setInterval(() => {
         setDisplayedCount((prev) => {
           if (prev >= fetchedActivities.length) {

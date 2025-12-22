@@ -91,7 +91,6 @@ export default function HelpPage() {
         />
       </div>
 
-      {/* Categories */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {categories.map((category) => (
           <GlassCard

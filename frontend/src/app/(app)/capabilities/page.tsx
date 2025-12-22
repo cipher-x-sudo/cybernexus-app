@@ -160,7 +160,6 @@ export default function CapabilitiesPage() {
               )}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Icon */}
               <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-4", colors.iconBg)}>
                 <div className={colors.text}>{cap.icon}</div>
               </div>

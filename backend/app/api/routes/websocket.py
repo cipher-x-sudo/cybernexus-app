@@ -40,13 +40,11 @@ class ConnectionManager:
             logger.debug(f"Client {client_id} subscribed to {channel}")
     
     def unsubscribe(self, client_id: str, channel: str):
-        """Unsubscribe a client from a channel."""
         if channel in self.subscriptions:
             self.subscriptions[channel].discard(client_id)
             logger.debug(f"Client {client_id} unsubscribed from {channel}")
     
     async def send_personal_message(self, message: dict, client_id: str):
-        """Send a message to a specific client."""
         if client_id in self.active_connections:
             websocket = self.active_connections[client_id]
             try:
@@ -56,7 +54,6 @@ class ConnectionManager:
                 self.disconnect(client_id)
     
     async def broadcast(self, message: dict, channel: str = "all"):
-        """Broadcast a message to all clients in a channel."""
         clients = self.subscriptions.get(channel, set()) | self.subscriptions.get("all", set())
         
         for client_id in clients.copy():
@@ -68,17 +65,14 @@ class ConnectionManager:
                     self.disconnect(client_id)
 
 
-# Global connection manager
 manager = ConnectionManager()
 
 
 @router.websocket("/connect/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    """Main WebSocket endpoint for real-time updates."""
     await manager.connect(websocket, client_id)
     
     try:
-        # Send welcome message
         await manager.send_personal_message({
             "type": "connected",
             "message": "Welcome to CyberNexus real-time feed",
@@ -87,11 +81,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         }, client_id)
         
         while True:
-            # Receive and process messages
             data = await websocket.receive_text()
             message = json.loads(data)
             
-            # Handle different message types
             if message.get("action") == "subscribe":
                 channel = message.get("channel")
                 if channel:
@@ -126,7 +118,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 
 async def broadcast_threat(threat_data: dict):
-    """Broadcast a new threat to all subscribed clients."""
     await manager.broadcast({
         "type": "threat",
         "data": threat_data,
@@ -135,7 +126,6 @@ async def broadcast_threat(threat_data: dict):
 
 
 async def broadcast_event(event_data: dict):
-    """Broadcast a new event to all subscribed clients."""
     await manager.broadcast({
         "type": "event",
         "data": event_data,
@@ -144,7 +134,6 @@ async def broadcast_event(event_data: dict):
 
 
 async def broadcast_alert(alert_data: dict):
-    """Broadcast an alert to all subscribed clients."""
     await manager.broadcast({
         "type": "alert",
         "data": alert_data,
@@ -153,7 +142,6 @@ async def broadcast_alert(alert_data: dict):
 
 
 async def broadcast_scan_progress(scan_data: dict):
-    """Broadcast scan progress to all subscribed clients."""
     await manager.broadcast({
         "type": "scan_progress",
         "data": scan_data,
@@ -161,11 +149,9 @@ async def broadcast_scan_progress(scan_data: dict):
     }, "scans")
 
 
-# Background task to send periodic stats
 async def send_periodic_stats():
-    """Send periodic system stats to all connected clients."""
     while True:
-        await asyncio.sleep(30)  # Every 30 seconds
+        await asyncio.sleep(30)
         
         stats = {
             "type": "stats",

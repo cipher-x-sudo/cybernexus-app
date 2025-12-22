@@ -43,14 +43,6 @@ class Serializer:
     
     @staticmethod
     def load_json(path: Union[str, Path]) -> Any:
-        """Load object from JSON file.
-        
-        Args:
-            path: File path
-            
-        Returns:
-            Loaded object
-        """
         path = Path(path)
         
         if path.suffix == '.gz':
@@ -62,37 +54,14 @@ class Serializer:
     
     @staticmethod
     def to_pickle(obj: Any) -> bytes:
-        """Serialize object to pickle bytes.
-        
-        Args:
-            obj: Object to serialize
-            
-        Returns:
-            Pickle bytes
-        """
         return pickle.dumps(obj)
     
     @staticmethod
     def from_pickle(data: bytes) -> Any:
-        """Deserialize object from pickle bytes.
-        
-        Args:
-            data: Pickle bytes
-            
-        Returns:
-            Deserialized object
-        """
         return pickle.loads(data)
     
     @staticmethod
     def save_pickle(obj: Any, path: Union[str, Path], compress: bool = False):
-        """Save object to pickle file.
-        
-        Args:
-            obj: Object to save
-            path: File path
-            compress: Use gzip compression
-        """
         path = Path(path)
         data = pickle.dumps(obj)
         
@@ -106,14 +75,6 @@ class Serializer:
     
     @staticmethod
     def load_pickle(path: Union[str, Path]) -> Any:
-        """Load object from pickle file.
-        
-        Args:
-            path: File path
-            
-        Returns:
-            Loaded object
-        """
         path = Path(path)
         
         if path.suffix == '.gz':
@@ -125,15 +86,6 @@ class Serializer:
     
     @staticmethod
     def serialize_dsa(structure: Any, format: str = 'json') -> Union[str, bytes]:
-        """Serialize a DSA structure.
-        
-        Args:
-            structure: DSA structure (Graph, AVL, etc.)
-            format: 'json' or 'pickle'
-            
-        Returns:
-            Serialized data
-        """
         if hasattr(structure, 'to_dict'):
             data = structure.to_dict()
         elif hasattr(structure, 'to_list'):
@@ -148,16 +100,6 @@ class Serializer:
     
     @staticmethod
     def deserialize_dsa(data: Union[str, bytes], dsa_class: Type, format: str = 'json') -> Any:
-        """Deserialize a DSA structure.
-        
-        Args:
-            data: Serialized data
-            dsa_class: DSA class to instantiate
-            format: 'json' or 'pickle'
-            
-        Returns:
-            Deserialized DSA structure
-        """
         if format == 'json':
             parsed = Serializer.from_json(data) if isinstance(data, str) else data
         else:

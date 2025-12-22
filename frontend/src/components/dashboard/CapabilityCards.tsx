@@ -171,7 +171,6 @@ interface CapabilityCardsProps {
 }
 
 export function CapabilityCards({ className, compact = false, stats: propStats }: CapabilityCardsProps) {
-  // Merge prop stats with capabilities (only use real stats from API)
   const capabilitiesWithStats = capabilities.map((cap) => {
     const realStats = propStats?.[cap.id];
     return {

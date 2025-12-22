@@ -55,14 +55,14 @@ class JobPriority(int, Enum):
 class Finding:
     id: str
     capability: Capability
-    severity: str  # critical, high, medium, low, info
+    severity: str
     title: str
     description: str
     evidence: Dict[str, Any]
     affected_assets: List[str]
     recommendations: List[str]
     discovered_at: datetime
-    risk_score: float  # 0-100
+    risk_score: float
     target: str = ""
     
     def to_dict(self) -> Dict[str, Any]:
@@ -89,28 +89,25 @@ class Job:
     status: JobStatus
     priority: JobPriority
     config: Dict[str, Any]
-    progress: int  # 0-100
+    progress: int
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     findings: List[Finding] = field(default_factory=list)
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)  # Additional job metadata (e.g., discovered URLs)
-    execution_logs: List[Dict[str, Any]] = field(default_factory=list)  # Execution timeline/logs
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    execution_logs: List[Dict[str, Any]] = field(default_factory=list)
     _findings_lock: Lock = field(default_factory=Lock, init=False, repr=False)
     
     def add_finding(self, finding: Finding):
-        """Thread-safe method to add a finding"""
         with self._findings_lock:
             self.findings.append(finding)
     
     def add_findings(self, findings: List[Finding]):
-        """Thread-safe method to add multiple findings"""
         with self._findings_lock:
             self.findings.extend(findings)
     
     def get_findings_since(self, since_timestamp: Optional[datetime] = None, since_id: Optional[str] = None) -> List[Finding]:
-        """Get findings since a timestamp or finding ID (thread-safe read)"""
         with self._findings_lock:
             if since_timestamp:
                 return [f for f in self.findings if f.discovered_at > since_timestamp]
@@ -140,7 +137,6 @@ class Job:
         }
 
 
-# Capability metadata for user display
 CAPABILITY_METADATA = {
     Capability.EXPOSURE_DISCOVERY: {
         "id": "exposure_discovery",
@@ -229,15 +225,7 @@ CAPABILITY_METADATA = {
 
 
 class Orchestrator:
-    """
-    Central orchestration engine for all security capabilities.
-    
-    Maps high-level capabilities to underlying tools and manages
-    job execution, queuing, and result aggregation.
-    """
-    
     def __init__(self):
-        """Initialize the orchestrator"""
         self._jobs = HashMap()
         self._job_queue = MinHeap()
         self._findings_index = AVLTree()
@@ -306,33 +294,25 @@ class Orchestrator:
             logger.warning(f"Failed to initialize database storage for job {job.id}: {e}")
     
     def register_tool_executor(self, tool_name: str, executor: Any):
-        """Register a tool executor function for a specific tool"""
         self._tool_executors[tool_name] = executor
         logger.debug(f"Registered tool executor for {tool_name}")
     
     async def register_websocket(self, job_id: str, websocket: WebSocket):
-        """Register a WebSocket connection for a job (thread-safe)"""
         async with self._websocket_lock:
             self._websocket_connections[job_id] = websocket
-            logger.info(f"Registered WebSocket connection for job {job_id}")
+                logger.info(f"Registered WebSocket connection for job {job_id}")
     
     async def unregister_websocket(self, job_id: str):
-        """Unregister a WebSocket connection for a job (thread-safe)"""
         async with self._websocket_lock:
             if job_id in self._websocket_connections:
                 del self._websocket_connections[job_id]
                 logger.info(f"Unregistered WebSocket connection for job {job_id}")
     
     async def get_websocket(self, job_id: str) -> Optional[WebSocket]:
-        """Get WebSocket connection for a job (thread-safe)"""
         async with self._websocket_lock:
             return self._websocket_connections.get(job_id)
     
     async def send_websocket_message(self, job_id: str, message: Dict[str, Any]) -> bool:
-        """
-        Send a message via WebSocket to a job's connection.
-        Returns True if sent successfully, False if connection doesn't exist or send failed.
-        """
         websocket = await self.get_websocket(job_id)
         if not websocket:
             return False
@@ -346,11 +326,9 @@ class Orchestrator:
             return False
     
     def get_capabilities(self) -> List[Dict[str, Any]]:
-        """Get all available capabilities"""
         return list(CAPABILITY_METADATA.values())
     
     def get_capability(self, capability_id: str) -> Optional[Dict[str, Any]]:
-        """Get a specific capability by ID"""
         try:
             cap = Capability(capability_id)
             return CAPABILITY_METADATA.get(cap)
@@ -365,7 +343,6 @@ class Orchestrator:
         priority: JobPriority = JobPriority.NORMAL,
         user_id: Optional[str] = None
     ) -> Job:
-        """Create a new job"""
         job_id = f"job-{uuid.uuid4().hex[:12]}"
         
         default_config = CAPABILITY_METADATA[capability].get("default_config", {})
@@ -423,7 +400,6 @@ class Orchestrator:
         return job
     
     async def execute_job(self, job_id: str):
-        """Execute a job (called in background)"""
         job = self._jobs.get(job_id)
         if not job:
             logger.error(f"Job {job_id} not found")
@@ -442,14 +418,11 @@ class Orchestrator:
             
             findings = await self._execute_capability(job)
             
-            # Get user_id from job metadata
             user_id = job.metadata.get("user_id") if job.metadata else None
             
-            # Store findings
             for finding in findings:
                 finding.target = job.target
                 
-                # Add job_id to finding evidence for tracking
                 if not finding.evidence:
                     finding.evidence = {}
                 finding.evidence["job_id"] = job.id
@@ -457,13 +430,11 @@ class Orchestrator:
                 self._all_findings.append(finding)
                 self._findings_index.insert(finding.risk_score, finding)
                 
-                # Store in database if user_id is available
                 if user_id:
                     try:
                         from app.core.database.database import init_db, _async_session_maker
                         from app.core.database.finding_storage import DBFindingStorage
                         
-                        # Ensure database is initialized
                         init_db()
                         
                         if _async_session_maker:
@@ -483,7 +454,6 @@ class Orchestrator:
                 elif finding.severity == "high":
                     self._stats["high_findings"] += 1
                 
-                # Create notification for critical/high findings
                 if user_id and finding.severity in ["critical", "high"]:
                     try:
                         from app.services.notification import NotificationService, NotificationPriority
@@ -526,7 +496,6 @@ class Orchestrator:
             job.findings = findings
             self._stats["total_findings"] += len(findings)
             
-            # Add execution log for findings discovered
             if findings:
                 critical_count = sum(1 for f in findings if f.severity == "critical")
                 high_count = sum(1 for f in findings if f.severity == "high")
@@ -538,21 +507,17 @@ class Orchestrator:
             else:
                 self._add_execution_log(job, "info", "No findings discovered", {})
             
-            # Complete job
             self._update_job_status(job, JobStatus.COMPLETED)
             job.completed_at = datetime.now()
             job.progress = 100
             
-            # Add completion log
             self._add_execution_log(job, "info", f"Job completed successfully. Found {len(findings)} findings.", {
                 "findings_count": len(findings),
                 "duration_seconds": (job.completed_at - job.started_at).total_seconds() if job.started_at and job.completed_at else None
             })
             
-            # Save to database
             await self._save_job_to_db(job)
             
-            # Create notification for job completion
             if user_id:
                 try:
                     from app.services.notification import NotificationService, NotificationPriority
@@ -564,7 +529,6 @@ class Orchestrator:
                             try:
                                 notification_service = NotificationService()
                                 
-                                # Determine priority based on findings
                                 has_critical = any(f.severity == "critical" for f in findings)
                                 has_high = any(f.severity == "high" for f in findings)
                                 
@@ -617,7 +581,6 @@ class Orchestrator:
             error_message = str(e)
             job.error = error_message
             
-            # Add error execution log
             self._add_execution_log(job, "error", f"Job execution failed: {error_message}", {
                 "error": error_message,
                 "capability": job.capability.value,
@@ -627,7 +590,6 @@ class Orchestrator:
             self._update_job_status(job, JobStatus.FAILED)
             self._stats["failed_jobs"] += 1
             
-            # Save to database
             await self._save_job_to_db(job)
             
             self._add_event("job_failed", {
@@ -637,10 +599,8 @@ class Orchestrator:
             })
     
     async def _execute_capability(self, job: Job) -> List[Finding]:
-        """Execute the appropriate capability using real collectors"""
         findings = []
         
-        # Check if WebSocket connection exists for streaming (darkweb only)
         if job.capability == Capability.DARK_WEB_INTELLIGENCE:
             websocket = await self.get_websocket(job.id)
             if websocket:
@@ -658,7 +618,6 @@ class Orchestrator:
             elif job.capability == Capability.INFRASTRUCTURE_TESTING:
                 findings = await self._execute_infra_testing(job)
             elif job.capability == Capability.DARK_WEB_INTELLIGENCE:
-                # Check if WebSocket connection exists for streaming
                 websocket = await self.get_websocket(job.id)
                 if websocket:
                     logger.info(f"[Orchestrator] WebSocket connection found for job {job.id}, using streaming execution")
@@ -679,13 +638,11 @@ class Orchestrator:
         return findings
     
     async def _execute_email_audit(self, job: Job) -> List[Finding]:
-        """Execute comprehensive email security audit using EmailAudit collector"""
         findings = []
         
         job.progress = 10
         logger.info(f"Running comprehensive email audit for {job.target}")
         
-        # Get config from job (default to comprehensive checks)
         config = job.config or {}
         audit_config = {
             "check_bimi": config.get("check_bimi", True),
@@ -703,14 +660,12 @@ class Orchestrator:
         
         job.progress = 50
         
-        # Run bypass vulnerability analysis
         if config.get("run_bypass_tests", True):
             bypass_results = await self._bypass_tester.analyze_bypass_vulnerabilities(
                 job.target, results
             )
             results["bypass_analysis"] = bypass_results
             
-            # Convert bypass vulnerabilities to findings
             for vuln in bypass_results.get("vulnerabilities", []):
                 findings.append(Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
@@ -731,7 +686,6 @@ class Orchestrator:
         
         job.progress = 70
         
-        # Convert SPF issues to findings
         spf = results.get("spf", {})
         if spf.get("exists"):
             for issue in spf.get("issues", []):
@@ -753,7 +707,6 @@ class Orchestrator:
                     risk_score=self._severity_to_score(severity)
                 ))
         else:
-            # No SPF record found
             findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.EMAIL_SECURITY,
@@ -767,7 +720,6 @@ class Orchestrator:
                 risk_score=75.0
             ))
         
-        # Convert DKIM issues to findings
         dkim = results.get("dkim", {})
         if not dkim.get("selectors_found"):
             findings.append(Finding(
@@ -786,7 +738,6 @@ class Orchestrator:
                 risk_score=70.0
             ))
         else:
-            # DKIM found - report as info
             findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.EMAIL_SECURITY,
@@ -802,7 +753,6 @@ class Orchestrator:
                 risk_score=10.0
             ))
         
-        # Convert DMARC issues to findings
         dmarc = results.get("dmarc", {})
         if dmarc.get("exists"):
             policy = dmarc.get("policy")
@@ -869,10 +819,8 @@ class Orchestrator:
                 risk_score=70.0
             ))
         
-        # Add findings for advanced checks
         job.progress = 75
         
-        # BIMI findings
         if "bimi" in results:
             bimi = results.get("bimi", {})
             if not bimi.get("exists"):
@@ -919,7 +867,6 @@ class Orchestrator:
                     risk_score=40.0
                 ))
         
-        # Subdomain findings
         if "subdomains" in results:
             subdomains = results.get("subdomains", {})
             for issue in subdomains.get("issues", []):
@@ -955,17 +902,14 @@ class Orchestrator:
                 risk_score=self._severity_to_score(risk.get("spoofing_risk", "medium"))
             ))
         
-        # Generate positive indicators from scan results
         positive_scorer = get_positive_scorer()
         try:
-            # Check for positive indicators (strong config, no vulnerabilities, etc.)
             positive_indicators = positive_scorer.analyze_scan_results(
                 Capability.EMAIL_SECURITY,
                 [f.to_dict() for f in findings],
                 results
             )
             
-            # Store positive indicators in database
             user_id = job.metadata.get("user_id") if job.metadata else None
             if positive_indicators and user_id:
                 try:
@@ -1021,7 +965,6 @@ class Orchestrator:
                 f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Progress update: {progress}% - {message} "
                 f"(findings so far: {len(findings)})"
             )
-            # Schedule async WebSocket message
             asyncio.create_task(self.send_websocket_message(job.id, {
                 "type": "progress",
                 "data": {
@@ -1032,7 +975,6 @@ class Orchestrator:
                 "timestamp": datetime.now().isoformat()
             }))
         
-        # Run comprehensive web reconnaissance with progress updates
         recon_start = time.time()
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Calling WebRecon.discover_assets()")
         try:
@@ -1095,7 +1037,6 @@ class Orchestrator:
                 f"risk_score={risk_score}, source={source}, title={title[:50]}..."
             )
             
-            # Stream finding via WebSocket
             try:
                 await self.send_websocket_message(job.id, {
                     "type": "finding",
@@ -1108,14 +1049,12 @@ class Orchestrator:
             
             return finding
         
-        # Process subdomains
         subdomains = results.get("subdomains", [])
         subdomain_count = len(subdomains)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {subdomain_count} subdomains")
         if subdomains:
             processed_count = 0
-            # Individual subdomain findings
-            for idx, subdomain in enumerate(subdomains[:50]):  # Limit to avoid too many findings
+            for idx, subdomain in enumerate(subdomains[:50]):
                 severity = "info"
                 risk_score = 20.0
                 if not subdomain.get("https"):
@@ -1152,7 +1091,6 @@ class Orchestrator:
                 f"(limited from {subdomain_count} total)"
             )
         
-        # Process endpoints
         endpoints = results.get("endpoints", [])
         endpoint_count = len(endpoints)
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing {endpoint_count} endpoints")
@@ -1164,7 +1102,6 @@ class Orchestrator:
             was_redirected = endpoint.get("was_redirected", False)
             final_url = endpoint.get("final_url", url)
             
-            # Skip any endpoint that redirects to 404 (not actually accessible)
             if status == 404:
                 logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Skipping endpoint {path}: "
@@ -1172,7 +1109,6 @@ class Orchestrator:
                 )
                 continue
             
-            # Determine severity and category
             severity = "info"
             risk_score = 20.0
             category = "endpoint"
@@ -1218,7 +1154,6 @@ class Orchestrator:
                 severity = "info"
                 risk_score = 10.0
             
-            # Report endpoint if status is 200 or redirect (3xx) - but 404s are already filtered above
             if status == 200 or (status >= 300 and status < 400):
                 logger.debug(
                     f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Processing endpoint {idx+1}/{endpoint_count}: "
@@ -1462,7 +1397,6 @@ class Orchestrator:
         return findings
     
     async def _execute_infra_testing(self, job: Job) -> List[Finding]:
-        """Execute real infrastructure testing using ConfigAudit collector"""
         findings = []
         
         job.progress = 20
@@ -1616,7 +1550,6 @@ class Orchestrator:
         return scores.get(severity, 50.0)
     
     def _get_spf_recommendations(self, spf: Dict[str, Any]) -> List[str]:
-        """Get SPF-specific recommendations"""
         recommendations = []
         all_mech = spf.get("all_mechanism")
         
@@ -1663,7 +1596,6 @@ class Orchestrator:
         ]
     
     async def _execute_darkweb_intelligence(self, job: Job) -> List[Finding]:
-        """Execute real dark web intelligence collection with batch processing and incremental storage"""
         findings = []
         from app.config import settings
         from app.utils import check_tor_connectivity
@@ -2112,9 +2044,7 @@ class Orchestrator:
         
         batch_size = settings.DARKWEB_BATCH_SIZE
         
-        # Helper to send finding via WebSocket
         async def send_finding(finding: Finding):
-            """Send a finding via WebSocket if connection exists"""
             await self.send_websocket_message(job.id, {
                 "type": "finding",
                 "data": finding.to_dict(),
@@ -2188,7 +2118,6 @@ class Orchestrator:
             pending_engine_findings = []  # Collect findings from callback to send after discovery
             
             def on_engine_complete(engine_name: str, engine_urls: List[str]):
-                """Callback called when an engine completes discovery (synchronous, called from thread)"""
                 discovered_urls_by_engine[engine_name] = engine_urls
                 urls.extend(engine_urls)
                 
@@ -2542,7 +2471,6 @@ class Orchestrator:
         return findings
     
     def _map_threat_to_severity(self, threat_level: str) -> str:
-        """Map threat level to severity string."""
         mapping = {
             "critical": "critical",
             "high": "high",
@@ -2570,7 +2498,6 @@ class Orchestrator:
         ]
     
     def _generate_infra_findings(self, job: Job) -> List[Finding]:
-        """Generate sample infrastructure findings"""
         return [
             Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2682,7 +2609,6 @@ class Orchestrator:
                         'risk_level': domain_result.risk_assessment.get('level', 'low')
                     }
                 
-                # Generate findings from domain tree analysis
                 findings.extend(self._findings_from_domain_tree(domain_result, target))
             
             # Visual similarity analysis (if enabled)
@@ -2772,7 +2698,6 @@ class Orchestrator:
             ]
     
     def _findings_from_domain_tree(self, domain_result, target: str) -> List[Finding]:
-        """Generate findings from domain tree analysis"""
         findings = []
         
         # Tracker detection
@@ -2894,7 +2819,6 @@ class Orchestrator:
         return findings
     
     def _check_domain_reputation(self, target: str) -> List[Finding]:
-        """Check domain reputation (simplified implementation)"""
         findings = []
         
         try:
@@ -2944,7 +2868,6 @@ class Orchestrator:
         return findings
     
     def _add_execution_log(self, job: Job, level: str, message: str, data: Optional[Dict[str, Any]] = None):
-        """Add an execution log entry to a job"""
         from datetime import datetime
         log_entry = {
             "timestamp": datetime.now().isoformat(),
@@ -2956,7 +2879,6 @@ class Orchestrator:
         job.execution_logs.append(log_entry)
     
     def _update_job_status(self, job: Job, new_status: JobStatus):
-        """Update job status and indexes"""
         old_status = job.status
         
         # Add execution log for status change

@@ -25,23 +25,17 @@ interface MiniWorldMapProps {
   className?: string;
 }
 
-// Helper to convert API threat data to ThreatPoint format
 function convertThreatsToPoints(threats: ThreatPoint[] | ThreatData[] | undefined): ThreatPoint[] {
   if (!threats || threats.length === 0) {
     return [];
   }
 
-  // If already in ThreatPoint format, return as is
   if (threats.length > 0 && 'lat' in threats[0]) {
     return threats as ThreatPoint[];
   }
 
-  // Convert ThreatData to ThreatPoint
   const threatData = threats as ThreatData[];
   
-  // Group by severity and assign locations
-  // For now, we'll use a simple hash-based location assignment
-  // In a real implementation, you'd geolocate based on target IP/domain
   const severityGroups: Record<string, ThreatData[]> = {
     critical: [],
     high: [],
@@ -58,27 +52,24 @@ function convertThreatsToPoints(threats: ThreatPoint[] | ThreatData[] | undefine
     }
   });
 
-  // Assign locations based on severity (distribute across map)
   const locations: Array<{ lat: number; lng: number }> = [
-    { lat: 40.7128, lng: -74.006 }, // NYC
-    { lat: 51.5074, lng: -0.1278 }, // London
-    { lat: 35.6762, lng: 139.6503 }, // Tokyo
-    { lat: 55.7558, lng: 37.6173 }, // Moscow
-    { lat: -23.5505, lng: -46.6333 }, // São Paulo
-    { lat: 1.3521, lng: 103.8198 }, // Singapore
-    { lat: 48.8566, lng: 2.3522 }, // Paris
-    { lat: -33.8688, lng: 151.2093 }, // Sydney
-    { lat: 39.9042, lng: 116.4074 }, // Beijing
-    { lat: 28.6139, lng: 77.209 }, // Delhi
+    { lat: 40.7128, lng: -74.006 },
+    { lat: 51.5074, lng: -0.1278 },
+    { lat: 35.6762, lng: 139.6503 },
+    { lat: 55.7558, lng: 37.6173 },
+    { lat: -23.5505, lng: -46.6333 },
+    { lat: 1.3521, lng: 103.8198 },
+    { lat: 48.8566, lng: 2.3522 },
+    { lat: -33.8688, lng: 151.2093 },
+    { lat: 39.9042, lng: 116.4074 },
+    { lat: 28.6139, lng: 77.209 },
   ];
 
   const points: ThreatPoint[] = [];
   let locationIndex = 0;
 
-  // Create points for each severity group
   Object.entries(severityGroups).forEach(([severity, group]) => {
     if (group.length > 0) {
-      // Aggregate by location (simplified - in real app, geolocate targets)
       const location = locations[locationIndex % locations.length];
       points.push({
         lat: location.lat,
@@ -114,18 +105,15 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
     resize();
     window.addEventListener("resize", resize);
 
-    // World map simplified path (continents outline)
     const drawMap = () => {
       const width = canvas.width / window.devicePixelRatio;
       const height = canvas.height / window.devicePixelRatio;
 
       ctx.clearRect(0, 0, width, height);
 
-      // Grid
       ctx.strokeStyle = "rgba(245, 158, 11, 0.05)";
       ctx.lineWidth = 1;
 
-      // Horizontal lines
       for (let i = 0; i <= 6; i++) {
         ctx.beginPath();
         ctx.moveTo(0, (height / 6) * i);
@@ -133,7 +121,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
         ctx.stroke();
       }
 
-      // Vertical lines
       for (let i = 0; i <= 12; i++) {
         ctx.beginPath();
         ctx.moveTo((width / 12) * i, 0);
@@ -141,11 +128,9 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
         ctx.stroke();
       }
 
-      // Draw simplified continent outlines (neon style)
       ctx.strokeStyle = "rgba(245, 158, 11, 0.3)";
       ctx.lineWidth = 1.5;
 
-      // North America
       ctx.beginPath();
       ctx.moveTo(width * 0.12, height * 0.25);
       ctx.quadraticCurveTo(width * 0.15, height * 0.15, width * 0.25, height * 0.12);
@@ -154,7 +139,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       ctx.quadraticCurveTo(width * 0.12, height * 0.45, width * 0.12, height * 0.25);
       ctx.stroke();
 
-      // South America
       ctx.beginPath();
       ctx.moveTo(width * 0.22, height * 0.55);
       ctx.quadraticCurveTo(width * 0.28, height * 0.55, width * 0.3, height * 0.65);
@@ -162,7 +146,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       ctx.quadraticCurveTo(width * 0.2, height * 0.75, width * 0.22, height * 0.55);
       ctx.stroke();
 
-      // Europe
       ctx.beginPath();
       ctx.moveTo(width * 0.45, height * 0.15);
       ctx.quadraticCurveTo(width * 0.55, height * 0.12, width * 0.55, height * 0.25);
@@ -170,7 +153,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       ctx.quadraticCurveTo(width * 0.42, height * 0.25, width * 0.45, height * 0.15);
       ctx.stroke();
 
-      // Africa
       ctx.beginPath();
       ctx.moveTo(width * 0.45, height * 0.4);
       ctx.quadraticCurveTo(width * 0.55, height * 0.38, width * 0.58, height * 0.5);
@@ -178,7 +160,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       ctx.quadraticCurveTo(width * 0.42, height * 0.6, width * 0.45, height * 0.4);
       ctx.stroke();
 
-      // Asia
       ctx.beginPath();
       ctx.moveTo(width * 0.58, height * 0.15);
       ctx.quadraticCurveTo(width * 0.75, height * 0.1, width * 0.85, height * 0.2);
@@ -187,7 +168,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       ctx.quadraticCurveTo(width * 0.55, height * 0.25, width * 0.58, height * 0.15);
       ctx.stroke();
 
-      // Australia
       ctx.beginPath();
       ctx.moveTo(width * 0.78, height * 0.65);
       ctx.quadraticCurveTo(width * 0.88, height * 0.62, width * 0.9, height * 0.7);
@@ -208,7 +188,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
       };
 
       threatPoints.forEach((threat) => {
-        // Convert lat/lng to x/y (simplified Mercator)
         const x = ((threat.lng + 180) / 360) * width;
         const y = ((90 - threat.lat) / 180) * height;
 
@@ -216,7 +195,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
         const pulse = Math.sin(time * 0.003 + threat.lat) * 0.3 + 0.7;
         const size = 3 + threat.count * 0.5;
 
-        // Glow
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 4);
         gradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.4 * pulse})`);
         gradient.addColorStop(1, "transparent");
@@ -225,7 +203,6 @@ export function MiniWorldMap({ threats, className }: MiniWorldMapProps) {
         ctx.arc(x, y, size * 4, 0, Math.PI * 2);
         ctx.fill();
 
-        // Core
         ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`;
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);

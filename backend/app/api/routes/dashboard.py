@@ -77,15 +77,6 @@ def calculate_risk_score(
 
 
 def calculate_trend(current_score: int, previous_score: Optional[int]) -> str:
-    """Calculate trend based on score comparison.
-    
-    Args:
-        current_score: Current risk score
-        previous_score: Previous period risk score (if available)
-        
-    Returns:
-        "improving", "worsening", or "stable"
-    """
     if previous_score is None:
         return "stable"
     
@@ -103,16 +94,6 @@ async def get_dashboard_overview(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get comprehensive dashboard overview data.
-    
-    Returns aggregated data including:
-    - Risk score and metrics
-    - Recent jobs
-    - Recent events
-    - Capability statistics
-    - Threat map data
-    """
     try:
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
@@ -206,7 +187,7 @@ async def get_dashboard_overview(
             }
         
         threat_map_data = []
-        for finding in critical_findings[:20]:  # Top 20 for map
+        for finding in critical_findings[:20]:
             threat_map_data.append({
                 "id": finding.get("id"),
                 "title": finding.get("title"),
@@ -247,7 +228,6 @@ async def get_dashboard_overview(
 
 
 def _is_within_24h(timestamp_str: str) -> bool:
-    """Check if timestamp is within last 24 hours."""
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         if not timestamp.tzinfo:
@@ -264,10 +244,6 @@ async def get_critical_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get critical and high severity findings for dashboard.
-    Queries from database, filtered by current user.
-    """
     try:
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         findings = await finding_storage.get_critical_findings(limit=limit)
@@ -325,16 +301,6 @@ async def get_risk_breakdown(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get detailed risk score breakdown aggregated across all targets.
-    
-    Returns:
-    - Overall score and risk level
-    - Category-wise breakdown (exposure, dark_web, email_security, etc.)
-    - Severity distribution per category
-    - Calculation details
-    - Recommendations
-    """
     try:        
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
@@ -510,7 +476,7 @@ async def get_risk_breakdown(
                 "formula": "Base Score (100) - Deductions + Positive Points (Resolved + Indicators)"
             },
             "positive_points": risk_data.get("positive_points", {"resolved": 0, "indicators": 0, "total": 0}),
-            "recommendations": recommendations[:10]  # Limit to top 10
+            "recommendations": recommendations[:10]
         }
         
     except Exception as e:
@@ -523,9 +489,6 @@ async def get_positive_indicators(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Get positive security indicators for the current user.
-    """
     try:
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         indicators = await finding_storage.get_positive_indicators(limit=100)
@@ -551,17 +514,6 @@ async def create_positive_indicator(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """
-    Manually create a positive indicator.
-    
-    Args:
-        indicator_type: Type of indicator (strong_config, no_vulnerabilities, improvement, etc.)
-        category: Category (exposure, dark_web, email_security, etc.)
-        points_awarded: Points to award
-        description: Description of the indicator
-        target: Target domain/IP (optional)
-        evidence: Additional evidence (optional)
-    """
     try:
         from app.core.database.models import PositiveIndicator
         import uuid

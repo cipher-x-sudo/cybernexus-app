@@ -374,7 +374,6 @@ function AutomationSection() {
         api.getScheduledSearches().catch(() => []),
       ]);
       setCompanyProfile(profile);
-      // Filter automation-created searches
       const automationSearches = searches.filter(
         (s: any) => s.config?.metadata?.source === "company_automation"
       );

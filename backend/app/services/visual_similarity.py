@@ -105,13 +105,10 @@ class VisualSimilarityService:
             else:
                 ssim_similarity = 0
             
-            # Calculate overall similarity (weighted average)
-            # If SSIM is not available, use only perceptual hash
             if result['perceptual_hash_similarity'] is not None:
                 if ssim_score is not None:
                     overall = (result['perceptual_hash_similarity'] * 0.4 + ssim_similarity * 0.6)
                 else:
-                    # Fallback to perceptual hash only if SSIM unavailable
                     overall = result['perceptual_hash_similarity']
             else:
                 overall = ssim_similarity if ssim_score is not None else 0
@@ -129,16 +126,6 @@ class VisualSimilarityService:
         image_data: bytes,
         threshold: float = 70.0
     ) -> List[Dict[str, Any]]:
-        """
-        Compare an image against all known reference images.
-        
-        Args:
-            image_data: Image bytes to compare
-            threshold: Minimum similarity threshold (0-100)
-        
-        Returns:
-            List of matches with similarity scores
-        """
         matches = []
         
         for identifier, ref_image_data in self._known_screenshots.items():
@@ -152,15 +139,12 @@ class VisualSimilarityService:
                     'ssim_score': comparison['ssim_score']
                 })
         
-        # Sort by similarity (highest first)
         matches.sort(key=lambda x: x['similarity'], reverse=True)
         
         return matches
     
     def decode_base64_image(self, base64_string: str) -> Optional[bytes]:
-        """Decode base64 encoded image"""
         try:
-            # Remove data URL prefix if present
             if ',' in base64_string:
                 base64_string = base64_string.split(',')[1]
             
@@ -170,12 +154,10 @@ class VisualSimilarityService:
             return None
 
 
-# Global instance
 _visual_similarity_service: Optional[VisualSimilarityService] = None
 
 
 def get_visual_similarity_service() -> VisualSimilarityService:
-    """Get global visual similarity service instance"""
     global _visual_similarity_service
     if _visual_similarity_service is None:
         _visual_similarity_service = VisualSimilarityService()

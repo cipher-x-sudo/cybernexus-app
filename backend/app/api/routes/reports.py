@@ -41,7 +41,6 @@ class ReportStatus(str, Enum):
 
 
 class Report(BaseModel):
-    """Report model."""
     id: str
     title: str
     type: ReportType
@@ -55,7 +54,6 @@ class Report(BaseModel):
 
 
 class ReportCreate(BaseModel):
-    """Create report request."""
     title: str
     type: ReportType
     format: ReportFormat = ReportFormat.PDF
@@ -66,7 +64,6 @@ class ReportCreate(BaseModel):
 
 
 class ReportTemplate(BaseModel):
-    """Report template."""
     id: str
     name: str
     type: ReportType
@@ -74,14 +71,11 @@ class ReportTemplate(BaseModel):
     default_sections: List[str]
 
 
-# In-memory report store
 reports_db: dict = {}
 report_counter = 0
 
-# Initialize report generator
 report_generator = ReportGenerator()
 
-# Available templates
 templates = [
     ReportTemplate(
         id="TPL-001",
@@ -115,7 +109,6 @@ templates = [
 
 
 def generate_report_id() -> str:
-    """Generate a unique report ID."""
     global report_counter
     report_counter += 1
     return f"RPT-{report_counter:08d}"
@@ -123,7 +116,6 @@ def generate_report_id() -> str:
 
 @router.get("/templates", response_model=List[ReportTemplate])
 async def list_templates():
-    """List available report templates."""
     return templates
 
 
@@ -134,7 +126,6 @@ async def list_reports(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0)
 ):
-    """List all generated reports."""
     results = list(reports_db.values())
     
     if report_type:
@@ -142,7 +133,6 @@ async def list_reports(
     if status:
         results = [r for r in results if r["status"] == status]
     
-    # Sort by creation date
     results.sort(key=lambda r: r["created_at"], reverse=True)
     
     return [Report(**r) for r in results[offset:offset + limit]]
@@ -150,7 +140,6 @@ async def list_reports(
 
 @router.get("/{report_id}", response_model=Report)
 async def get_report(report_id: str):
-    """Get a specific report by ID."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     return Report(**reports_db[report_id])
@@ -162,28 +151,23 @@ async def generate_report(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    """Generate a new report."""
     report_id = generate_report_id()
     now = datetime.utcnow()
     
     try:
-        # Fetch real data from database
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Calculate threat statistics from findings
         total_threats = len(all_findings)
         critical_threats = len([f for f in all_findings if f.severity.lower() == "critical"])
         high_threats = len([f for f in all_findings if f.severity.lower() == "high"])
         
-        # Get top threats by risk score
         top_threats_list = sorted(
             all_findings,
             key=lambda f: f.risk_score or 0,
             reverse=True
         )[:10]
         
-        # Format top threats for report
         formatted_top_threats = [
             {
                 "title": f.title,
@@ -194,7 +178,6 @@ async def generate_report(
             for f in top_threats_list
         ]
         
-        # Count unique assets/entities from findings
         all_assets = set()
         for finding in all_findings:
             if finding.affected_assets:
@@ -202,7 +185,6 @@ async def generate_report(
             if finding.target:
                 all_assets.add(finding.target)
         
-        # Generate recommendations based on actual data
         recommendations = []
         if critical_threats > 0:
             recommendations.append(f"Immediately address {critical_threats} critical threat(s)")
@@ -214,7 +196,6 @@ async def generate_report(
             recommendations.append("Review and update security configurations regularly")
             recommendations.append("Keep all systems updated with latest security patches")
         
-        # Prepare report data with real statistics
         report_data = {
             "total_threats": total_threats,
             "critical_threats": critical_threats,
@@ -228,7 +209,6 @@ async def generate_report(
             ]
         }
         
-        # Generate the actual report file
         output_format = report_config.format.value if hasattr(report_config.format, 'value') else str(report_config.format)
         report_result = report_generator.generate_executive_summary(report_data, format=output_format, report_id=report_id)
         
@@ -253,7 +233,6 @@ async def generate_report(
         
         return Report(**report_dict)
     except Exception as e:
-        # If generation fails, mark as failed
         report_dict = {
             "id": report_id,
             "title": report_config.title,
@@ -277,7 +256,6 @@ async def generate_report(
 
 @router.get("/{report_id}/download")
 async def download_report(report_id: str):
-    """Download a generated report."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     
@@ -290,7 +268,6 @@ async def download_report(report_id: str):
     if not file_path or not Path(file_path).exists():
         raise HTTPException(status_code=404, detail="Report file not found")
     
-    # Determine content type based on format
     report_format = report.get("format")
     if isinstance(report_format, Enum):
         report_format = report_format.value
@@ -304,7 +281,6 @@ async def download_report(report_id: str):
     
     content_type = content_type_map.get(report_format, "application/octet-stream")
     
-    # Generate filename
     filename = f"{report['title'].replace(' ', '_')}.{report_format}"
     
     return FileResponse(
@@ -319,7 +295,6 @@ async def download_report(report_id: str):
 
 @router.delete("/{report_id}")
 async def delete_report(report_id: str):
-    """Delete a report."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     
@@ -332,8 +307,6 @@ async def schedule_report(
     report_config: ReportCreate,
     schedule: str = Query(description="Cron expression for scheduling")
 ):
-    """Schedule a recurring report."""
-    # TODO: Implement scheduling with APScheduler
     return {
         "message": "Report scheduled successfully",
         "schedule": schedule,

@@ -36,7 +36,6 @@ class CapabilityResponse(BaseModel):
 
 
 class JobCreateRequest(BaseModel):
-    """Request to start a capability job"""
     capability: str = Field(..., description="Capability ID to execute")
     target: str = Field(..., description="Target domain, URL, or identifier")
     config: Optional[Dict[str, Any]] = Field(default=None, description="Custom configuration")
@@ -44,7 +43,6 @@ class JobCreateRequest(BaseModel):
 
 
 class JobResponse(BaseModel):
-    """Job information"""
     id: str
     capability: str
     target: str
@@ -62,7 +60,6 @@ class JobResponse(BaseModel):
 
 
 class JobHistoryResponse(BaseModel):
-    """Job history response with pagination"""
     jobs: List[JobResponse]
     total: int
     page: int
@@ -71,7 +68,6 @@ class JobHistoryResponse(BaseModel):
 
 
 class FindingResponse(BaseModel):
-    """Security finding"""
     id: str
     capability: str
     severity: str
@@ -85,7 +81,6 @@ class FindingResponse(BaseModel):
 
 
 class RiskScoreResponse(BaseModel):
-    """Risk score information"""
     target: str
     overall_score: float
     risk_level: str
@@ -96,7 +91,6 @@ class RiskScoreResponse(BaseModel):
 
 
 class IncrementalFindingsResponse(BaseModel):
-    """Incremental findings response with metadata"""
     findings: List[FindingResponse]
     has_more: bool
     total_findings: int
@@ -106,12 +100,10 @@ class IncrementalFindingsResponse(BaseModel):
 
 
 class QuickScanRequest(BaseModel):
-    """Quick scan request"""
     domain: str = Field(..., description="Domain to scan")
 
 
 class QuickScanResponse(BaseModel):
-    """Quick scan results"""
     domain: str
     started_at: str
     completed_at: str
@@ -122,21 +114,12 @@ class QuickScanResponse(BaseModel):
 
 @router.get("/", response_model=List[CapabilityResponse])
 async def list_capabilities():
-    """
-    List all available security capabilities.
-    
-    Returns capabilities the user can execute, with user-friendly names
-    and descriptions. Underlying tools are not exposed.
-    """
     orchestrator = get_orchestrator()
     return orchestrator.get_capabilities()
 
 
 @router.get("/{capability_id}", response_model=CapabilityResponse)
 async def get_capability(capability_id: str):
-    """
-    Get details for a specific capability.
-    """
     orchestrator = get_orchestrator()
     capability = orchestrator.get_capability(capability_id)
     
@@ -986,7 +969,6 @@ async def stream_job_findings(job_id: str):
     logger.debug(f"[API] Starting SSE stream for job_id={job_id}")
     
     async def generate_stream() -> AsyncGenerator[str, None]:
-        """Generate SSE events for findings stream"""
         last_finding_count = 0
         check_interval = 1.0  # Check every second
         max_wait_time = 300  # Wait up to 5 minutes for job completion

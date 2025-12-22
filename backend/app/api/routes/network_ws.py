@@ -1,9 +1,3 @@
-"""
-Network Monitoring WebSocket Routes
-
-Real-time streaming of network logs and tunnel alerts.
-"""
-
 from typing import Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -16,10 +10,8 @@ router = APIRouter()
 
 @router.websocket("/ws")
 async def network_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time network log streaming."""
     await websocket.accept()
     
-    # Register with middleware if available
     middleware = get_network_logger_middleware()
     if middleware:
         middleware.register_websocket_client(websocket)
@@ -28,27 +20,21 @@ async def network_websocket(websocket: WebSocket):
         logger.warning("Network logger middleware not available")
     
     try:
-        # Send initial connection message
         await websocket.send_json({
             "type": "connected",
             "message": "Connected to network monitoring stream"
         })
         
-        # Keep connection alive and handle client messages
         while True:
-            # Wait for client message (ping/pong or filter updates)
             try:
                 data = await websocket.receive_json()
                 
-                # Handle filter subscription
                 if data.get("type") == "subscribe":
-                    # Could implement filtering here
                     await websocket.send_json({
                         "type": "subscribed",
                         "filters": data.get("filters", {})
                     })
                 
-                # Handle ping
                 elif data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
                     
@@ -68,7 +54,6 @@ async def network_websocket(websocket: WebSocket):
 
 
 async def broadcast_to_clients(message: dict):
-    """Broadcast message to all connected WebSocket clients."""
     middleware = get_network_logger_middleware()
     if not middleware:
         return
@@ -80,7 +65,6 @@ async def broadcast_to_clients(message: dict):
         except Exception:
             disconnected.add(client)
     
-    # Remove disconnected clients
     for client in disconnected:
         middleware.unregister_websocket_client(client)
 
