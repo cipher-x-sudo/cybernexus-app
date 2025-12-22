@@ -1,3 +1,15 @@
+"""Training knowledge base collector.
+
+This module provides knowledge base management for training content with
+efficient search and relationship mapping capabilities.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Content relationship mapping and dependency tracking
+- HashMap: Content storage and metadata indexing for O(1) lookups
+- Trie: Text search and keyword matching for content discovery
+- AVLTree: Timestamp-based content indexing for chronological queries
+"""
+
 from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass, field
 from datetime import datetime

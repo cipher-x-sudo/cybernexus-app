@@ -1,3 +1,14 @@
+"""Database indexing system.
+
+This module provides indexing capabilities for fast lookups using multiple
+index types and text search functionality.
+
+This module uses the following DSA concepts from app.core.dsa:
+- AVLTree: Primary and secondary indices for O(log n) key-based lookups and range queries
+- Trie: Text index for prefix-based searching and autocomplete
+- HashMap: Reverse index mapping for O(1) secondary key lookups
+"""
+
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 

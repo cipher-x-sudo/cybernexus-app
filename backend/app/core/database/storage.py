@@ -1,3 +1,16 @@
+"""Entity storage and indexing system.
+
+This module provides file-based storage for entities with graph-based relationship
+mapping and efficient indexing using custom DSA structures.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Entity relationship mapping and graph operations (BFS, shortest path)
+- AVLTree: Timestamp-based entity indexing for O(log n) lookups and range queries
+- HashMap: Type-based entity grouping and O(1) lookups
+- Trie: Prefix-based entity value searching for autocomplete functionality
+- BloomFilter: Efficient entity existence checking and deduplication
+"""
+
 import os
 import json
 import threading

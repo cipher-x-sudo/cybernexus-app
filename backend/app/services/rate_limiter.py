@@ -1,3 +1,11 @@
+"""Rate limiting service with sliding window.
+
+This module provides rate limiting functionality using sliding window algorithm
+for IP and endpoint-based request throttling. Uses standard Python data structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 import time
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta

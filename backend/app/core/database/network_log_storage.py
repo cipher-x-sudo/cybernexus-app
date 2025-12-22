@@ -1,3 +1,11 @@
+"""Network log storage and analysis system.
+
+This module provides database-backed storage for network request logs and
+tunnel detection data. Uses PostgreSQL for persistence without custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession

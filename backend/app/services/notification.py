@@ -1,3 +1,14 @@
+"""Notification service with priority queuing.
+
+This module provides notification management with priority-based delivery
+and history tracking using circular buffers for recent notifications.
+
+This module uses the following DSA concepts from app.core.dsa:
+- MinHeap: Priority queue for notification delivery with highest priority first
+- HashMap: Channel subscriptions and rate limit tracking for O(1) lookups
+- CircularBuffer: Recent notification history with automatic overwrite of oldest entries
+"""
+
 import asyncio
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime

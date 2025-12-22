@@ -1,3 +1,11 @@
+"""Job storage and management system.
+
+This module provides database-backed storage for job execution records.
+Uses PostgreSQL for persistence without custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession

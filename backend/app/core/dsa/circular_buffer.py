@@ -1,3 +1,16 @@
+"""Circular Buffer implementation.
+
+This module implements a circular buffer (ring buffer) with fixed capacity.
+Automatically overwrites oldest items when full, making it ideal for
+rolling event logs and time-windowed data storage.
+
+DSA Concept: Circular Buffer
+- Fixed-size buffer with automatic overwrite
+- O(1) push, pop, and access operations
+- Time-windowed variant support
+- Ideal for rolling event logs and real-time traffic analysis
+"""
+
 from typing import Any, Optional, List, Generator
 from dataclasses import dataclass
 

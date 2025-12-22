@@ -1,3 +1,15 @@
+"""Domain tree and relationship analysis collector.
+
+This module provides domain relationship analysis and tracker detection using
+graph structures and efficient data storage for capture results.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Domain relationship mapping and parent-child domain connections
+- HashMap: Capture results, domain cache, and request cache for O(1) lookups
+- Trie: Tracker domain pattern matching for efficient detection
+- DoublyLinkedList: Request timeline for chronological event tracking
+"""
+
 from typing import Dict, List, Optional, Set, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime

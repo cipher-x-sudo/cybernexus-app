@@ -1,3 +1,11 @@
+"""Job scheduling service.
+
+This module provides scheduled job execution using APScheduler.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any

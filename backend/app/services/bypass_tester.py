@@ -1,3 +1,11 @@
+"""Security bypass vulnerability testing service.
+
+This module provides analysis of security bypass vulnerabilities.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger

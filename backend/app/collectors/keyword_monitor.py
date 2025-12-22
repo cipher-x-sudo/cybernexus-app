@@ -1,3 +1,15 @@
+"""Keyword monitoring and alerting system.
+
+This module provides keyword-based content monitoring with priority-based alerting
+and match history tracking for threat intelligence gathering.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Trie: Keyword storage for efficient prefix matching and autocomplete
+- MaxHeap: Alert priority queue for severity-based alert ranking
+- DoublyLinkedList: Match history for chronological event tracking
+- HashMap: Rule storage, match storage, alert storage, and keyword-rule mapping for O(1) lookups
+"""
+
 from typing import Dict, List, Optional, Set, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

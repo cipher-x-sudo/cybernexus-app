@@ -1,3 +1,11 @@
+"""SQLAlchemy database models.
+
+This module defines the database schema using SQLAlchemy ORM models for
+PostgreSQL. Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (

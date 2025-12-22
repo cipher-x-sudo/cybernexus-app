@@ -1,3 +1,14 @@
+"""Web reconnaissance and dork search collector.
+
+This module provides web reconnaissance capabilities including dork pattern searching
+and URL discovery with efficient deduplication and pattern matching.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Trie: Dork pattern storage for efficient prefix matching and autocomplete
+- HashMap: URL and result caching for O(1) lookups
+- BloomFilter: URL deduplication during crawling to avoid reprocessing seen URLs
+"""
+
 import asyncio
 import re
 import socket

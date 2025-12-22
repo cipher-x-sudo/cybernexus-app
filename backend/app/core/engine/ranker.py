@@ -1,3 +1,13 @@
+"""Threat ranking and prioritization engine.
+
+This module provides threat scoring and ranking functionality using priority queues
+to identify and prioritize the most critical security threats.
+
+This module uses the following DSA concepts from app.core.dsa:
+- MaxHeap: Priority queue for threat ranking with highest scores at top
+- HashMap: Threat storage and score tracking for O(1) lookups and updates
+"""
+
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 from enum import Enum

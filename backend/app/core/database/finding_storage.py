@@ -1,3 +1,11 @@
+"""Finding storage and retrieval system.
+
+This module provides database-backed storage for security findings and positive
+indicators. Uses PostgreSQL for persistence without custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession

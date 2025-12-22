@@ -1,3 +1,17 @@
+"""B-Tree implementation.
+
+This module implements a B-Tree data structure optimized for disk-based storage.
+All leaves are at the same level, making it ideal for large dataset indexing
+and efficient range queries.
+
+DSA Concept: B-Tree
+- Disk-optimized structure with configurable branching factor
+- Range queries with O(log n) complexity
+- All leaves at same level
+- O(log n) insert, search, and delete operations
+- Ideal for persistent index storage
+"""
+
 from typing import Any, Optional, List, Tuple, Generator
 from dataclasses import dataclass, field
 import json

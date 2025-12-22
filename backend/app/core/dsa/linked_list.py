@@ -1,3 +1,17 @@
+"""Doubly Linked List implementation.
+
+This module implements a doubly linked list with bidirectional traversal.
+Provides O(1) insertion and deletion at both ends, making it suitable for
+timeline event storage and LRU cache implementation.
+
+DSA Concept: Doubly Linked List
+- Bidirectional traversal support
+- O(1) insertion/deletion at head and tail
+- O(n) search operation
+- Iterator support for forward and backward iteration
+- Ideal for timeline event storage and LRU cache
+"""
+
 from typing import Any, Optional, Generator, Callable
 from dataclasses import dataclass
 

@@ -1,3 +1,17 @@
+"""Bloom Filter implementation.
+
+This module implements a probabilistic data structure for membership testing.
+Provides memory-efficient way to check if an element is possibly in a set,
+with configurable false positive rate.
+
+DSA Concept: Bloom Filter
+- Probabilistic membership testing
+- Configurable false positive rate
+- Memory efficient O(m) space where m is bit array size
+- O(k) insert and query operations where k is number of hash functions
+- No false negatives, possible false positives
+"""
+
 import math
 import hashlib
 from typing import Any, List

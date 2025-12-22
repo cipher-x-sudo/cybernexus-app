@@ -1,3 +1,11 @@
+"""Network tunnel detection analyzer.
+
+This module provides analysis of network requests for tunnel detection.
+Uses TunnelDetector which may use custom DSA structures internally.
+
+This module does not directly use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Dict, Any, Optional
 from datetime import datetime
 from loguru import logger

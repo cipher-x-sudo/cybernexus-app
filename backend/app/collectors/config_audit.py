@@ -1,3 +1,13 @@
+"""Configuration security audit collector.
+
+This module provides security configuration auditing with finding prioritization
+using priority queues for severity-based ranking.
+
+This module uses the following DSA concepts from app.core.dsa:
+- HashMap: Signature mapping and results caching for O(1) lookups
+- MaxHeap: Findings priority queue for severity-based ranking with highest severity first
+"""
+
 import asyncio
 import re
 from typing import Any, Dict, List, Optional

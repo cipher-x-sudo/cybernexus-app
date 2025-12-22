@@ -1,3 +1,11 @@
+"""Network blocking and filtering service.
+
+This module provides IP, endpoint, and pattern-based blocking functionality.
+Uses standard Python data structures for block management.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime

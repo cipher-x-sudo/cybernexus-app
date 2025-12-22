@@ -1,3 +1,11 @@
+"""User activity logging service.
+
+This module provides activity logging functionality using PostgreSQL.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

@@ -1,3 +1,12 @@
+"""Serialization utilities for DSA structures.
+
+This module provides serialization and deserialization utilities for custom
+DSA structures, supporting both JSON and pickle formats with optional compression.
+
+This module does not use custom DSA concepts from app.core.dsa, but provides
+serialization support for DSA structures.
+"""
+
 import json
 import pickle
 import gzip

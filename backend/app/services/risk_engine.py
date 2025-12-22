@@ -1,3 +1,14 @@
+"""Risk assessment and scoring engine.
+
+This module provides risk calculation and trend analysis for security targets
+using time-series data storage and indexed risk factor tracking.
+
+This module uses the following DSA concepts from app.core.dsa:
+- HashMap: Risk factor storage and target indexing for O(1) lookups
+- AVLTree: Timestamp-based risk score indexing for range queries and trend analysis
+- CircularBuffer: Rolling window of recent risk events for trend calculation
+"""
+
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta

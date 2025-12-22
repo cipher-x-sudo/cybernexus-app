@@ -1,3 +1,15 @@
+"""Network tunnel detection collector.
+
+This module provides detection of various network tunneling techniques using
+pattern analysis and request correlation with time-series data storage.
+
+This module uses the following DSA concepts from app.core.dsa:
+- CircularBuffer: Rolling window of recent requests for pattern detection
+- HashMap: Request storage and pattern caching for O(1) lookups
+- MaxHeap: Detection priority queue for severity-based ranking
+- Graph: Request relationship mapping for correlation analysis
+"""
+
 from typing import Dict, List, Optional, Set, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

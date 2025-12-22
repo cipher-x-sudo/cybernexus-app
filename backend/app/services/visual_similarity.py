@@ -1,3 +1,11 @@
+"""Visual similarity analysis service.
+
+This module provides image comparison and similarity analysis using PIL and scikit-image.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 import hashlib
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime

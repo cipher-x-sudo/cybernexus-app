@@ -1,3 +1,12 @@
+"""Database storage layer with graph support.
+
+This module provides database-backed storage for entities with graph-based
+relationship management using PostgreSQL and custom graph structures.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Entity relationship mapping and graph operations for correlation analysis
+"""
+
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession

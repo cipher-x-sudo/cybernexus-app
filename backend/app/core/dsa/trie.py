@@ -1,3 +1,18 @@
+"""Trie (Prefix Tree) implementation.
+
+This module implements a trie data structure for efficient prefix matching and
+autocomplete functionality. Supports pattern matching with wildcards and word
+count statistics.
+
+DSA Concept: Trie (Prefix Tree)
+- Prefix matching with O(m) complexity where m is key length
+- Autocomplete suggestions
+- Pattern matching with wildcards
+- Word count statistics
+- O(m) insert and search operations
+- O(m + k) prefix match where k is number of results
+"""
+
 from typing import Any, Optional, List, Dict, Generator, Tuple
 from dataclasses import dataclass, field
 

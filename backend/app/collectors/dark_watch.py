@@ -1,3 +1,17 @@
+"""Dark web intelligence collector.
+
+This module provides dark web monitoring and intelligence gathering with
+efficient URL deduplication, entity extraction, and relationship mapping.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Entity relationship mapping and infrastructure correlation
+- BloomFilter: URL deduplication during crawling to avoid reprocessing seen URLs
+- HashMap: Entity storage, URL caching, and metadata indexing for O(1) lookups
+- Trie: Keyword and pattern matching for entity extraction
+- DoublyLinkedList: Discovery timeline for chronological event tracking
+- MinHeap: Discovery priority queue for efficient crawling order
+"""
+
 from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

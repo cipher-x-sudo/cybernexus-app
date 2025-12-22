@@ -1,3 +1,18 @@
+"""Graph (Adjacency List) implementation.
+
+This module implements a graph data structure using an adjacency list representation.
+Supports both directed and undirected graphs with weighted edges and relationship types.
+
+DSA Concept: Graph (Adjacency List)
+- Directed and undirected graph support
+- Weighted edges with relationship types
+- BFS and DFS traversal algorithms
+- Dijkstra's shortest path algorithm
+- Connected components detection
+- Cycle detection
+- O(V + E) space complexity, O(V + E) traversal time
+"""
+
 from typing import Any, Dict, List, Optional, Set, Tuple, Generator
 from collections import deque
 from dataclasses import dataclass, field

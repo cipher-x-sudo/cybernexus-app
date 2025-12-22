@@ -1,3 +1,18 @@
+"""Skip List implementation.
+
+This module implements a skip list, a probabilistic alternative to balanced trees.
+Provides O(log n) expected time complexity for insert, search, and delete
+operations with simpler implementation than balanced trees.
+
+DSA Concept: Skip List
+- Probabilistic balancing
+- Range queries support
+- Floor and ceiling operations
+- O(log n) expected time complexity for all operations
+- Simpler implementation than balanced trees
+- Ideal for timestamp-based queries and ordered event storage
+"""
+
 import random
 from typing import Any, Optional, List, Tuple, Generator
 from dataclasses import dataclass, field

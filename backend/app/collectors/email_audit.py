@@ -1,3 +1,14 @@
+"""Email security audit collector.
+
+This module provides comprehensive email security auditing including SPF, DKIM,
+DMARC checks with infrastructure relationship mapping.
+
+This module uses the following DSA concepts from app.core.dsa:
+- HashMap: DNS record caching for O(1) lookups to reduce DNS queries
+- AVLTree: Domain indexing for timestamp-based queries and efficient lookups
+- Graph: Infrastructure relationship mapping for email server correlation
+"""
+
 import asyncio
 import re
 import json

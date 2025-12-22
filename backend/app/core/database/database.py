@@ -1,3 +1,11 @@
+"""Database connection and session management.
+
+This module provides database connection pooling and session management for
+PostgreSQL using SQLAlchemy async engine. Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import AsyncGenerator
 import threading
 from sqlalchemy.ext.asyncio import (

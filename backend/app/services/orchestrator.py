@@ -1,3 +1,14 @@
+"""Job orchestration and execution management.
+
+This module provides job scheduling, execution, and finding management using
+priority queues and indexed storage for efficient job processing.
+
+This module uses the following DSA concepts from app.core.dsa:
+- HashMap: Job storage and indexing by capability, target, and status for O(1) lookups
+- MinHeap: Priority queue for job scheduling with lowest priority first
+- AVLTree: Findings index for timestamp-based queries and O(log n) lookups
+"""
+
 from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime

@@ -1,4 +1,10 @@
+"""Report generation service.
 
+This module provides PDF and HTML report generation functionality using Jinja2 templates.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
 
 import os
 from typing import Any, Dict, List, Optional

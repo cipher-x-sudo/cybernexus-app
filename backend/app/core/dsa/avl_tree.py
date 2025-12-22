@@ -1,3 +1,17 @@
+"""AVL Tree (Self-Balancing Binary Search Tree) implementation.
+
+This module implements an AVL Tree, a self-balancing binary search tree that maintains
+O(log n) time complexity for insert, search, and delete operations. The tree automatically
+rebalances itself after each insertion or deletion to maintain height balance.
+
+DSA Concept: AVL Tree (Self-Balancing BST)
+- Automatic balancing on insert/delete operations
+- Range queries with O(log n + k) complexity
+- Floor and ceiling operations for nearest value lookups
+- In-order, pre-order, and post-order traversals
+- O(log n) time complexity for all operations
+"""
+
 from typing import Any, Optional, List, Tuple, Generator, Callable
 from dataclasses import dataclass
 import json

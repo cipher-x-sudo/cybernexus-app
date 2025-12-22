@@ -1,3 +1,11 @@
+"""Browser capture and automation service.
+
+This module provides browser automation and page capture functionality using Playwright.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 import asyncio
 import json
 import base64

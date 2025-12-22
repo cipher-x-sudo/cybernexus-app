@@ -1,3 +1,16 @@
+"""HashMap (Separate Chaining) implementation.
+
+This module implements a hash map using separate chaining for collision resolution.
+Automatically resizes when load factor exceeds threshold to maintain O(1) average
+time complexity for insert, search, and delete operations.
+
+DSA Concept: HashMap (Separate Chaining)
+- Automatic resizing based on load factor
+- Collision handling with linked list chaining
+- O(1) average time complexity for all operations
+- O(n) worst-case time complexity
+"""
+
 from typing import Any, Optional, List, Tuple, Generator, Callable
 from dataclasses import dataclass
 

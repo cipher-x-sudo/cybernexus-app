@@ -1,3 +1,11 @@
+"""Positive scoring system for security improvements.
+
+This module provides scoring for positive security indicators and improvements.
+Does not use custom DSA structures.
+
+This module does not use custom DSA concepts from app.core.dsa.
+"""
+
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 from loguru import logger

@@ -1,3 +1,14 @@
+"""Threat correlation engine.
+
+This module provides entity correlation and relationship analysis using graph-based
+algorithms to identify connections between security entities and threats.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Graph: Entity relationship mapping with BFS/DFS traversal for correlation discovery
+- HashMap: Entity attribute storage and correlation cache for O(1) lookups
+- AVLTree: Timestamp-based correlation indexing for efficient range queries
+"""
+
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 

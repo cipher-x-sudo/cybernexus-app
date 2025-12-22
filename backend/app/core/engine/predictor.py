@@ -1,3 +1,14 @@
+"""Threat prediction and pattern analysis engine.
+
+This module provides password mutation prediction, domain typosquat generation,
+and threat evolution analysis using pattern matching and graph-based algorithms.
+
+This module uses the following DSA concepts from app.core.dsa:
+- Trie: Password and domain pattern storage for efficient prefix matching
+- HashMap: Known password storage and pattern statistics for O(1) lookups
+- Graph: Threat relationship mapping for evolution prediction
+"""
+
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import Counter
 import re

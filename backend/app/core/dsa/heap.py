@@ -1,3 +1,17 @@
+"""Binary Min/Max Heap implementation.
+
+This module implements both min-heap and max-heap variants of a binary heap.
+Used for priority queue operations and efficient top-N element retrieval.
+
+DSA Concept: Binary Heap (Min/Max)
+- Min-heap and max-heap variants
+- Priority queue operations
+- Efficient top-N retrieval
+- O(log n) insert and extract operations
+- O(1) peek operation
+- O(n) heapify operation
+"""
+
 from typing import Any, Optional, List, Tuple, Generator, Callable
 from dataclasses import dataclass
 
