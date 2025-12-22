@@ -27,13 +27,12 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
-    role = Column(String(20), default="user", nullable=False)  # user, admin
+    role = Column(String(20), default="user", nullable=False)
     disabled = Column(Boolean, default=False, nullable=False)
     onboarding_completed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Relationships
     entities = relationship("Entity", back_populates="user", cascade="all, delete-orphan")
     graph_nodes = relationship("GraphNode", back_populates="user", cascade="all, delete-orphan")
     graph_edges = relationship("GraphEdge", back_populates="user", foreign_keys="GraphEdge.user_id", cascade="all, delete-orphan")
@@ -72,11 +71,10 @@ class CompanyProfile(Base):
     logo_url = Column(String(500), nullable=True)
     timezone = Column(String(50), default="UTC", nullable=True)
     locale = Column(String(10), default="en-US", nullable=True)
-    automation_config = Column(JSONB, nullable=True)  # Automation configuration for scheduled scans
+    automation_config = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Relationships
     user = relationship("User", back_populates="company_profile")
     
     __table_args__ = (
@@ -93,10 +91,9 @@ class Entity(Base):
     type = Column(String(50), nullable=False, index=True)
     value = Column(String(500), nullable=False, index=True)
     severity = Column(String(20), default="info", nullable=False)
-    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
+    meta_data = Column(JSONB, default=dict, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationships
     user = relationship("User", back_populates="entities")
     graph_nodes = relationship("GraphNode", back_populates="entity", cascade="all, delete-orphan")
     
@@ -118,7 +115,6 @@ class GraphNode(Base):
     data = Column(JSONB, default=dict, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationships
     user = relationship("User", back_populates="graph_nodes")
     entity = relationship("Entity", back_populates="graph_nodes")
     source_edges = relationship("GraphEdge", foreign_keys="GraphEdge.source_id", back_populates="source_node", cascade="all, delete-orphan")
@@ -140,11 +136,10 @@ class GraphEdge(Base):
     target_id = Column(String(255), ForeignKey("graph_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     relation = Column(String(50), nullable=False, index=True)
     weight = Column(Float, default=1.0, nullable=False)
-    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
-    # Relationships
-    user = relationship("User", back_populates="graph_edges", foreign_keys=[user_id])
+    meta_data = Column(JSONB, default=dict, nullable=True)
+        created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+        
+        user = relationship("User", back_populates="graph_edges", foreign_keys=[user_id])
     source_node = relationship("GraphNode", foreign_keys=[source_id], back_populates="source_edges")
     target_node = relationship("GraphNode", foreign_keys=[target_id], back_populates="target_edges")
     
@@ -161,15 +156,14 @@ class UserActivityLog(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    action = Column(String(100), nullable=False, index=True)  # create, update, delete, login, logout, etc.
-    resource_type = Column(String(50), nullable=True, index=True)  # entity, graph_node, finding, etc.
+    action = Column(String(100), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=True, index=True)
     resource_id = Column(String(255), nullable=True, index=True)
-    ip_address = Column(String(45), nullable=True)  # IPv6 max length
+    ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
-    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
+    meta_data = Column(JSONB, default=dict, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
-    # Relationships
     user = relationship("User", back_populates="activity_logs")
     
     __table_args__ = (
@@ -183,7 +177,7 @@ class NetworkLog(Base):
     __tablename__ = "network_logs"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # Nullable for unauthenticated requests
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     request_id = Column(String(255), unique=True, nullable=False, index=True)
     ip = Column(String(45), nullable=True, index=True)
     method = Column(String(10), nullable=False, index=True)
@@ -198,7 +192,6 @@ class NetworkLog(Base):
     response_body = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
-    # Relationships
     user = relationship("User", back_populates="network_logs")
     
     __table_args__ = (
@@ -216,7 +209,7 @@ class Finding(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     capability = Column(String(50), nullable=False, index=True)
     severity = Column(String(20), nullable=False, index=True)
-    status = Column(String(20), nullable=False, default="active", index=True)  # active, resolved, false_positive, accepted_risk
+    status = Column(String(20), nullable=False, default="active", index=True)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     evidence = Column(JSONB, default=dict, nullable=True)
@@ -229,7 +222,6 @@ class Finding(Base):
     resolved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationships
     user = relationship("User", back_populates="findings", foreign_keys=[user_id])
     resolver = relationship("User", foreign_keys=[resolved_by])
     
@@ -247,15 +239,14 @@ class PositiveIndicator(Base):
     
     id = Column(String(255), primary_key=True)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    indicator_type = Column(String(50), nullable=False, index=True)  # strong_config, no_vulnerabilities, improvement, remediated
-    category = Column(String(50), nullable=False, index=True)  # exposure, dark_web, email_security, infrastructure, network
+    indicator_type = Column(String(50), nullable=False, index=True)
+    category = Column(String(50), nullable=False, index=True)
     points_awarded = Column(Integer, nullable=False, default=0)
     description = Column(Text, nullable=True)
     evidence = Column(JSONB, default=dict, nullable=True)
     target = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
-    # Relationships
     user = relationship("User", foreign_keys=[user_id])
     
     __table_args__ = (
@@ -269,18 +260,17 @@ class Notification(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    channel = Column(String(50), nullable=False, index=True)  # threats, findings, scans, system, etc.
-    priority = Column(String(20), nullable=False, index=True)  # CRITICAL, HIGH, MEDIUM, LOW, INFO
+    channel = Column(String(50), nullable=False, index=True)
+    priority = Column(String(20), nullable=False, index=True)
     title = Column(String(500), nullable=False)
     message = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
     read = Column(Boolean, default=False, nullable=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
-    meta_data = Column(JSONB, default=dict, nullable=True)  # Renamed from 'metadata' (reserved in SQLAlchemy)
+    meta_data = Column(JSONB, default=dict, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
-    # Relationships
     user = relationship("User", back_populates="notifications")
     
     __table_args__ = (
@@ -298,18 +288,17 @@ class Job(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     capability = Column(String(50), nullable=False, index=True)
     target = Column(String(500), nullable=False)
-    status = Column(String(20), nullable=False, index=True)  # pending, queued, running, completed, failed, cancelled
-    priority = Column(Integer, nullable=False, default=2)  # 0=critical, 1=high, 2=normal, 3=low, 4=background
-    progress = Column(Integer, nullable=False, default=0)  # 0-100
-    config = Column(JSONB, default=dict, nullable=True)  # Job configuration/parameters
-    meta_data = Column(JSONB, default=dict, nullable=True)  # Additional job metadata (renamed from 'metadata' - reserved in SQLAlchemy)
-    error = Column(Text, nullable=True)  # Error message if failed
-    execution_logs = Column(JSONB, default=list, nullable=True)  # Execution timeline/logs
+    status = Column(String(20), nullable=False, index=True)
+    priority = Column(Integer, nullable=False, default=2)
+    progress = Column(Integer, nullable=False, default=0)
+    config = Column(JSONB, default=dict, nullable=True)
+    meta_data = Column(JSONB, default=dict, nullable=True)
+    error = Column(Text, nullable=True)
+    execution_logs = Column(JSONB, default=list, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
-    # Relationships
     user = relationship("User", back_populates="jobs")
     
     __table_args__ = (
@@ -328,11 +317,11 @@ class ScheduledSearch(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    capabilities = Column(JSONB, default=list, nullable=False)  # List of capabilities: ["exposure_discovery", "dark_web_intelligence", etc.]
-    target = Column(String(500), nullable=False)  # Domain, keywords, URL, etc.
-    config = Column(JSONB, default=dict, nullable=True)  # Capability-specific configuration (can be per-capability)
-    schedule_type = Column(String(20), nullable=False, default="cron")  # cron, interval, date
-    cron_expression = Column(String(100), nullable=True)  # e.g., "0 9 * * *" for daily at 9 AM
+    capabilities = Column(JSONB, default=list, nullable=False)
+    target = Column(String(500), nullable=False)
+    config = Column(JSONB, default=dict, nullable=True)
+    schedule_type = Column(String(20), nullable=False, default="cron")
+    cron_expression = Column(String(100), nullable=True)
     timezone = Column(String(50), default="UTC", nullable=False)
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     last_run_at = Column(DateTime(timezone=True), nullable=True)
@@ -341,7 +330,6 @@ class ScheduledSearch(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Relationships
     user = relationship("User", back_populates="scheduled_searches")
     
     __table_args__ = (

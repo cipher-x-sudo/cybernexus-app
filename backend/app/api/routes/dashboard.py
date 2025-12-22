@@ -35,40 +35,32 @@ def calculate_risk_score(
     Returns:
         Dictionary with risk_score, risk_level, counts, and positive points breakdown
     """
-    # Normalize severity to lowercase for comparison
     critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
     high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
     medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
     low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
     
-    # Calculate deductions (negative points)
     base_score = 100
     deductions = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
     
-    # Calculate positive points from resolved findings (bonus points - more than deductions)
-    # Deductions: Critical=-20, High=-10, Medium=-5, Low=-2
-    # Resolved bonus: Critical=+25, High=+12, Medium=+6, Low=+3
     resolved_points = 0
     resolved_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     if resolved_findings:
         resolved_counts = resolved_findings
         resolved_points = (
-            resolved_counts.get("critical", 0) * 25 +  # Bonus: +5 more than deduction
-            resolved_counts.get("high", 0) * 12 +      # Bonus: +2 more than deduction
-            resolved_counts.get("medium", 0) * 6 +     # Bonus: +1 more than deduction
-            resolved_counts.get("low", 0) * 3          # Bonus: +1 more than deduction
+            resolved_counts.get("critical", 0) * 25 +
+            resolved_counts.get("high", 0) * 12 +
+            resolved_counts.get("medium", 0) * 6 +
+            resolved_counts.get("low", 0) * 3
         )
     
-    # Calculate positive points from positive indicators
     indicator_points = 0
     if positive_indicators:
         indicator_points = sum(ind.get("points_awarded", 0) for ind in positive_indicators)
     
-    # Calculate final score
     score = base_score - deductions + resolved_points + indicator_points
-    score = max(0, min(100, score))  # Clamp between 0 and 100
+    score = max(0, min(100, score))
     
-    # Determine risk level
     if score >= 80:
         risk_level = "minimal"
     elif score >= 60:
@@ -141,12 +133,9 @@ async def get_dashboard_overview(
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
         
-        # Get all findings from database (only active/unresolved)
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-        # get_findings now filters by status='active' by default, so we get only unresolved findings
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Convert to dict format (findings are already filtered to active only)
         findings_data = [{
             "id": f.id,
             "title": f.title,
@@ -158,25 +147,19 @@ async def get_dashboard_overview(
             "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now(timezone.utc).isoformat()
         } for f in all_findings]
         
-        # Get resolved findings count
         resolved_findings = await finding_storage.get_resolved_findings()
         
-        # Get positive indicators
         positive_indicators = await finding_storage.get_positive_indicators(limit=100)
         
-        # Calculate risk score with positive points
         risk_data = calculate_risk_score(findings_data, resolved_findings, positive_indicators)
         
-        # Get critical and high findings for dashboard (case-insensitive)
         critical_findings = [f for f in findings_data if f.get("severity", "").lower() in ["critical", "high"]]
         critical_findings = sorted(critical_findings, key=lambda x: x.get("risk_score", 0), reverse=True)[:10]
         
-        # Get recent jobs from database (last 10)
         job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         recent_jobs = await job_storage.list_jobs(limit=10, offset=0)
         jobs_data = []
         for job in recent_jobs:
-            # Calculate time ago
             now = datetime.now(timezone.utc)
             if job.completed_at:
                 time_diff = now - job.completed_at
@@ -192,7 +175,6 @@ async def get_dashboard_overview(
             else:
                 time_ago = "Just created"
             
-            # Get findings count from database
             findings = await finding_storage.get_findings_for_job(job.id)
             findings_count = len(findings)
             
@@ -208,22 +190,17 @@ async def get_dashboard_overview(
                 "completed_at": job.completed_at.isoformat() if job.completed_at else None
             })
         
-        # Get recent events
         recent_events = orchestrator.get_recent_events(limit=20)
         
-        # Get orchestrator stats (for total counts, still use orchestrator)
         stats = orchestrator.get_stats()
         
-        # Get total jobs count from database
         total_jobs_count = await job_storage.count_jobs()
         
-        # Calculate capability statistics from database
         capability_stats = {}
         for capability in Capability:
             cap_jobs = await job_storage.list_jobs(capability=capability, limit=100)
             cap_findings = await finding_storage.get_findings(capability=capability, limit=100)
             
-            # Find last run time
             last_run = None
             if cap_jobs:
                 completed_jobs = [j for j in cap_jobs if j.status == JobStatus.COMPLETED]
@@ -244,9 +221,6 @@ async def get_dashboard_overview(
                 "last_run": last_run or "Never"
             }
         
-        # Get threat map data (findings with potential geographic info)
-        # For now, we'll use findings as threat map data
-        # In the future, this could include actual geographic coordinates
         threat_map_data = []
         for finding in critical_findings[:20]:  # Top 20 for map
             threat_map_data.append({
@@ -259,15 +233,12 @@ async def get_dashboard_overview(
                 "discovered_at": finding.get("discovered_at")
             })
         
-        # Get timeline stats
         timeline_stats = {
             "total_events": len(recent_events),
             "events_24h": len([e for e in recent_events if _is_within_24h(e.get("timestamp", ""))])
         }
         
-        # Calculate trend (simplified - compare with previous period)
-        # In a real implementation, you'd store historical scores
-        previous_score = None  # TODO: Store and retrieve historical scores
+        previous_score = None
         trend = calculate_trend(risk_data["risk_score"], previous_score)
         
         return {
@@ -295,7 +266,6 @@ def _is_within_24h(timestamp_str: str) -> bool:
     """Check if timestamp is within last 24 hours."""
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        # Ensure timestamp is timezone-aware
         if not timestamp.tzinfo:
             timestamp = timestamp.replace(tzinfo=timezone.utc)
         time_diff = datetime.now(timezone.utc) - timestamp
@@ -315,14 +285,12 @@ async def get_critical_findings(
     Queries from database, filtered by current user.
     """
     try:
-        # Get critical findings from database
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         findings = await finding_storage.get_critical_findings(limit=limit)
         
         findings_data = []
         now = datetime.now(timezone.utc)
         for finding in findings:
-            # Calculate time ago
             time_diff = now - finding.discovered_at
             if time_diff.days > 0:
                 time_ago = f"{time_diff.days}d ago"
@@ -331,11 +299,9 @@ async def get_critical_findings(
             else:
                 time_ago = f"{time_diff.seconds // 60}m ago"
             
-            # Get status safely (default to 'active' if not present)
             finding_status = getattr(finding, 'status', 'active')
             resolved_at = getattr(finding, 'resolved_at', None)
             
-            # Calculate resolved time ago if resolved
             resolved_time_ago = None
             if finding_status == "resolved" and resolved_at:
                 resolved_diff = now - resolved_at
@@ -385,13 +351,10 @@ async def get_risk_breakdown(
     - Calculation details
     - Recommendations
     """
-    try:
-        # Get all findings from database (only active/unresolved)
+    try:        
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-        # get_findings now filters by status='active' by default, so we get only unresolved findings
         all_findings = await finding_storage.get_findings(limit=1000)
         
-        # Convert to list (findings are already filtered to active only)
         active_findings = list(all_findings)
         
         if not active_findings and not all_findings:
@@ -438,14 +401,11 @@ async def get_risk_breakdown(
             "risk_score": f.risk_score,
         } for f in active_findings]
         
-        # Get resolved findings and positive indicators
         resolved_findings = await finding_storage.get_resolved_findings()
         positive_indicators = await finding_storage.get_positive_indicators(limit=100)
         
-        # Calculate overall risk score with positive points
         risk_data = calculate_risk_score(findings_data, resolved_findings, positive_indicators)
         
-        # Map capabilities to display names
         capability_names = {
             "exposure_discovery": "Exposure Discovery",
             "dark_web_intelligence": "Dark Web Intel",
@@ -455,7 +415,6 @@ async def get_risk_breakdown(
             "investigation": "Investigation"
         }
         
-        # Group findings by capability
         findings_by_capability: Dict[str, List[Dict[str, Any]]] = {}
         for finding in findings_data:
             capability = finding.get("capability", "unknown")
@@ -463,7 +422,6 @@ async def get_risk_breakdown(
                 findings_by_capability[capability] = []
             findings_by_capability[capability].append(finding)
         
-        # Calculate category breakdowns
         categories = {}
         total_deductions = {
             "critical": 0,
@@ -473,13 +431,11 @@ async def get_risk_breakdown(
         }
         
         for capability, findings in findings_by_capability.items():
-            # Count severities for this category (case-insensitive)
             critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
             high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
             medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
             low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
             
-            # Calculate category score (base 100, deduct based on severity)
             category_score = 100
             category_score -= (critical_count * 20)
             category_score -= (high_count * 10)
@@ -487,7 +443,6 @@ async def get_risk_breakdown(
             category_score -= (low_count * 2)
             category_score = max(0, min(100, category_score))
             
-            # Calculate contribution to overall score
             total_findings = len(findings)
             contribution = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
             
@@ -509,10 +464,8 @@ async def get_risk_breakdown(
                 }
             }
         
-        # Generate recommendations
         recommendations = []
         
-        # Critical findings recommendations
         if risk_data["critical_count"] > 0:
             recommendations.append({
                 "priority": "critical",
@@ -521,7 +474,6 @@ async def get_risk_breakdown(
                 "action": "Review and remediate all critical findings as soon as possible."
             })
         
-        # High findings recommendations
         if risk_data["high_count"] > 0:
             recommendations.append({
                 "priority": "high",
@@ -530,7 +482,6 @@ async def get_risk_breakdown(
                 "action": "Schedule remediation for high severity findings within 7 days."
             })
         
-        # Category-specific recommendations
         for capability, cat_data in categories.items():
             if cat_data["severity_breakdown"]["critical"] > 0 or cat_data["severity_breakdown"]["high"] > 0:
                 recommendations.append({
@@ -540,7 +491,6 @@ async def get_risk_breakdown(
                     "action": f"Focus on addressing findings in {cat_data['name']} to improve overall security posture."
                 })
         
-        # If score is low, add general recommendation
         if risk_data["risk_score"] < 60:
             recommendations.append({
                 "priority": "high",
@@ -549,8 +499,7 @@ async def get_risk_breakdown(
                 "action": "Prioritize remediation of critical and high severity findings across all categories."
             })
         
-        # Calculate trend
-        previous_score = None  # TODO: Store and retrieve historical scores
+        previous_score = None
         trend = calculate_trend(risk_data["risk_score"], previous_score)
         
         return {

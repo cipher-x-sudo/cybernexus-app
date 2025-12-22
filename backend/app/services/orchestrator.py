@@ -116,12 +116,10 @@ class Job:
             if since_timestamp:
                 return [f for f in self.findings if f.discovered_at > since_timestamp]
             elif since_id:
-                # Find the index of the finding with this ID
                 try:
                     since_index = next(i for i, f in enumerate(self.findings) if f.id == since_id)
                     return self.findings[since_index + 1:]
                 except StopIteration:
-                    # ID not found, return all findings
                     return self.findings[:]
             else:
                 return self.findings[:]
@@ -241,26 +239,19 @@ class Orchestrator:
     
     def __init__(self):
         """Initialize the orchestrator"""
-        # Redis removed - fully migrated to PostgreSQL
+        self._jobs = HashMap()
+        self._job_queue = MinHeap()
+        self._findings_index = AVLTree()
         
-        # Job storage (using custom DSA for in-memory operations)
-        self._jobs = HashMap()  # job_id -> Job
-        self._job_queue = MinHeap()  # Priority queue for pending jobs (lower priority value = higher priority)
-        self._findings_index = AVLTree()  # Indexed by risk_score for fast retrieval
+        self._jobs_by_capability = HashMap()
+        self._jobs_by_target = HashMap()
+        self._jobs_by_status = HashMap()
         
-        # Job tracking
-        self._jobs_by_capability = HashMap()  # capability -> [job_ids]
-        self._jobs_by_target = HashMap()  # target -> [job_ids]
-        self._jobs_by_status = HashMap()  # status -> [job_ids]
-        
-        # All findings
         self._all_findings: List[Finding] = []
         
-        # Events for live feed
         self._events: List[Dict[str, Any]] = []
         self._max_events = 1000
         
-        # Statistics
         self._stats = {
             "total_jobs": 0,
             "completed_jobs": 0,
@@ -270,17 +261,13 @@ class Orchestrator:
             "high_findings": 0
         }
         
-        # DarkWatch instance storage (for API access to advanced features)
-        self._darkwatch_instances = HashMap()  # job_id -> DarkWatch instance
+        self._darkwatch_instances = HashMap()
         
-        # WebSocket connection management (for real-time streaming)
-        self._websocket_connections: Dict[str, WebSocket] = {}  # job_id -> WebSocket
-        self._websocket_lock = asyncio.Lock()  # Thread-safe access to WebSocket connections
+        self._websocket_connections: Dict[str, WebSocket] = {}
+        self._websocket_lock = asyncio.Lock()
         
-        # Tool executor registry (for worker registration)
         self._tool_executors: Dict[str, Any] = {}
         
-        # Initialize real collectors
         self._web_recon = WebRecon()
         self._email_audit = EmailAudit()
         self._bypass_tester = BypassTester()
@@ -300,13 +287,10 @@ class Orchestrator:
             from app.core.database.database import init_db, _async_session_maker
             from app.core.database.job_storage import DBJobStorage
             
-            # Get user_id from job metadata or parameter
             owner_id = user_id or (job.metadata.get("user_id") if job.metadata else None)
             if not owner_id:
-                # Skip if no user_id available
                 return
             
-            # Ensure database is initialized
             init_db()
             
             if _async_session_maker:
@@ -359,7 +343,6 @@ class Orchestrator:
             return True
         except Exception as e:
             logger.warning(f"Failed to send WebSocket message to job {job_id}: {e}")
-            # Remove connection if send failed (likely disconnected)
             await self.unregister_websocket(job_id)
             return False
     
@@ -386,11 +369,9 @@ class Orchestrator:
         """Create a new job"""
         job_id = f"job-{uuid.uuid4().hex[:12]}"
         
-        # Merge with default config
         default_config = CAPABILITY_METADATA[capability].get("default_config", {})
         merged_config = {**default_config, **(config or {})}
         
-        # Store user_id in metadata
         metadata = {"user_id": user_id} if user_id else {}
         
         job = Job(
@@ -405,30 +386,24 @@ class Orchestrator:
             metadata=metadata
         )
         
-        # Store job (in-memory)
         self._jobs.put(job_id, job)
         
-        # Index by capability (in-memory)
         cap_jobs = self._jobs_by_capability.get(capability.value) or []
         cap_jobs.append(job_id)
         self._jobs_by_capability.put(capability.value, cap_jobs)
         
-        # Index by target (in-memory)
         target_jobs = self._jobs_by_target.get(target) or []
         target_jobs.append(job_id)
         self._jobs_by_target.put(target, target_jobs)
         
-        # Index by status (in-memory)
         status_jobs = self._jobs_by_status.get(JobStatus.PENDING.value) or []
         status_jobs.append(job_id)
         self._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)
         
-        # Add to queue (in-memory)
         self._job_queue.push((priority.value, datetime.now().timestamp(), job_id))
         
         self._stats["total_jobs"] += 1
         
-        # Add initial execution log
         self._add_execution_log(job, "info", f"Job created for {capability.value} on {target}", {
             "capability": capability.value,
             "target": target,
@@ -436,10 +411,8 @@ class Orchestrator:
             "config": merged_config
         })
         
-        # Save to database
         await self._save_job_to_db(job, user_id=user_id)
         
-        # Add event
         self._add_event("job_created", {
             "job_id": job_id,
             "capability": capability.value,
@@ -458,11 +431,9 @@ class Orchestrator:
             return
         
         try:
-            # Update status
             self._update_job_status(job, JobStatus.RUNNING)
             job.started_at = datetime.now()
             
-            # Save to database
             await self._save_job_to_db(job)
             
             self._add_event("job_started", {
@@ -470,7 +441,6 @@ class Orchestrator:
                 "capability": job.capability.value
             })
             
-            # Simulate capability execution
             findings = await self._execute_capability(job)
             
             # Get user_id from job metadata

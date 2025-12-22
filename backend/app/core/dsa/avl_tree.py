@@ -46,8 +46,6 @@ class AVLTree:
         """Iterate over tree in-order (sorted order)."""
         yield from self.inorder()
     
-    # ==================== Height and Balance ====================
-    
     def _height(self, node: Optional[AVLNode]) -> int:
         """Get height of a node."""
         return node.height if node else 0

@@ -78,8 +78,6 @@ class ClusterResult(BaseModel):
     center: Optional[str] = None
 
 
-# Graph data will be populated from real DarkWatch site relationships
-# No sample data - graph is built dynamically from collected intelligence
 sample_nodes = []
 sample_edges = []
 
@@ -94,17 +92,14 @@ async def get_full_graph(
 ):
     """Get the full graph data for visualization from database storage."""
     try:
-        # Get graph data from database storage
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         graph_data = await storage.get_graph_data()
         
         nodes = []
         edges = []
         
-        # Convert graph nodes to GraphNode format
         if "nodes" in graph_data:
             for node_id, node_data in graph_data["nodes"].items():
-                # Get entity data if available (try to get from entity_id in node data)
                 entity_id = node_data.get("data", {}).get("id") if isinstance(node_data.get("data"), dict) else None
                 entity = None
                 if entity_id:
@@ -118,7 +113,6 @@ async def get_full_graph(
                     node_type = node_data.get("node_type", "unknown")
                     label = node_data.get("label", node_id)
     
-                # Apply filters
                 if entity_types and node_type not in entity_types:
                     continue
                 if min_severity:
@@ -134,7 +128,6 @@ async def get_full_graph(
                     metadata=node_data.get("data", {})
                 ))
         
-        # Convert graph edges to GraphEdge format
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
                 source = edge_data.get("source")
@@ -142,7 +135,6 @@ async def get_full_graph(
                 relation = edge_data.get("relation", "associated_with")
                 weight = edge_data.get("weight", 1.0)
                 
-                # Only include edges where both nodes are in our filtered nodes
                 node_ids = {n.id for n in nodes}
                 if source in node_ids and target in node_ids:
                     edges.append(GraphEdge(
@@ -154,9 +146,7 @@ async def get_full_graph(
                         metadata=edge_data.get("metadata", {})
                     ))
         
-        # Limit results
         nodes = nodes[:limit]
-        # Filter edges to only include those connecting our limited nodes
         node_ids = {n.id for n in nodes}
         edges = [e for e in edges if e.source in node_ids and e.target in node_ids]
     
@@ -164,7 +154,6 @@ async def get_full_graph(
         
     except Exception as e:
         logger.error(f"Error getting graph data: {e}", exc_info=True)
-        # Fallback to empty graph
         return GraphData(nodes=[], edges=[])
 
 
@@ -176,13 +165,11 @@ async def get_node(
 ):
     """Get a specific node by ID from database storage."""
     try:
-        # Get entity from storage
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
         
-        # Get graph data to check node metadata
         graph_data = await storage.get_graph_data()
         node_data = graph_data.get("nodes", {}).get(node_id, {})
         
@@ -210,21 +197,17 @@ async def get_neighbors(
 ):
     """Get neighbors of a node up to specified depth from database storage."""
     try:
-        # Check if node exists
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
     
-        # Use Storage's get_neighbors method
         neighbor_ids = await storage.get_neighbors(node_id, depth=depth)
         
-        # Get all neighbor entities
         nodes = []
         edges = []
         visited = {node_id}
         
-        # Get starting node
         graph_data = await storage.get_graph_data()
         node_data = graph_data.get("nodes", {}).get(node_id, {})
         nodes.append(GraphNode(
@@ -235,7 +218,6 @@ async def get_neighbors(
             metadata=entity
         ))
         
-        # Get neighbor nodes
         for neighbor_id in neighbor_ids:
             if neighbor_id in visited:
                 continue
@@ -252,7 +234,6 @@ async def get_neighbors(
                     metadata=neighbor_entity
                 ))
         
-        # Get edges between these nodes
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
                 source = edge_data.get("source")
@@ -289,13 +270,11 @@ async def get_graph_for_job(
         from urllib.parse import urlparse
         import re
         
-        # Get job from database
         from app.core.database.job_storage import DBJobStorage
         job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         job = await job_storage.get_job(job_id)
         
         if not job:
-            # Fallback to empty graph if job not found
             logger.warning(f"Job {job_id} not found, returning empty graph")
             return GraphData(nodes=[], edges=[])
         
@@ -308,17 +287,14 @@ async def get_graph_for_job(
             if not value:
                 return "domain"
             
-            # Check if it's an email address (contains @ and matches pattern)
             email_pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
             if '@' in value and re.match(email_pattern, value):
                 return "email"
             
-            # Check if it's an IP address
             ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
             if re.match(ip_pattern, value):
                 return "ip_address"
             
-            # Default to domain
             return "domain"
         
         def extract_domain_or_ip(value: str) -> str:
@@ -326,24 +302,19 @@ async def get_graph_for_job(
             if not value:
                 return ""
             
-            # If it's an email, return as-is
             email_pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
             if '@' in value and re.match(email_pattern, value):
                 return value
             
-            # Check if it's already an IP
             ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
             if re.match(ip_pattern, value):
                 return value
-            # Try to parse as URL
             try:
                 parsed = urlparse(value)
                 domain = parsed.netloc or parsed.path.split('/')[0]
-                # Remove port if present
                 domain = domain.split(':')[0]
                 return domain
             except:
-                # If parsing fails, assume it's already a domain/IP
                 return value
         
         async def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
@@ -351,8 +322,6 @@ async def get_graph_for_job(
             if not value:
                 return None
             
-            # Search across all entity types to find existing entity by value
-            # Check common types that might contain this value
             search_types = [entity_type, "email", "domain", "ip_address"]
             for search_type in search_types:
                 entities_by_type = await storage.get_by_type(search_type)

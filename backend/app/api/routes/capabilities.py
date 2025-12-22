@@ -39,10 +39,6 @@ from app.core.database.job_storage import DBJobStorage
 router = APIRouter()
 
 
-# ============================================================================
-# Request/Response Models
-# ============================================================================
-
 class CapabilityResponse(BaseModel):
     """Capability information"""
     id: str
@@ -140,10 +136,6 @@ class QuickScanResponse(BaseModel):
     risk_score: Optional[RiskScoreResponse]
 
 
-# ============================================================================
-# Capability Endpoints
-# ============================================================================
-
 @router.get("/", response_model=List[CapabilityResponse])
 async def list_capabilities():
     """
@@ -173,34 +165,23 @@ async def get_capability(capability_id: str):
     return capability
 
 
-# ============================================================================
-# Job Endpoints
-# ============================================================================
-
 def run_job_in_thread(job_id: str, orchestrator_instance):
     """
     Synchronous wrapper to run async job execution in a separate thread.
     Creates a new event loop for the thread to avoid conflicts.
     """
     try:
-        # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            # Initialize database within this thread's event loop context
-            # This ensures the engine is created in the correct event loop
             async def init_and_execute():
                 from app.core.database.database import init_db, close_db
                 from app.services.browser_capture import get_browser_capture_service
-                # Initialize database in this event loop's context
                 init_db()
                 try:
-                    # Execute the job
                     await orchestrator_instance.execute_job(job_id)
                 finally:
-                    # Clean up thread-local database engine
                     await close_db()
-                    # Clean up browser service for this thread before event loop closes
                     try:
                         browser_service = get_browser_capture_service()
                         await browser_service.close()
@@ -209,12 +190,10 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
             
             loop.run_until_complete(init_and_execute())
         finally:
-            # Clean up any pending tasks before closing the loop
             pending = asyncio.all_tasks(loop)
             if pending:
                 for task in pending:
                     task.cancel()
-                # Wait for tasks to complete cancellation
                 loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             loop.close()
     except Exception as e:
@@ -250,7 +229,6 @@ async def create_job(
         )
         orchestrator = get_orchestrator()
         
-        # Validate capability
         validation_start = time.time()
         try:
             capability = Capability(request.capability)
@@ -267,7 +245,6 @@ async def create_job(
                 detail=f"Invalid capability: {request.capability}"
             )
         
-        # Map priority
         priority_map = {
             "critical": JobPriority.CRITICAL,
             "high": JobPriority.HIGH,
@@ -278,7 +255,6 @@ async def create_job(
         priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
         logger.debug(f"[API] [create_job] Mapped priority: {request.priority} -> {priority.value}")
         
-        # Create job with user_id
         job_creation_start = time.time()
         try:
             job = await orchestrator.create_job(
@@ -302,19 +278,14 @@ async def create_job(
             )
             raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
-        # Execute job in background using thread pool executor
-        # This completely isolates job execution from the API event loop
         bg_task_start = time.time()
         try:
-            # Use a shared executor (or create per-request, but shared is more efficient)
-            # Store executor as module-level or in a singleton pattern
             if not hasattr(run_job_in_thread, '_executor'):
                 run_job_in_thread._executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="job-executor")
             
             executor = run_job_in_thread._executor
             future = executor.submit(run_job_in_thread, job.id, orchestrator)
             
-            # Optional: Add callback for completion (non-blocking)
             def log_thread_completion(future):
                 try:
                     future.result()  # This will raise if task failed
@@ -324,7 +295,6 @@ async def create_job(
                         exc_info=True
                     )
             
-            # Note: add_done_callback is for concurrent.futures.Future, not asyncio.Task
             future.add_done_callback(log_thread_completion)
             
             bg_task_time = time.time() - bg_task_start
@@ -338,7 +308,6 @@ async def create_job(
                 f"[API] [create_job] Failed to schedule background job after {bg_task_time:.3f}s: {e}",
                 exc_info=True
             )
-            # Don't fail the request if background task scheduling fails, job is still created
         
         total_request_time = time.time() - request_start_time
         logger.info(
@@ -360,7 +329,6 @@ async def create_job(
         )
         
     except HTTPException:
-        # Re-raise HTTP exceptions
         total_request_time = time.time() - request_start_time
         logger.warning(f"[API] [create_job] Request failed after {total_request_time:.3f}s (HTTPException)")
         raise
@@ -388,7 +356,6 @@ async def list_jobs(
     List jobs with optional filtering.
     Queries jobs from database, filtered by current user.
     """
-    # Parse filters
     cap_filter = None
     if capability:
         try:
@@ -403,7 +370,6 @@ async def list_jobs(
         except ValueError:
             pass
     
-    # Parse date filters
     start_date_obj = None
     end_date_obj = None
     if start_date:
@@ -417,7 +383,6 @@ async def list_jobs(
         except (ValueError, AttributeError):
             pass
     
-    # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     jobs = await storage.list_jobs(
         capability=cap_filter,
@@ -428,13 +393,11 @@ async def list_jobs(
         end_date=end_date_obj
     )
     
-    # Get findings count for each job from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
     result = []
     for job in jobs:
-        # Get findings count for this job
         findings = await finding_storage.get_findings_for_job(job.id)
         findings_count = len(findings)
         
@@ -470,11 +433,9 @@ async def get_job_history(
     Uses page/page_size parameters (converts to offset/limit internally).
     Queries jobs from database, filtered by current user.
     """
-    # Convert page/page_size to offset/limit
     offset = (page - 1) * page_size
     limit = page_size
     
-    # Parse filters
     cap_filter = None
     if capability:
         try:
@@ -489,7 +450,6 @@ async def get_job_history(
         except ValueError:
             pass
     
-    # Parse date filters
     start_date_obj = None
     end_date_obj = None
     if start_date:
@@ -503,10 +463,8 @@ async def get_job_history(
         except (ValueError, AttributeError):
             pass
     
-    # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
-    # Get total count for pagination
     total_count = await storage.count_jobs(
         capability=cap_filter,
         status=status_filter,
@@ -514,7 +472,6 @@ async def get_job_history(
         end_date=end_date_obj
     )
     
-    # Get jobs
     jobs = await storage.list_jobs(
         capability=cap_filter,
         status=status_filter,
@@ -524,13 +481,11 @@ async def get_job_history(
         end_date=end_date_obj
     )
     
-    # Get findings count for each job from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
     result = []
     for job in jobs:
-        # Get findings count for this job
         findings = await finding_storage.get_findings_for_job(job.id)
         findings_count = len(findings)
         
@@ -551,7 +506,6 @@ async def get_job_history(
             execution_logs=job.execution_logs or []
         ))
     
-    # Calculate total pages
     total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
     
     return JobHistoryResponse(
@@ -575,25 +529,21 @@ async def get_recent_jobs(
     """
     from datetime import datetime, timezone
     
-    # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     jobs = await storage.list_jobs(limit=limit, offset=0)
     
     # Get total count
     total_count = await storage.count_jobs()
     
-    # Get findings count for each job from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
     result = []
     now = datetime.now(timezone.utc)
     for job in jobs:
-        # Get findings count for this job
         findings = await finding_storage.get_findings_for_job(job.id)
         findings_count = len(findings)
         
-        # Calculate time_ago
         if job.completed_at:
             time_diff = now - job.completed_at
             if time_diff.days > 0:
@@ -638,14 +588,12 @@ async def get_job(
     Get job status and details.
     Queries job from database, ensures user can only access their own jobs.
     """
-    # Query from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     job = await storage.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Get findings count for this job from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_findings_for_job(job_id)
@@ -681,7 +629,6 @@ async def restart_job(
     """
     from datetime import datetime
     
-    # Get the job from database
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     job = await storage.get_job(job_id)
     
@@ -690,31 +637,23 @@ async def restart_job(
     
     orchestrator = get_orchestrator()
     
-    # Check if job exists in orchestrator (in-memory)
     orchestrator_job = orchestrator.get_job(job_id)
     
     if orchestrator_job:
-        # Job is in memory, reset it directly
         orchestrator_job.status = JobStatus.PENDING
         orchestrator_job.progress = 0
         orchestrator_job.error = None
         orchestrator_job.started_at = None
         orchestrator_job.completed_at = None
-        # Add restart log
         orchestrator._add_execution_log(orchestrator_job, "info", "Job restarted", {
             "capability": orchestrator_job.capability.value,
             "target": orchestrator_job.target
         })
-        # Update status indexes
         orchestrator._update_job_status(orchestrator_job, JobStatus.PENDING)
-        # Re-add to queue
         orchestrator._job_queue.push((orchestrator_job.priority.value, datetime.now().timestamp(), job_id))
-        # Save to database
         await orchestrator._save_job_to_db(orchestrator_job, user_id=current_user.id)
         job_to_return = orchestrator_job
     else:
-        # Job only exists in database, reset it there
-        # Get current execution logs and add restart log
         current_logs = job.execution_logs or []
         from datetime import datetime
         restart_log = {
@@ -736,11 +675,9 @@ async def restart_job(
             'completed_at': None,
             'execution_logs': current_logs
         })
-        # Reload job to get updated data
         job = await storage.get_job(job_id)
         job_to_return = job
         
-        # Add job to orchestrator for execution
         from app.services.orchestrator import Job as JobDataclass
         orchestrator_job = JobDataclass(
             id=job.id,
@@ -758,21 +695,16 @@ async def restart_job(
             metadata=job.metadata or {},
             execution_logs=job.execution_logs or []
         )
-        # Add restart log
         orchestrator._add_execution_log(orchestrator_job, "info", "Job restarted", {
             "capability": job.capability.value,
             "target": job.target
         })
-        # Store in orchestrator
         orchestrator._jobs.put(job_id, orchestrator_job)
-        # Add to queue
         orchestrator._job_queue.push((orchestrator_job.priority.value, datetime.now().timestamp(), job_id))
-        # Update indexes
         status_jobs = orchestrator._jobs_by_status.get(JobStatus.PENDING.value) or []
         status_jobs.append(job_id)
         orchestrator._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)
     
-    # Start execution in background
     import threading
     thread = threading.Thread(
         target=run_job_in_thread,
@@ -781,7 +713,6 @@ async def restart_job(
     )
     thread.start()
     
-    # Get findings count
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_findings_for_job(job_id)
@@ -828,22 +759,18 @@ async def get_job_findings(
     """
     from datetime import datetime as dt
     
-    # First try to get job from database
     job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     db_job = await job_storage.get_job(job_id)
     
     if not db_job:
-        # Fallback to orchestrator (in-memory) for running jobs
         orchestrator = get_orchestrator()
         orchestrator_job = orchestrator.get_job(job_id)
         if not orchestrator_job:
             raise HTTPException(status_code=404, detail="Job not found")
         job = orchestrator_job
         
-        # Get findings based on 'since' parameter for incremental polling
         if since:
             try:
-                # Try parsing as ISO timestamp first
                 try:
                     since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
                     filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
@@ -852,7 +779,6 @@ async def get_job_findings(
                         f"since={since}, found={len(filtered_findings)} new findings"
                     )
                 except (ValueError, AttributeError):
-                    # If not a timestamp, treat as finding ID
                     filtered_findings = job.get_findings_since(since_id=since)
                     logger.debug(
                         f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
@@ -865,24 +791,19 @@ async def get_job_findings(
                 )
                 filtered_findings = job.findings
         else:
-            # No 'since' parameter, return all findings (backward compatible)
             filtered_findings = job.findings
     else:
-        # Job exists in database, get findings from database
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         db_findings = await finding_storage.get_findings_for_job(job_id)
         
-        # Convert database findings to Finding objects for compatibility
         from app.services.orchestrator import Finding
         from datetime import datetime
         
         filtered_findings = []
         for db_f in db_findings:
-            # Parse discovered_at
             discovered_at = db_f.discovered_at if isinstance(db_f.discovered_at, datetime) else datetime.fromisoformat(db_f.discovered_at.replace('Z', '+00:00'))
             
-            # db_f.capability is already a Capability enum from FindingDataclass
             finding = Finding(
                 id=db_f.id,
                 capability=db_f.capability,
@@ -897,7 +818,6 @@ async def get_job_findings(
             )
             filtered_findings.append(finding)
         
-        # Apply 'since' filtering if provided
         if since:
             try:
                 try:
@@ -908,7 +828,6 @@ async def get_job_findings(
                         f"since={since}, found={len(filtered_findings)} new findings"
                     )
                 except (ValueError, AttributeError):
-                    # If not a timestamp, treat as finding ID
                     since_index = next((i for i, f in enumerate(filtered_findings) if f.id == since), -1)
                     if since_index >= 0:
                         filtered_findings = filtered_findings[since_index + 1:]
@@ -917,7 +836,6 @@ async def get_job_findings(
                             f"since={since}, found={len(filtered_findings)} new findings"
                         )
                     else:
-                        # Finding ID not found, return all findings
                         logger.debug(
                             f"[API] get_job_findings: job_id={job_id}, finding_id '{since}' not found, "
                             f"returning all findings"
@@ -928,7 +846,6 @@ async def get_job_findings(
                     f"Falling back to all findings."
                 )
     
-    # Apply pagination to filtered results
     total_findings = len(filtered_findings)
     paginated_findings = filtered_findings[offset:offset + limit]
     
@@ -994,7 +911,6 @@ async def get_job_findings_incremental(
     
     total_findings = len(job.findings)
     
-    # Get new findings based on last_finding_id or last_timestamp
     if last_finding_id:
         new_findings = job.get_findings_since(since_id=last_finding_id)
         logger.debug(
@@ -1016,19 +932,16 @@ async def get_job_findings_incremental(
             )
             new_findings = job.findings
     else:
-        # First call - return all findings
         new_findings = job.findings
         logger.debug(
             f"[API] get_job_findings_incremental: job_id={job_id}, "
             f"first call, returning all {len(new_findings)} findings"
         )
     
-    # Apply limit
     limited_findings = new_findings[:limit]
     new_count = len(limited_findings)
     has_more = len(new_findings) > limit
     
-    # Get last finding metadata for next poll
     last_finding_id_value = None
     last_finding_timestamp_value = None
     if limited_findings:
@@ -1095,11 +1008,9 @@ async def stream_job_findings(job_id: str):
         max_wait_time = 300  # Wait up to 5 minutes for job completion
         elapsed_time = 0
         
-        # Send initial connection event
         yield f"event: connected\ndata: {json.dumps({'job_id': job_id, 'status': job.status.value})}\n\n"
         
         while True:
-            # Refresh job data
             current_job = orchestrator.get_job(job_id)
             if not current_job:
                 yield f"event: error\ndata: {json.dumps({'message': 'Job not found'})}\n\n"
@@ -1139,7 +1050,6 @@ async def stream_job_findings(job_id: str):
             }
             yield f"event: progress\ndata: {json.dumps(progress_data)}\n\n"
             
-            # Check if job is complete
             if current_job.status.value in ["completed", "failed", "cancelled"]:
                 completion_data = {
                     "job_id": job_id,
@@ -1151,7 +1061,6 @@ async def stream_job_findings(job_id: str):
                 logger.debug(f"[API] SSE stream completed for job_id={job_id}, total findings={current_findings_count}")
                 break
             
-            # Check timeout
             if elapsed_time >= max_wait_time:
                 timeout_data = {
                     "job_id": job_id,
@@ -1194,7 +1103,6 @@ async def list_findings(
     List all findings with optional filtering.
     Queries from database, filtered by current user.
     """
-    # Parse capability filter
     cap_filter = None
     if capability:
         try:
@@ -1202,7 +1110,6 @@ async def list_findings(
         except ValueError:
             pass
     
-    # Query from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_findings(
@@ -1271,7 +1178,6 @@ async def get_finding(
     Get a single finding by ID.
     Queries from database, ensures user can only access their own findings.
     """
-    # Query from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     finding = await finding_storage.get_finding(finding_id)
@@ -1303,7 +1209,6 @@ async def get_critical_findings(
     Get critical and high severity findings that need immediate attention.
     Queries from database, filtered by current user.
     """
-    # Query from database
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_critical_findings(limit=limit)
@@ -1337,7 +1242,6 @@ async def get_risk_score(target: str):
     risk_engine = get_risk_engine()
     orchestrator = get_orchestrator()
     
-    # Get findings for target
     findings = orchestrator.get_findings_for_target(target)
     
     if not findings:
@@ -1346,7 +1250,6 @@ async def get_risk_score(target: str):
             detail=f"No data available for target: {target}"
         )
     
-    # Calculate risk score
     findings_dicts = [f.to_dict() for f in findings]
     risk_score = risk_engine.calculate_risk_score(target, findings_dicts)
     
@@ -1423,10 +1326,8 @@ async def quick_scan(request: QuickScanRequest):
     logger.info(f"Starting quick scan for {request.domain}")
     
     try:
-        # Run quick scan
         results = await orchestrator.quick_scan(request.domain)
         
-        # Get risk score
         findings = orchestrator.get_findings_for_target(request.domain)
         findings_dicts = [f.to_dict() for f in findings]
         risk_score = risk_engine.calculate_risk_score(request.domain, findings_dicts)
@@ -1493,12 +1394,10 @@ async def get_recent_events(
     events = []
     
     try:
-        # Generate events from recent jobs
         job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         recent_jobs = await job_storage.list_jobs(limit=limit, offset=0)
         
         for job in recent_jobs:
-            # Create event for completed jobs
             if job.status.value == "completed" and job.completed_at:
                 events.append({
                     "id": f"job-{job.id}",
@@ -1508,7 +1407,6 @@ async def get_recent_events(
                     "capability": job.capability.value,
                     "target": job.target
                 })
-            # Create event for running jobs
             elif job.status.value == "running" and job.started_at:
                 events.append({
                     "id": f"job-{job.id}",
@@ -1519,10 +1417,8 @@ async def get_recent_events(
                     "target": job.target
                 })
         
-        # Generate events from recent findings (all severities, not just critical/high)
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
-        # Get recent findings of all severities to show more activity
         recent_findings = await finding_storage.get_findings(limit=limit * 2)  # Get more to have variety
         
         for finding in recent_findings:
@@ -1535,15 +1431,12 @@ async def get_recent_events(
                 "capability": finding.capability.value
             })
         
-        # Sort by timestamp descending (most recent first)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
         
-        # Limit results
         events = events[:limit]
         
     except Exception as e:
         logger.error(f"Error generating capability events from database: {e}", exc_info=True)
-        # Fall back to orchestrator if database fails
         orchestrator = get_orchestrator()
         orchestrator_events = orchestrator.get_recent_events(limit=limit)
         events = orchestrator_events
@@ -1586,7 +1479,6 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
             await websocket.close()
             return
         
-        # Verify job is for darkweb capability
         if job.capability != Capability.DARK_WEB_INTELLIGENCE:
             await websocket.send_json({
                 "type": "error",
@@ -1613,7 +1505,6 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
         
         # If job is already running or completed, send existing findings
         if job.status in [JobStatus.RUNNING, JobStatus.COMPLETED]:
-            # Refresh job to get latest findings (in case they were just added)
             job = orchestrator.get_job(job_id)
             existing_findings = job.findings or []
             logger.info(f"[WebSocket] Job {job_id} is {job.status.value}, found {len(existing_findings)} existing findings")
@@ -1656,7 +1547,6 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
                     "timestamp": datetime.now().isoformat()
                 })
                 logger.info(f"[WebSocket] Sent completion message for job {job_id}, closing connection")
-                # Give a moment for the message to be sent before closing
                 await asyncio.sleep(0.5)
                 await websocket.close()
                 await orchestrator.unregister_websocket(job_id)
@@ -1668,9 +1558,6 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
             # Job is pending, start with 0 findings sent
             last_findings_count = 0
         
-        # Keep connection alive and wait for job to complete
-        # The job execution will send messages via the registered WebSocket
-        # We just need to keep the connection open and handle disconnections
         try:
             while True:
                 # Wait for messages from client (ping/pong or close)
