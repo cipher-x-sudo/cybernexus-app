@@ -348,6 +348,22 @@ class Orchestrator:
         priority: JobPriority = JobPriority.NORMAL,
         user_id: Optional[str] = None
     ) -> Job:
+        """Create a new job and add to DSA structures.
+        
+        DSA-USED:
+        - HashMap: Job storage and indexing by capability, target, and status
+        - MinHeap: Priority queue insertion for job scheduling
+        
+        Args:
+            capability: Job capability type
+            target: Target to analyze
+            config: Optional job configuration
+            priority: Job priority level
+            user_id: Optional user identifier
+        
+        Returns:
+            Created Job instance
+        """
         job_id = f"job-{uuid.uuid4().hex[:12]}"
         
         default_config = CAPABILITY_METADATA[capability].get("default_config", {})
@@ -367,21 +383,21 @@ class Orchestrator:
             metadata=metadata
         )
         
-        self._jobs.put(job_id, job)
+        self._jobs.put(job_id, job)  # DSA-USED: HashMap
         
-        cap_jobs = self._jobs_by_capability.get(capability.value) or []
+        cap_jobs = self._jobs_by_capability.get(capability.value) or []  # DSA-USED: HashMap
         cap_jobs.append(job_id)
-        self._jobs_by_capability.put(capability.value, cap_jobs)
+        self._jobs_by_capability.put(capability.value, cap_jobs)  # DSA-USED: HashMap
         
-        target_jobs = self._jobs_by_target.get(target) or []
+        target_jobs = self._jobs_by_target.get(target) or []  # DSA-USED: HashMap
         target_jobs.append(job_id)
-        self._jobs_by_target.put(target, target_jobs)
+        self._jobs_by_target.put(target, target_jobs)  # DSA-USED: HashMap
         
-        status_jobs = self._jobs_by_status.get(JobStatus.PENDING.value) or []
+        status_jobs = self._jobs_by_status.get(JobStatus.PENDING.value) or []  # DSA-USED: HashMap
         status_jobs.append(job_id)
-        self._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)
+        self._jobs_by_status.put(JobStatus.PENDING.value, status_jobs)  # DSA-USED: HashMap
         
-        self._job_queue.push((priority.value, datetime.now().timestamp(), job_id))
+        self._job_queue.push((priority.value, datetime.now().timestamp(), job_id))  # DSA-USED: MinHeap
         
         self._stats["total_jobs"] += 1
         
@@ -405,7 +421,16 @@ class Orchestrator:
         return job
     
     async def execute_job(self, job_id: str):
-        job = self._jobs.get(job_id)
+        """Execute a job and index findings.
+        
+        DSA-USED:
+        - HashMap: Job retrieval
+        - AVLTree: Finding indexing by risk score
+        
+        Args:
+            job_id: Job identifier to execute
+        """
+        job = self._jobs.get(job_id)  # DSA-USED: HashMap
         if not job:
             logger.error(f"Job {job_id} not found")
             return
@@ -433,7 +458,7 @@ class Orchestrator:
                 finding.evidence["job_id"] = job.id
                 
                 self._all_findings.append(finding)
-                self._findings_index.insert(finding.risk_score, finding)
+                self._findings_index.insert(finding.risk_score, finding)  # DSA-USED: AVLTree
                 
                 if user_id:
                     try:
@@ -2881,15 +2906,15 @@ class Orchestrator:
             })
         
 
-        old_status_jobs = self._jobs_by_status.get(old_status.value) or []
+        old_status_jobs = self._jobs_by_status.get(old_status.value) or []  # DSA-USED: HashMap
         if job.id in old_status_jobs:
             old_status_jobs.remove(job.id)
-        self._jobs_by_status.put(old_status.value, old_status_jobs)
+        self._jobs_by_status.put(old_status.value, old_status_jobs)  # DSA-USED: HashMap
         
 
-        new_status_jobs = self._jobs_by_status.get(new_status.value) or []
+        new_status_jobs = self._jobs_by_status.get(new_status.value) or []  # DSA-USED: HashMap
         new_status_jobs.append(job.id)
-        self._jobs_by_status.put(new_status.value, new_status_jobs)
+        self._jobs_by_status.put(new_status.value, new_status_jobs)  # DSA-USED: HashMap
         
         job.status = new_status
     
@@ -2909,18 +2934,37 @@ class Orchestrator:
             self._events = self._events[:self._max_events]
     
     def get_job(self, job_id: str) -> Optional[Job]:
+        """Retrieve a job by ID.
         
-
-        job = self._jobs.get(job_id)
+        DSA-USED:
+        - HashMap: O(1) job lookup
+        
+        Args:
+            job_id: Job identifier
+        
+        Returns:
+            Job instance if found, None otherwise
+        """
+        job = self._jobs.get(job_id)  # DSA-USED: HashMap
         if job:
             return job
         
         return None
     
     def get_darkwatch_instance(self, job_id: str):
+        """Get DarkWatch instance for a job.
         
+        DSA-USED:
+        - HashMap: Instance lookup by job ID
+        
+        Args:
+            job_id: Job identifier
+        
+        Returns:
+            DarkWatch instance if found, None otherwise
+        """
         from app.collectors.dark_watch import DarkWatch
-        instance = self._darkwatch_instances.get(job_id)
+        instance = self._darkwatch_instances.get(job_id)  # DSA-USED: HashMap
         if instance:
             return instance
         
@@ -2941,15 +2985,15 @@ class Orchestrator:
     ) -> List[Job]:
         
         if capability:
-            job_ids = self._jobs_by_capability.get(capability.value) or []
+            job_ids = self._jobs_by_capability.get(capability.value) or []  # DSA-USED: HashMap
         elif status:
-            job_ids = self._jobs_by_status.get(status.value) or []
+            job_ids = self._jobs_by_status.get(status.value) or []  # DSA-USED: HashMap
         else:
             job_ids = list(self._jobs.keys())
         
         jobs = []
         for job_id in job_ids[:limit]:
-            job = self._jobs.get(job_id)
+            job = self._jobs.get(job_id)  # DSA-USED: HashMap
             if job:
 
                 if capability and job.capability != capability:

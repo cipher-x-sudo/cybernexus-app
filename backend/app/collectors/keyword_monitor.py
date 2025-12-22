@@ -185,20 +185,31 @@ class KeywordMonitor:
         return f"{prefix}_{hashlib.md5(f'{data}:{timestamp}'.encode()).hexdigest()[:10]}"
     
     def add_rule(self, rule: MonitorRule) -> str:
+        """Add a monitoring rule to the system.
         
-        self.rules.put(rule.rule_id, rule)
+        DSA-USED:
+        - HashMap: Rule storage and keyword-rule mapping
+        - Trie: Keyword insertion for prefix matching
+        
+        Args:
+            rule: MonitorRule instance to add
+        
+        Returns:
+            Rule identifier
+        """
+        self.rules.put(rule.rule_id, rule)  # DSA-USED: HashMap
         
 
         for keyword in rule.keywords:
             kw_lower = keyword.lower() if not rule.case_sensitive else keyword
-            self.keyword_trie.insert(kw_lower)
+            self.keyword_trie.insert(kw_lower)  # DSA-USED: Trie
             
 
-            existing = self.keyword_rules.get(kw_lower)
+            existing = self.keyword_rules.get(kw_lower)  # DSA-USED: HashMap
             if existing:
                 existing.append(rule.rule_id)
             else:
-                self.keyword_rules.put(kw_lower, [rule.rule_id])
+                self.keyword_rules.put(kw_lower, [rule.rule_id])  # DSA-USED: HashMap
         
         self.stats["rules_count"] += 1
         return rule.rule_id
@@ -223,19 +234,29 @@ class KeywordMonitor:
         return rule
     
     def remove_rule(self, rule_id: str) -> bool:
+        """Remove a monitoring rule.
         
-        rule = self.rules.get(rule_id)
+        DSA-USED:
+        - HashMap: Rule lookup and removal, keyword-rule mapping update
+        
+        Args:
+            rule_id: Rule identifier to remove
+        
+        Returns:
+            True if rule was removed, False if not found
+        """
+        rule = self.rules.get(rule_id)  # DSA-USED: HashMap
         if not rule:
             return False
         
 
         for keyword in rule.keywords:
             kw_lower = keyword.lower() if not rule.case_sensitive else keyword
-            rule_list = self.keyword_rules.get(kw_lower)
+            rule_list = self.keyword_rules.get(kw_lower)  # DSA-USED: HashMap
             if rule_list and rule_id in rule_list:
                 rule_list.remove(rule_id)
         
-        self.rules.remove(rule_id)
+        self.rules.remove(rule_id)  # DSA-USED: HashMap
         self.stats["rules_count"] -= 1
         return True
     
@@ -389,8 +410,8 @@ class KeywordMonitor:
             )
             
 
-            self.matches.put(match_id, match)
-            self.match_history.append(match.to_dict())
+            self.matches.put(match_id, match)  # DSA-USED: HashMap
+            self.match_history.append(match.to_dict())  # DSA-USED: DoublyLinkedList
             matches.append(match)
             self.stats["total_matches"] += 1
             
@@ -401,7 +422,15 @@ class KeywordMonitor:
         return matches
     
     def _create_alert(self, match: KeywordMatch):
+        """Create an alert from a keyword match.
         
+        DSA-USED:
+        - HashMap: Alert storage
+        - MaxHeap: Priority queue insertion for alert ranking
+        
+        Args:
+            match: KeywordMatch that triggered the alert
+        """
         alert_id = self._generate_id("alert", match.match_id)
         
         alert = Alert(
@@ -415,8 +444,8 @@ class KeywordMonitor:
             created_at=datetime.now()
         )
         
-        self.alerts.put(alert_id, alert)
-        self.alert_queue.push(alert)
+        self.alerts.put(alert_id, alert)  # DSA-USED: HashMap
+        self.alert_queue.push(alert)  # DSA-USED: MaxHeap
         self.stats["total_alerts"] += 1
         
 
@@ -431,25 +460,46 @@ class KeywordMonitor:
         self.alert_callbacks.append(callback)
     
     def get_pending_alerts(self, limit: int = 10) -> List[Alert]:
+        """Get pending alerts in priority order.
         
+        DSA-USED:
+        - MaxHeap: Priority queue extraction and re-insertion
+        
+        Args:
+            limit: Maximum number of alerts to return
+        
+        Returns:
+            List of pending Alert instances sorted by priority
+        """
         alerts = []
         temp = []
         
-        while not self.alert_queue.is_empty() and len(alerts) < limit:
-            alert = self.alert_queue.pop()
+        while not self.alert_queue.is_empty() and len(alerts) < limit:  # DSA-USED: MaxHeap
+            alert = self.alert_queue.pop()  # DSA-USED: MaxHeap
             if not alert.acknowledged:
                 alerts.append(alert)
             temp.append(alert)
         
 
         for alert in temp:
-            self.alert_queue.push(alert)
+            self.alert_queue.push(alert)  # DSA-USED: MaxHeap
         
         return alerts
     
     def acknowledge_alert(self, alert_id: str, user: str) -> bool:
+        """Acknowledge an alert.
         
-        alert = self.alerts.get(alert_id)
+        DSA-USED:
+        - HashMap: Alert lookup
+        
+        Args:
+            alert_id: Alert identifier
+            user: User acknowledging the alert
+        
+        Returns:
+            True if alert was acknowledged, False if not found
+        """
+        alert = self.alerts.get(alert_id)  # DSA-USED: HashMap
         if not alert:
             return False
         
@@ -466,11 +516,25 @@ class KeywordMonitor:
         since: Optional[datetime] = None,
         limit: int = 100
     ) -> List[KeywordMatch]:
+        """Get keyword matches with optional filtering.
         
+        DSA-USED:
+        - HashMap: Match iteration and lookup
+        
+        Args:
+            rule_id: Optional rule ID filter
+            severity: Optional severity filter
+            source_type: Optional source type filter
+            since: Optional timestamp filter
+            limit: Maximum results to return
+        
+        Returns:
+            List of KeywordMatch instances sorted by score
+        """
         results = []
         
-        for match_id in self.matches.keys():
-            match = self.matches.get(match_id)
+        for match_id in self.matches.keys():  # DSA-USED: HashMap
+            match = self.matches.get(match_id)  # DSA-USED: HashMap
             if not match:
                 continue
             
@@ -527,14 +591,34 @@ class KeywordMonitor:
         }
     
     def search_keywords(self, prefix: str) -> List[str]:
+        """Search keywords by prefix.
         
-        return self.keyword_trie.starts_with(prefix.lower())
+        DSA-USED:
+        - Trie: Prefix matching for autocomplete
+        
+        Args:
+            prefix: Prefix string to search for
+        
+        Returns:
+            List of keywords matching the prefix
+        """
+        return self.keyword_trie.starts_with(prefix.lower())  # DSA-USED: Trie
     
     def get_rules(self, enabled_only: bool = True) -> List[MonitorRule]:
+        """Get all monitoring rules.
         
+        DSA-USED:
+        - HashMap: Rule iteration and lookup
+        
+        Args:
+            enabled_only: If True, return only enabled rules
+        
+        Returns:
+            List of MonitorRule instances
+        """
         rules = []
-        for rule_id in self.rules.keys():
-            rule = self.rules.get(rule_id)
+        for rule_id in self.rules.keys():  # DSA-USED: HashMap
+            rule = self.rules.get(rule_id)  # DSA-USED: HashMap
             if rule and (not enabled_only or rule.enabled):
                 rules.append(rule)
         return rules

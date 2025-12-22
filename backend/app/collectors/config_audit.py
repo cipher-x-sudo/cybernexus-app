@@ -69,7 +69,7 @@ class ConfigAudit:
         ]
         
         for check in checks:
-            self._signature_map.put(check['name'], {
+            self._signature_map.put(check['name'], {  # DSA-USED: HashMap
                 **check,
                 'score': severity_scores.get(check['severity'], 1)
             })
@@ -161,7 +161,7 @@ class ConfigAudit:
                 results["error"] = str(e)
         
 
-        self._results_cache.put(target, results)
+        self._results_cache.put(target, results)  # DSA-USED: HashMap
         
         return results
     
@@ -762,7 +762,7 @@ class ConfigAudit:
     
     def get_top_findings(self, n: int = 10) -> List[Dict[str, Any]]:
         
-        return self._findings_heap.get_top_n(n)
+        return self._findings_heap.get_top_n(n)  # DSA-USED: MaxHeap
     
     def stats(self) -> Dict[str, Any]:
         return {

@@ -70,28 +70,52 @@ class HashMap:
                 node = node.next
     
     def put(self, key: Any, value: Any) -> bool:
+        """Insert or update a key-value pair.
+        
+        DSA-USED:
+        - HashMap: Separate chaining hash map insertion with automatic resizing
+        
+        Args:
+            key: Key to insert
+            value: Value to associate with key
+        
+        Returns:
+            True if new key was inserted, False if existing key was updated
+        """
         if self._size / self._capacity >= self.LOAD_FACTOR_THRESHOLD:
-            self._resize()
+            self._resize()  # DSA-USED: HashMap
         
-        index = self._hash(key)
-        node = self._buckets[index]
+        index = self._hash(key)  # DSA-USED: HashMap
+        node = self._buckets[index]  # DSA-USED: HashMap
         
-        while node:
+        while node:  # DSA-USED: HashMap
             if node.key == key:
                 node.value = value
                 return False
             node = node.next
         
         new_node = HashNode(key=key, value=value, next=self._buckets[index])
-        self._buckets[index] = new_node
+        self._buckets[index] = new_node  # DSA-USED: HashMap
         self._size += 1
         return True
     
     def get(self, key: Any, default: Any = None) -> Any:
-        index = self._hash(key)
-        node = self._buckets[index]
+        """Retrieve value by key.
         
-        while node:
+        DSA-USED:
+        - HashMap: O(1) average case lookup using hash function and chaining
+        
+        Args:
+            key: Key to look up
+            default: Default value if key not found
+        
+        Returns:
+            Value associated with key, or default if not found
+        """
+        index = self._hash(key)  # DSA-USED: HashMap
+        node = self._buckets[index]  # DSA-USED: HashMap
+        
+        while node:  # DSA-USED: HashMap
             if node.key == key:
                 return node.value
             node = node.next

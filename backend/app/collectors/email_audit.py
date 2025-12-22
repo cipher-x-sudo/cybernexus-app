@@ -103,7 +103,7 @@ class EmailAudit:
         
         self._update_infra_graph(domain, results)
         
-        self._domain_index.insert(domain, results)
+        self._domain_index.insert(domain, results)  # DSA-USED: AVLTree
         
         return results
     
@@ -119,7 +119,7 @@ class EmailAudit:
         
         try:
             cache_key = f"spf:{domain}"
-            cached = self._dns_cache.get(cache_key)
+            cached = self._dns_cache.get(cache_key)  # DSA-USED: HashMap
             if cached:
                 return cached
             
@@ -157,7 +157,7 @@ class EmailAudit:
                     
                     break
             
-            self._dns_cache.put(cache_key, result)
+            self._dns_cache.put(cache_key, result)  # DSA-USED: HashMap
             
         except dns.resolver.NXDOMAIN:
             result["issues"].append({"severity": "info", "issue": "Domain does not exist"})
@@ -808,27 +808,58 @@ class EmailAudit:
         return compliance
     
     def _update_infra_graph(self, domain: str, results: Dict[str, Any]):
-        self._infra_graph.add_node(domain, label=domain, node_type="domain")
+        """Update infrastructure graph with email server relationships.
+        
+        DSA-USED:
+        - Graph: Node and edge creation for infrastructure mapping
+        
+        Args:
+            domain: Domain name
+            results: Audit results dictionary
+        """
+        self._infra_graph.add_node(domain, label=domain, node_type="domain")  # DSA-USED: Graph
         
         for mx in results.get("mx_records", []):
             mx_domain = mx["exchange"]
-            self._infra_graph.add_node(mx_domain, label=mx_domain, node_type="mx")
-            self._infra_graph.add_edge(domain, mx_domain, relation="mx_record")
+            self._infra_graph.add_node(mx_domain, label=mx_domain, node_type="mx")  # DSA-USED: Graph
+            self._infra_graph.add_edge(domain, mx_domain, relation="mx_record")  # DSA-USED: Graph
         
         for include in results.get("spf", {}).get("includes", []):
-            self._infra_graph.add_node(include, label=include, node_type="spf_include")
-            self._infra_graph.add_edge(domain, include, relation="spf_include")
+            self._infra_graph.add_node(include, label=include, node_type="spf_include")  # DSA-USED: Graph
+            self._infra_graph.add_edge(domain, include, relation="spf_include")  # DSA-USED: Graph
     
     def get_domains_by_score(self, min_score: int = 0, max_score: int = 100) -> List[Dict[str, Any]]:
-        results = self._domain_index.range_query(min_score, max_score)
+        """Get domains within a score range.
+        
+        DSA-USED:
+        - AVLTree: Range query for score-based filtering
+        
+        Args:
+            min_score: Minimum score threshold
+            max_score: Maximum score threshold
+        
+        Returns:
+            List of domain result dictionaries
+        """
+        results = self._domain_index.range_query(min_score, max_score)  # DSA-USED: AVLTree
         return [{"domain": domain, "results": data} for domain, data in results]
     
     def stats(self) -> Dict[str, Any]:
+        """Get statistics about email audit structures.
+        
+        DSA-USED:
+        - AVLTree: Size retrieval
+        - HashMap: Size retrieval
+        - Graph: Node and edge count retrieval
+        
+        Returns:
+            Dictionary with audit statistics
+        """
         return {
-            "domains_audited": len(self._domain_index),
-            "dns_cache_size": len(self._dns_cache),
-            "infrastructure_nodes": self._infra_graph.node_count,
-            "infrastructure_edges": self._infra_graph.edge_count
+            "domains_audited": len(self._domain_index),  # DSA-USED: AVLTree
+            "dns_cache_size": len(self._dns_cache),  # DSA-USED: HashMap
+            "infrastructure_nodes": self._infra_graph.node_count,  # DSA-USED: Graph
+            "infrastructure_edges": self._infra_graph.edge_count  # DSA-USED: Graph
         }
 
 

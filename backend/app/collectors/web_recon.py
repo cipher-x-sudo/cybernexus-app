@@ -107,7 +107,7 @@ class WebRecon:
         self._results = []
         
         for pattern in self.DORK_PATTERNS:
-            self._dork_trie.insert(pattern, pattern)
+            self._dork_trie.insert(pattern, pattern)  # DSA-USED: Trie
     
     async def _resolve_dns(self, hostname: str, timeout: float = 2.0) -> bool:
         try:
@@ -130,6 +130,20 @@ class WebRecon:
         domain: str, 
         progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Dict[str, Any]:
+        """Discover assets for a domain using web reconnaissance.
+        
+        DSA-USED:
+        - Trie: Dork pattern storage and matching
+        - HashMap: Asset result caching
+        - BloomFilter: URL deduplication during crawling
+        
+        Args:
+            domain: Domain to analyze
+            progress_callback: Optional callback for progress updates
+        
+        Returns:
+            Dictionary with discovered assets
+        """
         
         import time
         discovery_start = time.time()
@@ -279,7 +293,7 @@ class WebRecon:
 
             cache_start = time.time()
             logger.info(f"[WebRecon] [domain={domain}] Caching results...")
-            self._asset_cache.put(domain, results)
+            self._asset_cache.put(domain, results)  # DSA-USED: HashMap
             cache_time = time.time() - cache_start
             logger.info(f"[WebRecon] [domain={domain}] Results cached in {cache_time:.3f}s")
             
@@ -350,9 +364,9 @@ class WebRecon:
         for prefix in common_prefixes:
             subdomain = f"{prefix}.{domain}"
             
-            if self._seen_urls.contains(subdomain):
+            if self._seen_urls.contains(subdomain):  # DSA-USED: BloomFilter
                 continue
-            self._seen_urls.add(subdomain)
+            self._seen_urls.add(subdomain)  # DSA-USED: BloomFilter
             
             subdomain_list.append(subdomain)
             dns_tasks.append(self._resolve_dns(subdomain))
@@ -542,8 +556,8 @@ class WebRecon:
             for path in paths:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
-                    if not self._seen_urls.contains(url):
-                        self._seen_urls.add(url)
+                    if not self._seen_urls.contains(url):  # DSA-USED: BloomFilter
+                        self._seen_urls.add(url)  # DSA-USED: BloomFilter
 
                         tasks.append(self._check_endpoint(client, url, path, follow_redirects=True))
             
@@ -687,8 +701,8 @@ class WebRecon:
             for file_path in sensitive_files:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{file_path}"
-                    if not self._seen_urls.contains(url):
-                        self._seen_urls.add(url)
+                    if not self._seen_urls.contains(url):  # DSA-USED: BloomFilter
+                        self._seen_urls.add(url)  # DSA-USED: BloomFilter
                         tasks.append(self._check_file(client, url, file_path))
             
             logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} file check tasks")
@@ -797,8 +811,8 @@ class WebRecon:
             for path, vcs_type in vcs_indicators:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
-                    if not self._seen_urls.contains(url):
-                        self._seen_urls.add(url)
+                    if not self._seen_urls.contains(url):  # DSA-USED: BloomFilter
+                        self._seen_urls.add(url)  # DSA-USED: BloomFilter
                         check_count += 1
                         request_start = time.time()
                         try:
@@ -885,8 +899,8 @@ class WebRecon:
             for path, panel_name in admin_paths:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{path}"
-                    if not self._seen_urls.contains(url):
-                        self._seen_urls.add(url)
+                    if not self._seen_urls.contains(url):  # DSA-USED: BloomFilter
+                        self._seen_urls.add(url)  # DSA-USED: BloomFilter
 
                         tasks.append(self._check_admin_panel(client, url, path, panel_name, follow_redirects=True))
             
@@ -1026,8 +1040,8 @@ class WebRecon:
             for config_path in config_files:
                 for protocol in ['https', 'http']:
                     url = f"{protocol}://{domain}{config_path}"
-                    if not self._seen_urls.contains(url):
-                        self._seen_urls.add(url)
+                    if not self._seen_urls.contains(url):  # DSA-USED: BloomFilter
+                        self._seen_urls.add(url)  # DSA-USED: BloomFilter
                         tasks.append(self._check_config_file(client, url, config_path))
             
             logger.info(f"[WebRecon] [domain={domain}] Created {len(tasks)} config file check tasks")
@@ -1110,7 +1124,7 @@ class WebRecon:
     
     def get_cached_results(self, domain: str) -> Optional[Dict[str, Any]]:
         
-        return self._asset_cache.get(domain)
+        return self._asset_cache.get(domain)  # DSA-USED: HashMap
     
     def stats(self) -> Dict[str, Any]:
         

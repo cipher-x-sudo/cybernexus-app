@@ -106,6 +106,20 @@ class Graph:
         yield from self.nodes.values()
     
     def add_node(self, node_id: str, label: str = None, node_type: str = "default", data: dict = None) -> GraphNode:
+        """Add a node to the graph.
+        
+        DSA-USED:
+        - Graph: Node creation and adjacency list management
+        
+        Args:
+            node_id: Unique identifier for the node
+            label: Optional label for the node
+            node_type: Type classification of the node
+            data: Optional metadata dictionary
+        
+        Returns:
+            The created or existing GraphNode
+        """
         if node_id in self.nodes:
             return self.nodes[node_id]
         
@@ -115,26 +129,48 @@ class Graph:
             node_type=node_type,
             data=data or {}
         )
-        self.nodes[node_id] = node
+        self.nodes[node_id] = node  # DSA-USED: Graph
         self._node_count += 1
         return node
     
     def get_node(self, node_id: str) -> Optional[GraphNode]:
-        return self.nodes.get(node_id)
+        """Retrieve a node by ID.
+        
+        DSA-USED:
+        - Graph: Node lookup in adjacency list
+        
+        Args:
+            node_id: Identifier of the node to retrieve
+        
+        Returns:
+            GraphNode if found, None otherwise
+        """
+        return self.nodes.get(node_id)  # DSA-USED: Graph
     
     def remove_node(self, node_id: str) -> bool:
+        """Remove a node and all its edges from the graph.
+        
+        DSA-USED:
+        - Graph: Node removal and edge cleanup in adjacency list
+        
+        Args:
+            node_id: Identifier of the node to remove
+        
+        Returns:
+            True if node was removed, False if not found
+        """
         if node_id not in self.nodes:
             return False
         
-        for node in self.nodes.values():
+        for node in self.nodes.values():  # DSA-USED: Graph
             edges_to_remove = [e for e in node.edges if e.target == node_id]
             for edge in edges_to_remove:
-                node.edges.remove(edge)
+                node.edges.remove(edge)  # DSA-USED: Graph
                 self._edge_count -= 1
         
-        node = self.nodes[node_id]
+        node = self.nodes[node_id]  # DSA-USED: Graph
         self._edge_count -= len(node.edges)
-        del self.nodes[node_id]
+        del self.nodes[node_id]  # DSA-USED: Graph
         self._node_count -= 1
         return True
     
@@ -143,26 +179,41 @@ class Graph:
     
     def add_edge(self, source: str, target: str, weight: float = 1.0, 
                  relation: str = "connected", metadata: dict = None) -> bool:
+        """Add an edge between two nodes.
+        
+        DSA-USED:
+        - Graph: Edge creation in adjacency list representation
+        
+        Args:
+            source: Source node identifier
+            target: Target node identifier
+            weight: Edge weight (default: 1.0)
+            relation: Relationship type (default: "connected")
+            metadata: Optional edge metadata
+        
+        Returns:
+            True if edge was added or updated
+        """
         if source not in self.nodes:
-            self.add_node(source)
+            self.add_node(source)  # DSA-USED: Graph
         if target not in self.nodes:
-            self.add_node(target)
+            self.add_node(target)  # DSA-USED: Graph
         
-        source_node = self.nodes[source]
+        source_node = self.nodes[source]  # DSA-USED: Graph
         
-        for edge in source_node.edges:
+        for edge in source_node.edges:  # DSA-USED: Graph
             if edge.target == target:
                 edge.weight = weight
                 edge.relation = relation
                 edge.metadata.update(metadata or {})
                 return True
         
-        source_node.add_edge(target, weight, relation, metadata)
+        source_node.add_edge(target, weight, relation, metadata)  # DSA-USED: Graph
         self._edge_count += 1
         
         if not self.directed:
-            target_node = self.nodes[target]
-            target_node.add_edge(source, weight, relation, metadata)
+            target_node = self.nodes[target]  # DSA-USED: Graph
+            target_node.add_edge(source, weight, relation, metadata)  # DSA-USED: Graph
             self._edge_count += 1
         
         return True
@@ -197,6 +248,17 @@ class Graph:
         return None
     
     def bfs(self, start: str) -> Generator[GraphNode, None, None]:
+        """Breadth-first search traversal starting from a node.
+        
+        DSA-USED:
+        - Graph: BFS algorithm using queue and adjacency list traversal
+        
+        Args:
+            start: Starting node identifier
+        
+        Yields:
+            GraphNode instances in BFS order
+        """
         if start not in self.nodes:
             return
         
@@ -205,10 +267,10 @@ class Graph:
         
         while queue:
             node_id = queue.popleft()
-            node = self.nodes[node_id]
+            node = self.nodes[node_id]  # DSA-USED: Graph
             yield node
             
-            for edge in node.edges:
+            for edge in node.edges:  # DSA-USED: Graph
                 if edge.target not in visited:
                     visited.add(edge.target)
                     queue.append(edge.target)
@@ -254,6 +316,18 @@ class Graph:
         return neighbors
     
     def shortest_path_bfs(self, start: str, end: str) -> Optional[List[str]]:
+        """Find shortest path between two nodes using BFS.
+        
+        DSA-USED:
+        - Graph: BFS shortest path algorithm on unweighted graph
+        
+        Args:
+            start: Starting node identifier
+            end: Target node identifier
+        
+        Returns:
+            List of node IDs representing the shortest path, or None if no path exists
+        """
         if start not in self.nodes or end not in self.nodes:
             return None
         
@@ -265,9 +339,9 @@ class Graph:
         
         while queue:
             node_id, path = queue.popleft()
-            node = self.nodes[node_id]
+            node = self.nodes[node_id]  # DSA-USED: Graph
             
-            for edge in node.edges:
+            for edge in node.edges:  # DSA-USED: Graph
                 if edge.target == end:
                     return path + [end]
                 
@@ -278,12 +352,24 @@ class Graph:
         return None
     
     def dijkstra(self, start: str, end: str = None) -> Tuple[Dict[str, float], Dict[str, str]]:
+        """Dijkstra's algorithm for shortest path in weighted graph.
+        
+        DSA-USED:
+        - Graph: Dijkstra's algorithm using priority queue and adjacency list
+        
+        Args:
+            start: Starting node identifier
+            end: Optional target node (stops early if provided)
+        
+        Returns:
+            Tuple of (distances dictionary, predecessors dictionary)
+        """
         import heapq
         
         if start not in self.nodes:
             return {}, {}
         
-        distances = {node_id: float('inf') for node_id in self.nodes}
+        distances = {node_id: float('inf') for node_id in self.nodes}  # DSA-USED: Graph
         distances[start] = 0
         predecessors = {}
         
@@ -301,8 +387,8 @@ class Graph:
             if end and current_id == end:
                 break
             
-            node = self.nodes[current_id]
-            for edge in node.edges:
+            node = self.nodes[current_id]  # DSA-USED: Graph
+            for edge in node.edges:  # DSA-USED: Graph
                 if edge.target not in visited:
                     new_dist = current_dist + edge.weight
                     if new_dist < distances[edge.target]:

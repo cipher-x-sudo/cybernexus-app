@@ -186,10 +186,10 @@ class RiskEngine:
         self._store_score(target, risk_score)
         
 
-        self._category_scores.put(target, category_scores)
+        self._category_scores.put(target, category_scores)  # DSA-USED: HashMap
         
 
-        self._findings_by_target.put(target, findings)
+        self._findings_by_target.put(target, findings)  # DSA-USED: HashMap
         
         logger.info(f"Calculated risk score for {target}: {overall_score:.1f} ({risk_level.value})")
         
@@ -251,7 +251,20 @@ class RiskEngine:
             return cat_desc.get("bad", "Critical issues")
     
     def _calculate_trend(self, target: str, category: str, current_score: float) -> str:
-        history = self._score_history.get(target)
+        """Calculate trend for a specific category.
+        
+        DSA-USED:
+        - HashMap: Score history and category scores lookup
+        
+        Args:
+            target: Target identifier
+            category: Category name
+            current_score: Current category score
+        
+        Returns:
+            Trend string: "improving", "worsening", or "stable"
+        """
+        history = self._score_history.get(target)  # DSA-USED: HashMap
         if not history or len(history) < 2:
             return "stable"
         
@@ -259,7 +272,7 @@ class RiskEngine:
         if not previous:
             return "stable"
         
-        prev_cat_scores = self._category_scores.get(target)
+        prev_cat_scores = self._category_scores.get(target)  # DSA-USED: HashMap
         if not prev_cat_scores:
             return "stable"
         
@@ -273,7 +286,19 @@ class RiskEngine:
         return "stable"
     
     def _calculate_overall_trend(self, target: str, current_score: float) -> str:
-        history = self._score_history.get(target)
+        """Calculate overall risk trend.
+        
+        DSA-USED:
+        - HashMap: Score history lookup
+        
+        Args:
+            target: Target identifier
+            current_score: Current overall score
+        
+        Returns:
+            Trend string: "improving", "worsening", or "stable"
+        """
+        history = self._score_history.get(target)  # DSA-USED: HashMap
         if not history or len(history) < 2:
             return "stable"
         
@@ -291,12 +316,22 @@ class RiskEngine:
         return "stable"
     
     def _store_score(self, target: str, score: RiskScore):
-        history = self._score_history.get(target)
-        if not history:
-            history = CircularBuffer(capacity=100)
-            self._score_history.put(target, history)
+        """Store risk score in history buffer.
         
-        history.push(score)
+        DSA-USED:
+        - HashMap: Score history storage
+        - CircularBuffer: Rolling window of recent scores
+        
+        Args:
+            target: Target identifier
+            score: RiskScore to store
+        """
+        history = self._score_history.get(target)  # DSA-USED: HashMap
+        if not history:
+            history = CircularBuffer(capacity=100)  # DSA-USED: CircularBuffer
+            self._score_history.put(target, history)  # DSA-USED: HashMap
+        
+        history.push(score)  # DSA-USED: CircularBuffer
         
         self._update_global_stats()
     
@@ -306,10 +341,10 @@ class RiskEngine:
         total_critical = 0
         total_high = 0
         
-        for target in self._score_history.keys():
-            history = self._score_history.get(target)
+        for target in self._score_history.keys():  # DSA-USED: HashMap
+            history = self._score_history.get(target)  # DSA-USED: HashMap
             if history and len(history) > 0:
-                latest = history.get(-1)
+                latest = history.get(-1)  # DSA-USED: CircularBuffer
                 if latest:
                     total_score += latest.overall_score
                     count += 1
@@ -324,9 +359,21 @@ class RiskEngine:
         }
     
     def get_risk_score(self, target: str) -> Optional[RiskScore]:
-        history = self._score_history.get(target)
+        """Get the latest risk score for a target.
+        
+        DSA-USED:
+        - HashMap: Score history lookup
+        - CircularBuffer: Latest score retrieval
+        
+        Args:
+            target: Target identifier
+        
+        Returns:
+            Latest RiskScore if available, None otherwise
+        """
+        history = self._score_history.get(target)  # DSA-USED: HashMap
         if history and len(history) > 0:
-            return history.get(-1)
+            return history.get(-1)  # DSA-USED: CircularBuffer
         return None
     
     def get_risk_history(
@@ -334,14 +381,27 @@ class RiskEngine:
         target: str,
         days: int = 30
     ) -> List[Dict[str, Any]]:
-        history = self._score_history.get(target)
+        """Get risk score history for a target.
+        
+        DSA-USED:
+        - HashMap: Score history lookup
+        - CircularBuffer: Iteration over historical scores
+        
+        Args:
+            target: Target identifier
+            days: Number of days of history to retrieve
+        
+        Returns:
+            List of historical score dictionaries
+        """
+        history = self._score_history.get(target)  # DSA-USED: HashMap
         if not history:
             return []
         
         cutoff = datetime.now() - timedelta(days=days)
         results = []
         
-        for score in history:
+        for score in history:  # DSA-USED: CircularBuffer
             if score.last_updated >= cutoff:
                 results.append({
                     "score": score.overall_score,

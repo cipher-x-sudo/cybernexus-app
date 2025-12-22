@@ -232,6 +232,28 @@ class TunnelDetector:
         response_size: int = 0,
         response_time_ms: float = 0
     ) -> Optional[TunnelDetection]:
+        """Analyze a request for tunnel detection.
+        
+        DSA-USED:
+        - HashMap: Request and connection state storage
+        - CircularBuffer: Rolling window of recent requests
+        - Graph: Connection relationship mapping
+        
+        Args:
+            source_ip: Source IP address
+            destination_ip: Destination IP address
+            destination_port: Destination port
+            method: HTTP method
+            uri: Request URI
+            host: Host header
+            headers: Request headers
+            body: Request body
+            response_size: Response size
+            response_time_ms: Response time in milliseconds
+        
+        Returns:
+            TunnelDetection if tunnel detected, None otherwise
+        """
         
         request_id = self._generate_id("req", f"{source_ip}:{uri}")
         
@@ -257,20 +279,20 @@ class TunnelDetector:
         )
         
 
-        self.requests.put(request_id, request)
-        self.request_buffer.push(request.to_dict())
+        self.requests.put(request_id, request)  # DSA-USED: HashMap
+        self.request_buffer.push(request.to_dict())  # DSA-USED: CircularBuffer
         
 
         conn_key = self._get_connection_key(source_ip, destination_ip, destination_port)
         self._track_connection(conn_key, request)
         
 
-        if source_ip not in self.connection_graph:
-            self.connection_graph.add_node(source_ip, label=source_ip, node_type="ip", data={"type": "client"})
+        if source_ip not in self.connection_graph:  # DSA-USED: Graph
+            self.connection_graph.add_node(source_ip, label=source_ip, node_type="ip", data={"type": "client"})  # DSA-USED: Graph
         dest_key = f"{destination_ip}:{destination_port}"
-        if dest_key not in self.connection_graph:
-            self.connection_graph.add_node(dest_key, label=dest_key, node_type="endpoint", data={"type": "server"})
-        self.connection_graph.add_edge(source_ip, dest_key)
+        if dest_key not in self.connection_graph:  # DSA-USED: Graph
+            self.connection_graph.add_node(dest_key, label=dest_key, node_type="endpoint", data={"type": "server"})  # DSA-USED: Graph
+        self.connection_graph.add_edge(source_ip, dest_key)  # DSA-USED: Graph
         
         self.stats["requests_analyzed"] += 1
         
@@ -319,8 +341,16 @@ class TunnelDetector:
         return None
     
     def _track_connection(self, conn_key: str, request: HTTPRequest):
+        """Track connection state and timing data.
         
-        conn_state = self.connections.get(conn_key)
+        DSA-USED:
+        - HashMap: Connection state and timing data storage
+        
+        Args:
+            conn_key: Connection identifier
+            request: HTTPRequest to track
+        """
+        conn_state = self.connections.get(conn_key)  # DSA-USED: HashMap
         
         if not conn_state:
             conn_state = {
@@ -332,7 +362,7 @@ class TunnelDetector:
                 "methods": set(),
                 "uris": set()
             }
-            self.connections.put(conn_key, conn_state)
+            self.connections.put(conn_key, conn_state)  # DSA-USED: HashMap
         
         conn_state["last_seen"] = request.timestamp
         conn_state["request_count"] += 1
@@ -342,10 +372,10 @@ class TunnelDetector:
         conn_state["uris"].add(request.uri)
         
 
-        timing = self.timing_data.get(conn_key)
+        timing = self.timing_data.get(conn_key)  # DSA-USED: HashMap
         if timing is None:
             timing = []
-            self.timing_data.put(conn_key, timing)
+            self.timing_data.put(conn_key, timing)  # DSA-USED: HashMap
         timing.append(request.timestamp)
         
 
@@ -473,7 +503,7 @@ class TunnelDetector:
                 last_seen=timing[-1]
             )
             
-            self.beacons.put(pattern_id, pattern)
+            self.beacons.put(pattern_id, pattern)  # DSA-USED: HashMap
             self.stats["beacons_detected"] += 1
             
             return pattern
@@ -522,8 +552,8 @@ class TunnelDetector:
             sample_requests=[request.request_id]
         )
         
-        self.detections.put(detection_id, detection)
-        self.detection_queue.push(detection)
+        self.detections.put(detection_id, detection)  # DSA-USED: HashMap
+        self.detection_queue.push(detection)  # DSA-USED: MaxHeap
         self.stats["tunnels_detected"] += 1
         
         return detection

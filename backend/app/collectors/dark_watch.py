@@ -221,7 +221,7 @@ class DarkWatch:
         self.keyword_trie = Trie()
         self.monitored_keywords = monitored_keywords or []
         for keyword in self.monitored_keywords:
-            self.keyword_trie.insert(keyword.lower())
+            self.keyword_trie.insert(keyword.lower())  # DSA-USED: Trie
         
 
         self.crawl_queue = MinHeap()
@@ -241,7 +241,7 @@ class DarkWatch:
     def add_monitored_keyword(self, keyword: str):
         
         self.monitored_keywords.append(keyword)
-        self.keyword_trie.insert(keyword.lower())
+        self.keyword_trie.insert(keyword.lower())  # DSA-USED: Trie
     
     def _generate_site_id(self, onion_url: str) -> str:
         
@@ -310,7 +310,7 @@ class DarkWatch:
                 entities.append(entity)
                 
 
-                self.entities.put(value, entity)
+                self.entities.put(value, entity)  # DSA-USED: HashMap
         
         return entities
     
@@ -657,14 +657,14 @@ class DarkWatch:
         logger.info(f"[DarkWatch] crawl_site called for {onion_url} (depth={depth})")
         
 
-        if self.url_filter.contains(onion_url):
-            existing = self.sites.get(self._generate_site_id(onion_url))
+        if self.url_filter.contains(onion_url):  # DSA-USED: BloomFilter
+            existing = self.sites.get(self._generate_site_id(onion_url))  # DSA-USED: HashMap
             if existing:
                 logger.debug(f"[DarkWatch] Site {onion_url} already crawled, returning cached result")
                 return existing
         
 
-        self.url_filter.add(onion_url)
+        self.url_filter.add(onion_url)  # DSA-USED: BloomFilter
         logger.debug(f"[DarkWatch] Added {onion_url} to URL filter")
         
 
@@ -771,7 +771,7 @@ class DarkWatch:
         )
         
 
-        self.sites.put(site_id, site)
+        self.sites.put(site_id, site)  # DSA-USED: HashMap
         logger.debug(f"[DarkWatch] Stored site {site_id} in sites HashMap")
         
 
@@ -802,13 +802,13 @@ class DarkWatch:
         for linked_url in linked_sites:
             linked_id = self._generate_site_id(linked_url)
             if linked_id not in self.site_graph:
-                self.site_graph.add_node(
+                self.site_graph.add_node(  # DSA-USED: Graph
                     linked_id,
                     label=linked_id,
                     node_type="site",
                     data={"url": linked_url}
                 )
-            self.site_graph.add_edge(site_id, linked_id, weight=1.0)
+            self.site_graph.add_edge(site_id, linked_id, weight=1.0)  # DSA-USED: Graph
             
 
             if depth > 0:
@@ -819,7 +819,7 @@ class DarkWatch:
                     scheduled_at=datetime.now(),
                     depth=depth - 1
                 )
-                self.crawl_queue.push(job)
+                self.crawl_queue.push(job)  # DSA-USED: MinHeap
         
         if linked_sites:
             logger.debug(f"[DarkWatch] Added {len(linked_sites)} edges and queued {min(depth, len(linked_sites))} linked sites for crawling")
@@ -837,14 +837,14 @@ class DarkWatch:
                 threat_level=threat_level,
                 is_data_leak=category == SiteCategory.LEAK_SITE
             )
-            self.mentions.put(mention_id, mention)
+            self.mentions.put(mention_id, mention)  # DSA-USED: HashMap
             self.stats["brand_mentions"] += 1
         
         if keywords_matched:
             logger.debug(f"[DarkWatch] Created {len(keywords_matched)} brand mentions for {onion_url}")
         
 
-        self.crawl_history.append({
+        self.crawl_history.append({  # DSA-USED: DoublyLinkedList
             "site_id": site_id,
             "url": onion_url,
             "timestamp": now.isoformat(),
@@ -868,10 +868,10 @@ class DarkWatch:
         processed = 0
         
         while not self.crawl_queue.is_empty() and processed < max_items:
-            job = self.crawl_queue.pop()
+            job = self.crawl_queue.pop()  # DSA-USED: MinHeap
             
 
-            if self.url_filter.contains(job.target_url):
+            if self.url_filter.contains(job.target_url):  # DSA-USED: BloomFilter
                 continue
             
             site = self.crawl_site(job.target_url, depth=job.depth)
@@ -889,7 +889,7 @@ class DarkWatch:
         results = []
         
         for key in self.entities.keys():
-            entity = self.entities.get(key)
+            entity = self.entities.get(key)  # DSA-USED: HashMap
             if entity:
                 if entity_type and entity.entity_type != entity_type:
                     continue
@@ -940,7 +940,7 @@ class DarkWatch:
                 continue
             
             visited.add(current_id)
-            site = self.sites.get(current_id)
+            site = self.sites.get(current_id)  # DSA-USED: HashMap
             
             if site:
                 nodes.append({
@@ -953,7 +953,7 @@ class DarkWatch:
                 })
             else:
 
-                vertex_data = self.site_graph.get_vertex_data(current_id)
+                vertex_data = self.site_graph.get_vertex_data(current_id)  # DSA-USED: Graph
                 nodes.append({
                     "id": current_id,
                     "url": vertex_data.get("url", "unknown") if vertex_data else "unknown",
@@ -964,7 +964,7 @@ class DarkWatch:
                 })
             
 
-            neighbors = self.site_graph.get_neighbors(current_id)
+            neighbors = self.site_graph.get_neighbors(current_id)  # DSA-USED: Graph
             for neighbor_id, _ in neighbors:
                 edges.append({
                     "source": current_id,

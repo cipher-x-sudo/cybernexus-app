@@ -412,8 +412,21 @@ Attackers may impersonate IT support, banks, or government agencies.
         ])
     
     def add_content(self, content: TrainingContent) -> str:
+        """Add training content to knowledge base.
         
-        self.content.put(content.content_id, content)
+        DSA-USED:
+        - HashMap: Content storage
+        - Graph: Content relationship mapping and prerequisite edges
+        - Trie: Search index for title and tag matching
+        - AVLTree: Difficulty-based indexing
+        
+        Args:
+            content: TrainingContent instance to add
+        
+        Returns:
+            Content identifier
+        """
+        self.content.put(content.content_id, content)  # DSA-USED: HashMap
         
 
         self.content_graph.add_node(
@@ -425,43 +438,43 @@ Attackers may impersonate IT support, banks, or government agencies.
                 "category": content.category.value,
                 "difficulty": content.difficulty.value
             }
-        )
+        )  # DSA-USED: Graph
         
 
         for prereq in content.prerequisites:
-            if self.content_graph.has_vertex(prereq):
-                self.content_graph.add_edge(prereq, content.content_id)
+            if self.content_graph.has_vertex(prereq):  # DSA-USED: Graph
+                self.content_graph.add_edge(prereq, content.content_id)  # DSA-USED: Graph
         
 
         for word in content.title.lower().split():
-            self.search_trie.insert(word)
+            self.search_trie.insert(word)  # DSA-USED: Trie
         for tag in content.tags:
-            self.search_trie.insert(tag.lower())
+            self.search_trie.insert(tag.lower())  # DSA-USED: Trie
         
 
         self.content_by_difficulty.insert(
             content.difficulty.value * 1000 + hash(content.content_id) % 1000,
             content.content_id
-        )
+        )  # DSA-USED: AVLTree
         
         self.stats["total_content"] += 1
         return content.content_id
     
     def add_template(self, template: PhishingTemplate) -> str:
         
-        self.templates.put(template.template_id, template)
+        self.templates.put(template.template_id, template)  # DSA-USED: HashMap
         self.stats["total_templates"] += 1
         return template.template_id
     
     def add_lab(self, lab: LabScenario) -> str:
         
-        self.labs.put(lab.scenario_id, lab)
+        self.labs.put(lab.scenario_id, lab)  # DSA-USED: HashMap
         self.stats["total_labs"] += 1
         return lab.scenario_id
     
     def get_content(self, content_id: str) -> Optional[TrainingContent]:
         
-        content = self.content.get(content_id)
+        content = self.content.get(content_id)  # DSA-USED: HashMap
         if content:
             content.view_count += 1
             self.stats["content_views"] += 1
@@ -472,8 +485,8 @@ Attackers may impersonate IT support, banks, or government agencies.
         results = []
         query_lower = query.lower()
         
-        for content_id in self.content.keys():
-            content = self.content.get(content_id)
+        for content_id in self.content.keys():  # DSA-USED: HashMap
+            content = self.content.get(content_id)  # DSA-USED: HashMap  # DSA-USED: HashMap
             if not content:
                 continue
             
@@ -493,8 +506,8 @@ Attackers may impersonate IT support, banks, or government agencies.
         
         results = []
         
-        for content_id in self.content.keys():
-            content = self.content.get(content_id)
+        for content_id in self.content.keys():  # DSA-USED: HashMap
+            content = self.content.get(content_id)  # DSA-USED: HashMap  # DSA-USED: HashMap
             if not content:
                 continue
             
@@ -567,7 +580,7 @@ Attackers may impersonate IT support, banks, or government agencies.
             badges=[],
             last_activity=datetime.now()
         )
-        self.trainees.put(trainee_id, progress)
+        self.trainees.put(trainee_id, progress)  # DSA-USED: HashMap
         self.stats["total_trainees"] += 1
         return progress
     
@@ -577,14 +590,14 @@ Attackers may impersonate IT support, banks, or government agencies.
         content_id: str
     ) -> TraineeProgress:
         
-        progress = self.trainees.get(trainee_id)
+        progress = self.trainees.get(trainee_id)  # DSA-USED: HashMap
         if not progress:
             progress = self.register_trainee(trainee_id)
         
         if content_id not in progress.completed_content:
             progress.completed_content.append(content_id)
             
-            content = self.content.get(content_id)
+            content = self.content.get(content_id)  # DSA-USED: HashMap
             if content:
                 progress.total_points += content.difficulty.value * 10
         
@@ -600,7 +613,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         score: float
     ) -> TraineeProgress:
         
-        progress = self.trainees.get(trainee_id)
+        progress = self.trainees.get(trainee_id)  # DSA-USED: HashMap
         if not progress:
             progress = self.register_trainee(trainee_id)
         
@@ -618,7 +631,7 @@ Attackers may impersonate IT support, banks, or government agencies.
         success: bool
     ) -> TraineeProgress:
         
-        progress = self.trainees.get(trainee_id)
+        progress = self.trainees.get(trainee_id)  # DSA-USED: HashMap
         if not progress:
             progress = self.register_trainee(trainee_id)
         

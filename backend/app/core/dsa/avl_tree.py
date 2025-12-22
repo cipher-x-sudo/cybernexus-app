@@ -119,42 +119,65 @@ class AVLTree:
         return node
     
     def insert(self, key: Any, value: Any = None) -> bool:
+        """Insert a key-value pair with automatic rebalancing.
+        
+        DSA-USED:
+        - AVLTree: Self-balancing BST insertion with rotation operations
+        
+        Args:
+            key: Key to insert
+            value: Value to associate (defaults to key if None)
+        
+        Returns:
+            True if new key was inserted, False if existing key was updated
+        """
         if value is None:
             value = key
         
         def _insert(node: Optional[AVLNode], key: Any, value: Any) -> Tuple[AVLNode, bool]:
             if not node:
                 self._size += 1
-                return AVLNode(key=key, value=value), True
+                return AVLNode(key=key, value=value), True  # DSA-USED: AVLTree
             
-            cmp = self._compare(key, node.key)
+            cmp = self._compare(key, node.key)  # DSA-USED: AVLTree
             
             if cmp < 0:
-                node.left, inserted = _insert(node.left, key, value)
+                node.left, inserted = _insert(node.left, key, value)  # DSA-USED: AVLTree
             elif cmp > 0:
-                node.right, inserted = _insert(node.right, key, value)
+                node.right, inserted = _insert(node.right, key, value)  # DSA-USED: AVLTree
             else:
                 node.value = value
                 return node, False
             
             if inserted:
-                node = self._rebalance(node, key)
+                node = self._rebalance(node, key)  # DSA-USED: AVLTree
             
             return node, inserted
         
-        self.root, inserted = _insert(self.root, key, value)
+        self.root, inserted = _insert(self.root, key, value)  # DSA-USED: AVLTree
         return inserted
     
     def search(self, key: Any) -> Optional[Any]:
-        node = self.root
+        """Search for a key in the tree.
         
-        while node:
-            cmp = self._compare(key, node.key)
+        DSA-USED:
+        - AVLTree: O(log n) binary search in balanced tree
+        
+        Args:
+            key: Key to search for
+        
+        Returns:
+            Associated value if found, None otherwise
+        """
+        node = self.root  # DSA-USED: AVLTree
+        
+        while node:  # DSA-USED: AVLTree
+            cmp = self._compare(key, node.key)  # DSA-USED: AVLTree
             
             if cmp < 0:
-                node = node.left
+                node = node.left  # DSA-USED: AVLTree
             elif cmp > 0:
-                node = node.right
+                node = node.right  # DSA-USED: AVLTree
             else:
                 return node.value
         
@@ -219,22 +242,34 @@ class AVLTree:
         return deleted
     
     def range_query(self, low: Any, high: Any) -> List[Tuple[Any, Any]]:
+        """Query all key-value pairs in the range [low, high].
+        
+        DSA-USED:
+        - AVLTree: O(log n + k) range query using in-order traversal
+        
+        Args:
+            low: Lower bound (inclusive)
+            high: Upper bound (inclusive)
+        
+        Returns:
+            List of (key, value) tuples in the specified range
+        """
         result = []
         
         def _range(node: Optional[AVLNode]):
             if not node:
                 return
             
-            if self._compare(node.key, low) > 0:
-                _range(node.left)
+            if self._compare(node.key, low) > 0:  # DSA-USED: AVLTree
+                _range(node.left)  # DSA-USED: AVLTree
             
-            if self._compare(node.key, low) >= 0 and self._compare(node.key, high) <= 0:
+            if self._compare(node.key, low) >= 0 and self._compare(node.key, high) <= 0:  # DSA-USED: AVLTree
                 result.append((node.key, node.value))
             
-            if self._compare(node.key, high) < 0:
-                _range(node.right)
+            if self._compare(node.key, high) < 0:  # DSA-USED: AVLTree
+                _range(node.right)  # DSA-USED: AVLTree
         
-        _range(self.root)
+        _range(self.root)  # DSA-USED: AVLTree
         return result
     
     def floor(self, key: Any) -> Optional[Tuple[Any, Any]]:

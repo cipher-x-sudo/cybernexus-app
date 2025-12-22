@@ -204,9 +204,14 @@ class DomainTree:
         }
     
     def _build_tracker_trie(self):
+        """Build trie structure for tracker domain matching.
+        
+        DSA-USED:
+        - Trie: Tracker pattern insertion for efficient matching
+        """
         for tracker in self.KNOWN_TRACKERS:
             reversed_domain = '.'.join(reversed(tracker.split('.')))
-            self.tracker_trie.insert(reversed_domain)
+            self.tracker_trie.insert(reversed_domain)  # DSA-USED: Trie
     
     def _extract_domain(self, url: str) -> str:
         try:
@@ -485,7 +490,7 @@ class DomainTree:
         domain_nodes[target_domain] = root_node
         unique_domains.add(target_domain)
         
-        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
+        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})  # DSA-USED: Graph
         
         for req_data in raw_requests:
             req_url = req_data["url"]
@@ -514,9 +519,9 @@ class DomainTree:
             captured_requests.append(captured_req)
             
 
-            self.request_timeline.append(captured_req.to_dict())
+            self.request_timeline.append(captured_req.to_dict())  # DSA-USED: DoublyLinkedList
             
-            self.request_cache.put(request_id, captured_req)
+            self.request_cache.put(request_id, captured_req)  # DSA-USED: HashMap
             
             total_size += req_data["size"]
             unique_domains.add(req_domain)
@@ -566,10 +571,10 @@ class DomainTree:
                         "is_tracker": is_tracker,
                         "resource_type": resource_type.value
                     }
-                )
+                )  # DSA-USED: Graph
                 
                 if parent_domain:
-                    self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
+                    self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)  # DSA-USED: Graph
             
             domain_nodes[req_domain].requests.append(request_id)
         
@@ -601,7 +606,7 @@ class DomainTree:
             risk_assessment=risk_assessment
         )
         
-        self.captures.put(capture_id, result)
+        self.captures.put(capture_id, result)  # DSA-USED: HashMap
         
 
         self.stats["total_captures"] += 1
@@ -645,7 +650,7 @@ class DomainTree:
         domain_nodes[target_domain] = root_node
         unique_domains.add(target_domain)
         
-        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})
+        self.domain_graph.add_node(target_domain, label=target_domain, node_type="domain", data={"type": "root", "url": url})  # DSA-USED: Graph
         
         for req_data in raw_requests:
             req_url = req_data["url"]
@@ -674,9 +679,9 @@ class DomainTree:
             captured_requests.append(captured_req)
             
 
-            self.request_timeline.append(captured_req.to_dict())
+            self.request_timeline.append(captured_req.to_dict())  # DSA-USED: DoublyLinkedList
             
-            self.request_cache.put(request_id, captured_req)
+            self.request_cache.put(request_id, captured_req)  # DSA-USED: HashMap
             
             total_size += req_data["size"]
             unique_domains.add(req_domain)
@@ -726,10 +731,10 @@ class DomainTree:
                         "is_tracker": is_tracker,
                         "resource_type": resource_type.value
                     }
-                )
+                )  # DSA-USED: Graph
                 
                 if parent_domain:
-                    self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)
+                    self.domain_graph.add_edge(parent_domain, req_domain, weight=1.0)  # DSA-USED: Graph
             
             domain_nodes[req_domain].requests.append(request_id)
         
@@ -761,7 +766,7 @@ class DomainTree:
             risk_assessment=risk_assessment
         )
         
-        self.captures.put(capture_id, result)
+        self.captures.put(capture_id, result)  # DSA-USED: HashMap
         
 
         self.stats["total_captures"] += 1
@@ -836,7 +841,18 @@ class DomainTree:
         }
     
     def get_domain_tree(self, capture_id: str) -> Optional[Dict]:
-        result = self.captures.get(capture_id)
+        """Get domain tree for a capture.
+        
+        DSA-USED:
+        - HashMap: Capture result lookup
+        
+        Args:
+            capture_id: Capture identifier
+        
+        Returns:
+            Domain tree dictionary if found, None otherwise
+        """
+        result = self.captures.get(capture_id)  # DSA-USED: HashMap
         if result:
             return {
                 domain: node.to_dict()
@@ -845,7 +861,18 @@ class DomainTree:
         return None
     
     def get_capture_graph(self, capture_id: str) -> Dict[str, Any]:
-        result = self.captures.get(capture_id)
+        """Get graph representation of capture.
+        
+        DSA-USED:
+        - HashMap: Capture result lookup
+        
+        Args:
+            capture_id: Capture identifier
+        
+        Returns:
+            Graph representation with nodes and edges
+        """
+        result = self.captures.get(capture_id)  # DSA-USED: HashMap
         if not result:
             return {"nodes": [], "edges": []}
         
@@ -879,8 +906,20 @@ class DomainTree:
         capture_id_1: str,
         capture_id_2: str
     ) -> Dict[str, Any]:
-        result1 = self.captures.get(capture_id_1)
-        result2 = self.captures.get(capture_id_2)
+        """Compare two captures to identify differences.
+        
+        DSA-USED:
+        - HashMap: Capture result lookups
+        
+        Args:
+            capture_id_1: First capture identifier
+            capture_id_2: Second capture identifier
+        
+        Returns:
+            Dictionary with comparison results
+        """
+        result1 = self.captures.get(capture_id_1)  # DSA-USED: HashMap
+        result2 = self.captures.get(capture_id_2)  # DSA-USED: HashMap
         
         if not result1 or not result2:
             return {"error": "Capture not found"}
@@ -901,10 +940,18 @@ class DomainTree:
         }
     
     def find_tracker_connections(self) -> Dict[str, List[str]]:
+        """Find tracker usage across all captures.
+        
+        DSA-USED:
+        - HashMap: Capture iteration and lookup
+        
+        Returns:
+            Dictionary mapping tracker domains to URLs using them
+        """
         tracker_usage: Dict[str, List[str]] = {}
         
-        for capture_id in self.captures.keys():
-            result = self.captures.get(capture_id)
+        for capture_id in self.captures.keys():  # DSA-USED: HashMap
+            result = self.captures.get(capture_id)  # DSA-USED: HashMap
             if result:
                 for tracker_domain in result.trackers.keys():
                     if tracker_domain not in tracker_usage:
@@ -924,7 +971,19 @@ class DomainTree:
         }
     
     def export_capture(self, capture_id: str, format: str = "json") -> Optional[str]:
-        result = self.captures.get(capture_id)
+        """Export capture data in specified format.
+        
+        DSA-USED:
+        - HashMap: Capture result lookup
+        
+        Args:
+            capture_id: Capture identifier
+            format: Export format ("json" or "html")
+        
+        Returns:
+            Exported data as string, or None if capture not found
+        """
+        result = self.captures.get(capture_id)  # DSA-USED: HashMap
         if not result:
             return None
         
