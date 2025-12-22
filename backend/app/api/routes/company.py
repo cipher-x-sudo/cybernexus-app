@@ -19,6 +19,7 @@ router = APIRouter()
 
 
 def _model_to_dict(profile: CompanyProfileModel) -> dict:
+    """Convert database model to dictionary with proper formatting for API response."""
     return {
         "id": profile.id,
         "name": profile.name,
@@ -47,6 +48,7 @@ async def get_company_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get company profile for the current user."""
     result = await db.execute(
         select(CompanyProfileModel).where(CompanyProfileModel.user_id == current_user.id)
     )
@@ -67,6 +69,7 @@ async def create_company_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Create a new company profile and mark user onboarding as completed."""
     result = await db.execute(
         select(CompanyProfileModel).where(CompanyProfileModel.user_id == current_user.id)
     )
@@ -78,6 +81,7 @@ async def create_company_profile(
             detail="Company profile already exists. Use PUT or PATCH to update."
         )
     
+    # Create new profile with generated UUID
     import uuid
     profile_data = profile.model_dump()
     db_profile = CompanyProfileModel(
@@ -103,6 +107,7 @@ async def create_company_profile(
     
     db.add(db_profile)
     
+    # Mark user onboarding as completed
     user_result = await db.execute(
         select(UserModel).where(UserModel.id == current_user.id)
     )
@@ -112,6 +117,7 @@ async def create_company_profile(
     await db.commit()
     await db.refresh(db_profile)
     
+    # Log activity
     await log_activity(
         db=db,
         user_id=current_user.id,
@@ -129,6 +135,7 @@ async def update_company_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Update existing company profile or create if it doesn't exist (upsert)."""
     result = await db.execute(
         select(CompanyProfileModel).where(CompanyProfileModel.user_id == current_user.id)
     )
@@ -137,6 +144,7 @@ async def update_company_profile(
     profile_data = profile.model_dump()
     
     if existing:
+        # Update all fields
         existing.name = profile_data["name"]
         existing.industry = profile_data.get("industry")
         existing.company_size = profile_data.get("company_size")
@@ -168,6 +176,7 @@ async def update_company_profile(
         
         return CompanyProfile(**_model_to_dict(existing))
     else:
+        # Create new profile if it doesn't exist
         import uuid
         db_profile = CompanyProfileModel(
             id=str(uuid.uuid4()),
@@ -192,6 +201,7 @@ async def update_company_profile(
         
         db.add(db_profile)
         
+        # Mark onboarding as completed
         user_result = await db.execute(
             select(UserModel).where(UserModel.id == current_user.id)
         )
@@ -210,6 +220,7 @@ async def patch_company_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Partially update company profile (only provided fields)."""
     result = await db.execute(
         select(CompanyProfileModel).where(CompanyProfileModel.user_id == current_user.id)
     )
@@ -221,6 +232,7 @@ async def patch_company_profile(
             detail="Company profile not found. Use POST to create a new profile."
         )
     
+    # Update only provided fields (exclude_unset=True)
     update_data = profile.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if hasattr(existing, key):
@@ -247,6 +259,7 @@ async def delete_company_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Delete company profile for the current user."""
     result = await db.execute(
         select(CompanyProfileModel).where(CompanyProfileModel.user_id == current_user.id)
     )
@@ -272,6 +285,7 @@ async def sync_automation_to_scheduler(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Sync company profile automation configuration to scheduled searches."""
     from app.core.database.models import ScheduledSearch
     from loguru import logger
     import uuid
@@ -292,6 +306,7 @@ async def sync_automation_to_scheduler(
     
     automation_config = profile.automation_config
     
+    # If automation is disabled, remove all automation schedules
     if not automation_config or not automation_config.get("enabled"):
         from sqlalchemy import delete as delete_query
         await db.execute(
@@ -309,6 +324,7 @@ async def sync_automation_to_scheduler(
             capabilities_synced=[]
         )
     
+    # Delete existing automation schedules before creating new ones
     try:
         from sqlalchemy import delete as delete_query
         await db.execute(
@@ -320,10 +336,12 @@ async def sync_automation_to_scheduler(
     except Exception as e:
         logger.warning(f"Error deleting old automation schedules: {e}")
     
+    # Parse schedule configuration
     schedule_config = automation_config.get("schedule", {})
     cron_expression = schedule_config.get("cron", "0 9 * * *")
     tz_name = schedule_config.get("timezone", profile.timezone or "UTC")
     
+    # Validate cron expression
     try:
         croniter(cron_expression)
     except Exception as e:
@@ -332,6 +350,7 @@ async def sync_automation_to_scheduler(
             detail=f"Invalid cron expression: {cron_expression}. Error: {str(e)}"
         )
     
+    # Calculate next run time
     try:
         tz = pytz.timezone(tz_name)
         now = datetime.now(tz)
@@ -341,6 +360,7 @@ async def sync_automation_to_scheduler(
         logger.error(f"Error calculating next run time: {e}")
         next_run = datetime.now(timezone.utc)
     
+    # Create scheduled searches for each enabled capability
     capabilities_config = automation_config.get("capabilities", {})
     created_ids = []
     synced_capabilities = []
@@ -349,12 +369,15 @@ async def sync_automation_to_scheduler(
         if not cap_config.get("enabled", False):
             continue
         
+        # Determine targets based on capability type and profile data
         targets = cap_config.get("targets", [])
         if not targets:
             if capability_name in ["exposure_discovery", "email_audit"]:
+                # Use domains from profile
                 targets = [profile.primary_domain] if profile.primary_domain else []
                 targets.extend(profile.additional_domains or [])
             elif capability_name in ["infrastructure_testing", "investigation"]:
+                # Use key assets or primary domain
                 if profile.key_assets:
                     for asset in profile.key_assets:
                         if asset.get("type") in ["domain", "url", "server"]:
@@ -366,6 +389,7 @@ async def sync_automation_to_scheduler(
             logger.warning(f"No targets found for capability {capability_name}, skipping")
             continue
         
+        # Add profile name/domain to keywords for dark web intelligence
         keywords = cap_config.get("keywords", [])
         if capability_name == "darkweb_intelligence":
             if profile.name and profile.name not in keywords:
@@ -373,6 +397,7 @@ async def sync_automation_to_scheduler(
             if profile.primary_domain and profile.primary_domain not in keywords:
                 keywords.append(profile.primary_domain)
         
+        # Format target string (use keywords for dark web intelligence)
         target_str = ", ".join(targets) if len(targets) > 1 else targets[0] if targets else ""
         if capability_name == "darkweb_intelligence" and keywords:
             target_str = ", ".join(keywords)
@@ -380,6 +405,7 @@ async def sync_automation_to_scheduler(
         if not target_str:
             continue
         
+        # Create scheduled search
         scheduled_search = ScheduledSearch(
             id=str(uuid.uuid4()),
             user_id=current_user.id,
@@ -410,6 +436,7 @@ async def sync_automation_to_scheduler(
     
     await db.commit()
     
+    # Log automation sync activity
     await log_activity(
         db=db,
         user_id=current_user.id,

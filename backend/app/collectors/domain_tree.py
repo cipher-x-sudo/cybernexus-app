@@ -31,6 +31,7 @@ from core.dsa.linked_list import DoublyLinkedList
 
 
 class ResourceType(Enum):
+    """Types of web resources."""
     DOCUMENT = "document"
     SCRIPT = "script"
     STYLESHEET = "stylesheet"
@@ -44,6 +45,7 @@ class ResourceType(Enum):
 
 
 class RequestMethod(Enum):
+    """HTTP request methods."""
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -54,6 +56,7 @@ class RequestMethod(Enum):
 
 @dataclass
 class CapturedRequest:
+    """Captured HTTP request with metadata."""
     request_id: str
     url: str
     method: RequestMethod
@@ -87,6 +90,7 @@ class CapturedRequest:
 
 @dataclass
 class DomainNode:
+    """Domain node in the domain tree with relationships and metadata."""
     domain: str
     full_url: str
     depth: int
@@ -117,6 +121,7 @@ class DomainNode:
 
 @dataclass
 class CaptureResult:
+    """Complete capture result with domain tree and analysis."""
     capture_id: str
     target_url: str
     final_url: str
@@ -151,7 +156,9 @@ class CaptureResult:
 
 
 class DomainTree:
+    """Domain relationship analyzer with tracker detection."""
     
+    # Known tracking domains for detection
     KNOWN_TRACKERS = [
         "google-analytics.com",
         "googletagmanager.com",

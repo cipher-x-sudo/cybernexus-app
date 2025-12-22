@@ -17,21 +17,26 @@ from app.services.activity_logger import log_activity
 
 router = APIRouter()
 
+# Password hashing context using bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# OAuth2 password bearer token scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 class Token(BaseModel):
+    """JWT access token response model."""
     access_token: str
     token_type: str
     expires_in: int
 
 
 class TokenData(BaseModel):
+    """Decoded token data containing username."""
     username: Optional[str] = None
 
 
 class User(BaseModel):
+    """User model for API responses."""
     id: str
     username: str
     email: EmailStr
@@ -47,6 +52,7 @@ class User(BaseModel):
 
 
 class UserCreate(BaseModel):
+    """Request model for user registration with validation."""
     username: str
     email: EmailStr
     password: str
@@ -55,6 +61,7 @@ class UserCreate(BaseModel):
     @field_validator('username')
     @classmethod
     def validate_username(cls, v: str) -> str:
+        """Validate username: 3-50 chars, alphanumeric with underscores/hyphens only."""
         if len(v) < 3:
             raise ValueError("Username must be at least 3 characters")
         if len(v) > 50:
@@ -66,6 +73,7 @@ class UserCreate(BaseModel):
     @field_validator('password')
     @classmethod
     def validate_password(cls, v: str) -> str:
+        """Validate password: min 8 chars, requires uppercase, lowercase, and number."""
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         if not re.search(r'[A-Z]', v):
@@ -78,21 +86,25 @@ class UserCreate(BaseModel):
 
 
 class UserInDB(User):
+    """User model with hashed password (internal use)."""
     hashed_password: str
 
 
 class UserUpdate(BaseModel):
+    """Request model for updating user profile (email, full_name)."""
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
 
 
 class PasswordChange(BaseModel):
+    """Request model for changing password with current password verification."""
     current_password: str
     new_password: str
 
     @field_validator('new_password')
     @classmethod
     def validate_password(cls, v: str) -> str:
+        """Validate new password: min 8 chars, requires uppercase, lowercase, and number."""
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         if not re.search(r'[A-Z]', v):
@@ -105,6 +117,7 @@ class PasswordChange(BaseModel):
 
 
 class ActivityLog(BaseModel):
+    """User activity log entry model."""
     id: str
     action: str
     resource_type: Optional[str] = None
@@ -119,14 +132,17 @@ class ActivityLog(BaseModel):
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify plain password against bcrypt hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
+    """Hash password using bcrypt."""
     return pwd_context.hash(password)
 
 
 async def get_user_by_username(db: AsyncSession, username: str) -> Optional[UserModel]:
+    """Get user from database by username."""
     result = await db.execute(
         select(UserModel).where(UserModel.username == username)
     )
@@ -134,6 +150,7 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]:
+    """Get user from database by email."""
     result = await db.execute(
         select(UserModel).where(UserModel.email == email)
     )
@@ -141,6 +158,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]
 
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[UserModel]:
+    """Get user from database by ID."""
     result = await db.execute(
         select(UserModel).where(UserModel.id == user_id)
     )
@@ -148,6 +166,7 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[UserModel]:
 
 
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[UserModel]:
+    """Authenticate user by verifying username and password."""
     user = await get_user_by_username(db, username)
     if not user:
         return None
@@ -157,6 +176,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create JWT access token with expiration (default 15 minutes)."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -171,12 +191,14 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
+    """Dependency to get current authenticated user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        # Decode and verify JWT token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
@@ -185,6 +207,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
+    # Fetch user from database
     user = await get_user_by_username(db, username=token_data.username)
     if user is None:
         raise credentials_exception
@@ -203,12 +226,14 @@ async def get_current_user(
 
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to get current active (non-disabled) user."""
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
 def is_admin(user: User) -> bool:
+    """Check if user has admin role."""
     return user.role == "admin"
 
 
@@ -218,6 +243,7 @@ async def login(
     request: Request = None,
     db: AsyncSession = Depends(get_db)
 ):
+    """Authenticate user and return JWT access token."""
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -226,6 +252,7 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Log login activity with IP and user agent
     client_ip = request.client.host if request and request.client else None
     user_agent = request.headers.get("user-agent") if request else None
     await log_activity(
@@ -236,6 +263,7 @@ async def login(
         user_agent=user_agent
     )
     
+    # Create JWT token with configured expiration
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -253,6 +281,8 @@ async def register(
     request: Request = None,
     db: AsyncSession = Depends(get_db)
 ):
+    """Register a new user account with password hashing."""
+    # Check for existing username
     existing_user = await get_user_by_username(db, user.username)
     if existing_user:
         raise HTTPException(
@@ -260,6 +290,7 @@ async def register(
             detail="Username already registered"
         )
     
+    # Check for existing email
     existing_email = await get_user_by_email(db, user.email)
     if existing_email:
         raise HTTPException(
@@ -267,6 +298,7 @@ async def register(
             detail="Email already registered"
         )
     
+    # Hash password and create user
     hashed_password = get_password_hash(user.password)
     db_user = UserModel(
         username=user.username,
@@ -281,6 +313,7 @@ async def register(
     await db.commit()
     await db.refresh(db_user)
     
+    # Log registration activity
     client_ip = request.client.host if request and request.client else None
     user_agent = request.headers.get("user-agent") if request else None
     await log_activity(
@@ -305,6 +338,7 @@ async def register(
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    """Get current authenticated user's profile."""
     return current_user
 
 
@@ -314,10 +348,12 @@ async def update_user_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Update current user's profile (email, full_name)."""
     db_user = await get_user_by_id(db, current_user.id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Update email if provided and different
     if user_update.email and user_update.email != db_user.email:
         existing_email = await get_user_by_email(db, user_update.email)
         if existing_email:
@@ -327,6 +363,7 @@ async def update_user_profile(
             )
         db_user.email = user_update.email
     
+    # Update full name if provided
     if user_update.full_name is not None:
         db_user.full_name = user_update.full_name
     
@@ -351,16 +388,19 @@ async def change_password(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Change user password after verifying current password."""
     db_user = await get_user_by_id(db, current_user.id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Verify current password before allowing change
     if not verify_password(password_change.current_password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect current password"
         )
     
+    # Hash and update new password
     db_user.hashed_password = get_password_hash(password_change.new_password)
     await db.commit()
     
@@ -374,6 +414,7 @@ async def get_user_activity(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get activity logs for current user (paginated, newest first)."""
     from app.core.database.models import UserActivityLog
     
     result = await db.execute(
@@ -408,6 +449,7 @@ async def get_user_activity_by_id(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get activity logs for any user (admin only)."""
     if not is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

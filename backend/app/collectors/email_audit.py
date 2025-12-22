@@ -23,7 +23,9 @@ from app.core.dsa import HashMap, AVLTree, Graph
 
 
 class EmailAudit:
+    """Email security audit system with SPF, DKIM, DMARC checks."""
     
+    # Common DKIM selectors to check
     COMMON_DKIM_SELECTORS = [
         'default', 'google', 'selector1', 'selector2', 'k1', 'k2',
         's1', 's2', 'dkim', 'mail', 'email', 'smtp', 'mx',
@@ -31,9 +33,10 @@ class EmailAudit:
     ]
     
     def __init__(self):
-        self._dns_cache = HashMap()
-        self._domain_index = AVLTree()
-        self._infra_graph = Graph(directed=True)
+        """Initialize email auditor with DSA structures for caching and indexing."""
+        self._dns_cache = HashMap()  # DNS record cache
+        self._domain_index = AVLTree()  # Domain timestamp index
+        self._infra_graph = Graph(directed=True)  # Infrastructure relationships
         self._resolver = dns.resolver.Resolver()
         self._resolver.timeout = 5
         self._resolver.lifetime = 5
@@ -42,6 +45,7 @@ class EmailAudit:
         config = config or {}
         logger.info(f"Starting comprehensive email security audit for {domain}")
         
+        # Run all email security checks in parallel
         checks = await asyncio.gather(
             self._check_spf(domain),
             self._check_dkim(domain),

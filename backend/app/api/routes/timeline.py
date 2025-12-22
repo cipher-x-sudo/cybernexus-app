@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 class EventType(str, Enum):
+    """Types of timeline events."""
     THREAT_DETECTED = "threat_detected"
     ENTITY_DISCOVERED = "entity_discovered"
     SCAN_COMPLETED = "scan_completed"
@@ -26,6 +27,7 @@ class EventType(str, Enum):
 
 
 class EventSeverity(str, Enum):
+    """Severity levels for timeline events."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -34,6 +36,7 @@ class EventSeverity(str, Enum):
 
 
 class TimelineEvent(BaseModel):
+    """Timeline event with metadata and related entities."""
     id: str
     type: EventType
     title: str
@@ -46,6 +49,7 @@ class TimelineEvent(BaseModel):
 
 
 class EventCreate(BaseModel):
+    """Request model for creating a timeline event."""
     type: EventType
     title: str
     description: str
@@ -56,6 +60,7 @@ class EventCreate(BaseModel):
 
 
 class TimelineStats(BaseModel):
+    """Statistics about timeline events aggregated by time periods."""
     total_events: int
     events_24h: int
     events_7d: int
@@ -68,6 +73,7 @@ event_counter = 0
 
 
 def generate_event_id() -> str:
+    """Generate unique event ID with sequential counter."""
     global event_counter
     event_counter += 1
     return f"EVT-{event_counter:08d}"
@@ -92,13 +98,16 @@ async def get_timeline(
 ):
     results = events_db.copy()
     
+    # Generate events from database if in-memory store is empty
     if not results:
         try:
+            # Create events from job status changes
             job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
             recent_jobs = await job_storage.list_jobs(limit=100, offset=0)
             
             for job in recent_jobs:
                 if job.status.value == "completed" and job.completed_at:
+                    # Create event for completed scan
                     event = {
                         "id": generate_event_id(),
                         "type": EventType.SCAN_COMPLETED.value,
@@ -112,6 +121,7 @@ async def get_timeline(
                     }
                     results.append(event)
                 elif job.status.value == "running" and job.started_at:
+                    # Create event for started scan
                     event = {
                         "id": generate_event_id(),
                         "type": EventType.SCAN_COMPLETED.value,
@@ -125,10 +135,12 @@ async def get_timeline(
                     }
                     results.append(event)
             
+            # Create events from critical findings
             finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
             critical_findings = await finding_storage.get_critical_findings(limit=100)
             
             for finding in critical_findings:
+                # Map finding severity to event severity
                 severity_map = {
                     "critical": EventSeverity.CRITICAL.value,
                     "high": EventSeverity.HIGH.value,
@@ -138,6 +150,7 @@ async def get_timeline(
                 }
                 event_severity = severity_map.get(finding.severity, EventSeverity.INFO.value)
                 
+                # Determine event type based on capability
                 event_type_val = EventType.THREAT_DETECTED.value
                 if "dark" in finding.capability.value.lower() or "web" in finding.capability.value.lower():
                     event_type_val = EventType.DARK_WEB_MENTION.value
@@ -160,6 +173,7 @@ async def get_timeline(
             import logging
             logging.getLogger(__name__).warning(f"Error generating timeline events from database: {e}")
     
+    # Handle alternative parameter names for backward compatibility
     if type and not event_type:
         try:
             event_type = EventType(type)
@@ -178,6 +192,7 @@ async def get_timeline(
         except (ValueError, AttributeError):
             pass
     
+    # Apply filters sequentially
     if event_type:
         results = [e for e in results if e.get("type") == event_type.value]
     if severity:
@@ -189,8 +204,10 @@ async def get_timeline(
     if end_time:
         results = [e for e in results if e["timestamp"] <= end_time]
     
+    # Sort chronologically (newest or oldest first)
     results.sort(key=lambda e: e["timestamp"], reverse=(order == "desc"))
     
+    # Apply pagination
     results = results[offset:offset + limit]
     
     return [TimelineEvent(**e) for e in results]
@@ -198,8 +215,10 @@ async def get_timeline(
 
 @router.get("/stats", response_model=TimelineStats)
 async def get_timeline_stats():
+    """Get aggregated statistics about timeline events."""
     now = datetime.utcnow()
     
+    # Aggregate counts by type, severity, and time periods
     by_type = {}
     by_severity = {}
     events_24h = 0
@@ -212,6 +231,7 @@ async def get_timeline_stats():
         s = event["severity"]
         by_severity[s] = by_severity.get(s, 0) + 1
         
+        # Count events in time windows
         age = now - event["timestamp"]
         if age <= timedelta(hours=24):
             events_24h += 1
@@ -234,8 +254,10 @@ async def get_recent_events(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get most recent timeline events, optionally filtered by severity."""
     results = events_db.copy()
     
+    # Generate events from database if in-memory store is empty
     if not results:
         try:
             job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -269,6 +291,7 @@ async def get_recent_events(
                     }
                     results.append(event)
                 elif job.status.value in ["pending", "queued"] and job.created_at:
+                    # Create event for queued scan
                     event = {
                         "id": generate_event_id(),
                         "type": EventType.SCAN_COMPLETED.value,
@@ -282,10 +305,12 @@ async def get_recent_events(
                     }
                     results.append(event)
             
+            # Create events from critical findings
             finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
             critical_findings = await finding_storage.get_critical_findings(limit=50)
             
             for finding in critical_findings:
+                # Map finding severity to event severity enum
                 severity_map = {
                     "critical": EventSeverity.CRITICAL,
                     "high": EventSeverity.HIGH,
@@ -295,6 +320,7 @@ async def get_recent_events(
                 }
                 event_severity = severity_map.get(finding.severity, EventSeverity.INFO)
                 
+                # Determine event type based on capability keywords
                 event_type = EventType.THREAT_DETECTED
                 if "dark" in finding.capability.value.lower() or "web" in finding.capability.value.lower():
                     event_type = EventType.DARK_WEB_MENTION
@@ -317,14 +343,18 @@ async def get_recent_events(
             import logging
             logging.getLogger(__name__).warning(f"Error generating timeline events from database: {e}")
     
+    # Apply severity filter if provided
     if severity_filter:
         results = [e for e in results if e.get("severity") in severity_filter]
     
+    # Sort by timestamp (newest first) and limit to N most recent
     results.sort(key=lambda e: e.get("timestamp", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
     
+    # Validate and create event objects
     events = []
     for e in results[:n]:
         try:
+            # Ensure required fields exist
             if "id" not in e:
                 e["id"] = generate_event_id()
             if "related_entities" not in e:
@@ -346,11 +376,14 @@ async def get_events_in_range(
     end: datetime,
     granularity: str = Query(default="hour", regex="^(minute|hour|day)$")
 ):
+    """Get events in time range aggregated by specified granularity (minute/hour/day)."""
     results = [e for e in events_db if start <= e["timestamp"] <= end]
     
+    # Aggregate events by time bucket
     aggregated = {}
     for event in results:
         ts = event["timestamp"]
+        # Create time bucket key based on granularity
         if granularity == "minute":
             key = ts.strftime("%Y-%m-%d %H:%M")
         elif granularity == "hour":
@@ -358,9 +391,11 @@ async def get_events_in_range(
         else:
             key = ts.strftime("%Y-%m-%d")
         
+        # Initialize bucket if needed
         if key not in aggregated:
             aggregated[key] = {"count": 0, "by_severity": {}}
         
+        # Increment counts
         aggregated[key]["count"] += 1
         sev = event["severity"]
         aggregated[key]["by_severity"][sev] = aggregated[key]["by_severity"].get(sev, 0) + 1
@@ -375,6 +410,7 @@ async def get_events_in_range(
 
 @router.get("/{event_id}", response_model=TimelineEvent)
 async def get_event(event_id: str):
+    """Get a specific timeline event by ID."""
     for event in events_db:
         if event["id"] == event_id:
             return TimelineEvent(**event)
@@ -383,6 +419,7 @@ async def get_event(event_id: str):
 
 @router.post("/", response_model=TimelineEvent)
 async def create_event(event: EventCreate):
+    """Create a new timeline event with current timestamp."""
     event_id = generate_event_id()
     
     event_dict = {
@@ -397,6 +434,7 @@ async def create_event(event: EventCreate):
         "metadata": event.metadata
     }
     
+    # Insert at beginning of list (most recent first)
     events_db.insert(0, event_dict)
     
     return TimelineEvent(**event_dict)
@@ -404,6 +442,7 @@ async def create_event(event: EventCreate):
 
 @router.delete("/{event_id}")
 async def delete_event(event_id: str):
+    """Delete a timeline event by ID."""
     for i, event in enumerate(events_db):
         if event["id"] == event_id:
             events_db.pop(i)

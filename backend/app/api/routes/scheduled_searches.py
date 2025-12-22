@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 class ScheduledSearchResponse(BaseModel):
+    """Response model for scheduled search configuration."""
     id: str
     user_id: str
     name: str
@@ -36,6 +37,7 @@ class ScheduledSearchResponse(BaseModel):
 
 
 def get_capabilities_list(scheduled_search: ScheduledSearchModel) -> List[str]:
+    """Extract capabilities list from scheduled search (handles both list and single value)."""
     if hasattr(scheduled_search, 'capabilities') and scheduled_search.capabilities:
         if isinstance(scheduled_search.capabilities, list):
             return scheduled_search.capabilities
@@ -46,6 +48,7 @@ def get_capabilities_list(scheduled_search: ScheduledSearchModel) -> List[str]:
 
 
 def scheduled_search_to_response(scheduled_search: ScheduledSearchModel) -> ScheduledSearchResponse:
+    """Convert database model to response model with proper formatting."""
     capabilities_list = get_capabilities_list(scheduled_search)
     return ScheduledSearchResponse(
         id=scheduled_search.id,
@@ -73,12 +76,15 @@ async def list_scheduled_searches(
     db: AsyncSession = Depends(get_db),
     enabled: Optional[bool] = Query(None, description="Filter by enabled status")
 ):
+    """List all scheduled searches for the current user, optionally filtered by enabled status."""
     try:
+        # Filter by user and optionally by enabled status
         query = select(ScheduledSearchModel).where(ScheduledSearchModel.user_id == current_user.id)
         
         if enabled is not None:
             query = query.where(ScheduledSearchModel.enabled == enabled)
         
+        # Order by creation date (newest first)
         query = query.order_by(ScheduledSearchModel.created_at.desc())
         
         result = await db.execute(query)

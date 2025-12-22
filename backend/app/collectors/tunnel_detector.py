@@ -30,7 +30,7 @@ from core.dsa.graph import Graph
 
 
 class TunnelType(Enum):
-    
+    """Types of network tunneling techniques."""
     HTTP_TUNNEL = "http_tunnel"
     DNS_TUNNEL = "dns_tunnel"
     ICMP_TUNNEL = "icmp_tunnel"
@@ -41,6 +41,7 @@ class TunnelType(Enum):
 
 
 class DetectionConfidence(Enum):
+    """Confidence levels for tunnel detection."""
     CONFIRMED = "confirmed"
     HIGH = "high"
     MEDIUM = "medium"
@@ -50,6 +51,7 @@ class DetectionConfidence(Enum):
 
 @dataclass
 class HTTPRequest:
+    """HTTP request data for tunnel detection analysis."""
     request_id: str
     timestamp: datetime
     source_ip: str
@@ -82,6 +84,7 @@ class HTTPRequest:
 
 @dataclass
 class TunnelDetection:
+    """Detected tunnel with indicators and risk assessment."""
     detection_id: str
     tunnel_type: TunnelType
     confidence: DetectionConfidence
@@ -116,7 +119,7 @@ class TunnelDetection:
 
 @dataclass
 class BeaconingPattern:
-    
+    """Detected beaconing pattern with timing characteristics."""
     pattern_id: str
     source_ip: str
     destination: str
@@ -142,7 +145,7 @@ class BeaconingPattern:
 
 
 class TunnelDetector:
-    
+    """Network tunnel detection system using pattern analysis and request correlation."""
     
 
     TUNNEL_INDICATORS = {

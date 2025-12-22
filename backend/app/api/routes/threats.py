@@ -22,14 +22,17 @@ async def get_optional_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[UserModel]:
+    """Get current user if authenticated, otherwise return None (for optional auth endpoints)."""
     if not token:
         return None
     try:
+        # Decode JWT token and get username
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             return None
         
+        # Fetch user from database
         from app.api.routes.auth import get_user_by_username
         user = await get_user_by_username(db, username=username)
         if user is None or user.disabled:
@@ -51,6 +54,7 @@ async def get_optional_user(
 
 
 class ThreatSeverity(str, Enum):
+    """Threat severity levels."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -59,6 +63,7 @@ class ThreatSeverity(str, Enum):
 
 
 class ThreatStatus(str, Enum):
+    """Threat investigation and resolution status."""
     ACTIVE = "active"
     INVESTIGATING = "investigating"
     MITIGATED = "mitigated"
@@ -67,6 +72,7 @@ class ThreatStatus(str, Enum):
 
 
 class ThreatCategory(str, Enum):
+    """Categories of security threats."""
     MALWARE = "malware"
     PHISHING = "phishing"
     DATA_LEAK = "data_leak"
@@ -78,6 +84,7 @@ class ThreatCategory(str, Enum):
 
 
 class Threat(BaseModel):
+    """Threat model with severity, status, and MITRE tactics."""
     id: str
     title: str
     description: str
@@ -95,6 +102,7 @@ class Threat(BaseModel):
 
 
 class ThreatCreate(BaseModel):
+    """Request model for creating a new threat."""
     title: str
     description: str
     severity: ThreatSeverity
@@ -108,6 +116,7 @@ class ThreatCreate(BaseModel):
 
 
 class ThreatUpdate(BaseModel):
+    """Request model for updating threat fields."""
     status: Optional[ThreatStatus] = None
     severity: Optional[ThreatSeverity] = None
     score: Optional[float] = None
@@ -115,6 +124,7 @@ class ThreatUpdate(BaseModel):
 
 
 class ThreatStats(BaseModel):
+    """Statistics about threats aggregated by severity and category."""
     total: int
     active: int
     critical: int
@@ -130,12 +140,15 @@ threat_counter = 0
 
 
 def generate_threat_id() -> str:
+    """Generate unique threat ID with sequential counter."""
     global threat_counter
     threat_counter += 1
     return f"THR-{threat_counter:08d}"
 
 
 def calculate_priority(threat: dict) -> float:
+    """Calculate threat priority score based on severity, status, and base score."""
+    # Weight multipliers for severity levels
     severity_weights = {
         ThreatSeverity.CRITICAL: 5,
         ThreatSeverity.HIGH: 4,
@@ -143,6 +156,7 @@ def calculate_priority(threat: dict) -> float:
         ThreatSeverity.LOW: 2,
         ThreatSeverity.INFO: 1
     }
+    # Weight multipliers for status (active threats get higher priority)
     status_weights = {
         ThreatStatus.ACTIVE: 1.5,
         ThreatStatus.INVESTIGATING: 1.2,
@@ -151,6 +165,7 @@ def calculate_priority(threat: dict) -> float:
         ThreatStatus.FALSE_POSITIVE: 0.0
     }
     
+    # Calculate weighted priority score
     base_score = threat.get("score", 50)
     severity_mult = severity_weights.get(threat.get("severity"), 1)
     status_mult = status_weights.get(threat.get("status"), 1)
@@ -169,8 +184,10 @@ async def list_threats(
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0)
 ):
+    """List threats with optional filtering and sorting."""
     results = list(threats_db.values())
     
+    # Apply filters sequentially
     if severity:
         results = [t for t in results if t["severity"] == severity]
     if status:
@@ -182,6 +199,7 @@ async def list_threats(
     if min_score > 0:
         results = [t for t in results if t["score"] >= min_score]
     
+    # Sort by specified field
     if sort_by == "score":
         results.sort(key=lambda t: calculate_priority(t), reverse=True)
     elif sort_by == "created_at":
@@ -190,6 +208,7 @@ async def list_threats(
         severity_order = ["critical", "high", "medium", "low", "info"]
         results.sort(key=lambda t: severity_order.index(t["severity"]))
     
+    # Apply pagination
     results = results[offset:offset + limit]
     
     return [Threat(**t) for t in results]
@@ -197,8 +216,10 @@ async def list_threats(
 
 @router.get("/top", response_model=List[Threat])
 async def get_top_threats(n: int = Query(default=10, ge=1, le=100)):
+    """Get top N threats sorted by priority score."""
     results = list(threats_db.values())
     
+    # Sort by calculated priority (highest first)
     results.sort(key=lambda t: calculate_priority(t), reverse=True)
     
     return [Threat(**t) for t in results[:n]]
@@ -206,8 +227,10 @@ async def get_top_threats(n: int = Query(default=10, ge=1, le=100)):
 
 @router.get("/stats", response_model=ThreatStats)
 async def get_threat_stats():
+    """Get aggregated statistics about threats (counts by severity and category)."""
     threats = list(threats_db.values())
     
+    # Aggregate counts by category and calculate average score
     by_category = {}
     total_score = 0
     
@@ -216,6 +239,7 @@ async def get_threat_stats():
         by_category[cat] = by_category.get(cat, 0) + 1
         total_score += t["score"]
     
+    # Count by severity and status
     active_count = len([t for t in threats if t["status"] == ThreatStatus.ACTIVE])
     critical_count = len([t for t in threats if t["severity"] == ThreatSeverity.CRITICAL])
     high_count = len([t for t in threats if t["severity"] == ThreatSeverity.HIGH])
@@ -236,6 +260,7 @@ async def get_threat_stats():
 
 @router.get("/{threat_id}", response_model=Threat)
 async def get_threat(threat_id: str):
+    """Get a specific threat by ID."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     return Threat(**threats_db[threat_id])
@@ -247,9 +272,11 @@ async def create_threat(
     current_user: Optional[UserModel] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Create a new threat and optionally send notification to authenticated user."""
     now = datetime.utcnow()
     threat_id = generate_threat_id()
     
+    # Build threat dictionary with default status
     threat_dict = {
         "id": threat_id,
         "title": threat.title,
@@ -269,8 +296,10 @@ async def create_threat(
     
     threats_db[threat_id] = threat_dict
     
+    # Create notification if user is authenticated
     if current_user:
         try:
+            # Map threat severity to notification priority
             severity_map = {
                 ThreatSeverity.CRITICAL: (NotificationPriority.CRITICAL, "critical"),
                 ThreatSeverity.HIGH: (NotificationPriority.HIGH, "high"),
@@ -304,11 +333,13 @@ async def create_threat(
 
 @router.put("/{threat_id}", response_model=Threat)
 async def update_threat(threat_id: str, threat: ThreatUpdate):
+    """Update threat fields (status, severity, score, recommendations)."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     
     threat_dict = threats_db[threat_id]
     
+    # Update only provided fields
     if threat.status is not None:
         threat_dict["status"] = threat.status
     if threat.severity is not None:
@@ -318,6 +349,7 @@ async def update_threat(threat_id: str, threat: ThreatUpdate):
     if threat.recommendations is not None:
         threat_dict["recommendations"] = threat.recommendations
     
+    # Update timestamp
     threat_dict["updated_at"] = datetime.utcnow()
     
     return Threat(**threat_dict)
@@ -325,6 +357,7 @@ async def update_threat(threat_id: str, threat: ThreatUpdate):
 
 @router.delete("/{threat_id}")
 async def delete_threat(threat_id: str):
+    """Delete a threat by ID."""
     if threat_id not in threats_db:
         raise HTTPException(status_code=404, detail="Threat not found")
     

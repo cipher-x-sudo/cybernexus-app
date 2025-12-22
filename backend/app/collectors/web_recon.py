@@ -22,7 +22,9 @@ from app.core.dsa import Trie, HashMap, BloomFilter
 
 
 class WebRecon:
+    """Web reconnaissance collector with dork pattern searching."""
     
+    # Google dork patterns for information disclosure
     DORK_PATTERNS = [
         'site:{domain} filetype:env',
         'site:{domain} filetype:config',
@@ -101,11 +103,13 @@ class WebRecon:
     ]
     
     def __init__(self):
-        self._dork_trie = Trie()
-        self._asset_cache = HashMap()
-        self._seen_urls = BloomFilter(expected_items=100000)
+        """Initialize web recon collector with DSA structures."""
+        self._dork_trie = Trie()  # Dork pattern storage
+        self._asset_cache = HashMap()  # Asset caching
+        self._seen_urls = BloomFilter(expected_items=100000)  # URL deduplication
         self._results = []
         
+        # Index all dork patterns for search
         for pattern in self.DORK_PATTERNS:
             self._dork_trie.insert(pattern, pattern)  # DSA-USED: Trie
     

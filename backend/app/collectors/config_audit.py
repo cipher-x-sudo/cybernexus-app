@@ -21,7 +21,9 @@ from app.core.dsa import HashMap, MaxHeap
 
 
 class ConfigAudit:
+    """Configuration security audit with finding prioritization."""
     
+    # Required and recommended security headers
     SECURITY_HEADERS = {
         'Strict-Transport-Security': {'required': True, 'severity': 'high'},
         'X-Content-Type-Options': {'required': True, 'severity': 'medium'},
@@ -32,11 +34,13 @@ class ConfigAudit:
         'Permissions-Policy': {'required': False, 'severity': 'low'},
     }
     
+    # Common paths to test for vulnerabilities
     COMMON_PATHS = [
         'static', 'images', 'assets', 'css', 'js', 'uploads', 'files',
         'media', 'public', 'resources', 'content', 'data'
     ]
     
+    # Headers that can be exploited for request smuggling
     HOP_BY_HOP_HEADERS = [
         "Proxy-Host", "Request-Uri", "X-Forwarded", "X-Forwarded-By", "X-Forwarded-For",
         "X-Forwarded-For-Original", "X-Forwarded-Host", "X-Forwarded-Server", "X-Forwarder-For",
@@ -48,13 +52,15 @@ class ConfigAudit:
     ]
     
     def __init__(self):
-        self._signature_map = HashMap()
-        self._findings_heap = MaxHeap()
-        self._results_cache = HashMap()
+        """Initialize config auditor with DSA structures."""
+        self._signature_map = HashMap()  # Vulnerability signature mapping
+        self._findings_heap = MaxHeap()  # Priority queue for findings
+        self._results_cache = HashMap()  # Result caching
         
         self._init_signatures()
     
     def _init_signatures(self):
+        """Initialize vulnerability detection signatures with severity scores."""
         severity_scores = {'critical': 10, 'high': 8, 'medium': 5, 'low': 2, 'info': 1}
         
         checks = [
@@ -95,6 +101,7 @@ class ConfigAudit:
         
         logger.info(f"Starting configuration audit for {target} with config: {test_config}")
         
+        # Ensure target has protocol prefix
         if not target.startswith(('http://', 'https://')):
             target = f"https://{target}"
         

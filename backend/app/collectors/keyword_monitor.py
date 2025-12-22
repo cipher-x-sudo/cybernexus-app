@@ -29,6 +29,7 @@ from core.dsa.hashmap import HashMap
 
 
 class MatchSeverity(Enum):
+    """Severity levels for keyword matches."""
     CRITICAL = 5
     HIGH = 4
     MEDIUM = 3
@@ -37,6 +38,7 @@ class MatchSeverity(Enum):
 
 
 class SourceType(Enum):
+    """Source types for keyword monitoring."""
     DARK_WEB = "dark_web"
     PASTE_SITE = "paste_site"
     FORUM = "forum"
@@ -48,6 +50,7 @@ class SourceType(Enum):
 
 @dataclass
 class MonitorRule:
+    """Rule for keyword monitoring with patterns and filters."""
     rule_id: str
     name: str
     keywords: List[str]
@@ -79,6 +82,7 @@ class MonitorRule:
 
 @dataclass
 class KeywordMatch:
+    """Keyword match result with context and metadata."""
     match_id: str
     rule_id: str
     rule_name: str
@@ -115,7 +119,7 @@ class KeywordMatch:
 
 @dataclass
 class Alert:
-    
+    """Alert generated from keyword match with acknowledgment tracking."""
     alert_id: str
     match_id: str
     title: str
@@ -146,7 +150,7 @@ class Alert:
 
 
 class KeywordMonitor:
-    
+    """Keyword monitoring system with priority-based alerting and match tracking."""
     
     def __init__(self):
 

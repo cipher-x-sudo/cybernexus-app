@@ -28,6 +28,7 @@ from core.dsa.avl_tree import AVLTree
 
 
 class DifficultyLevel(Enum):
+    """Training content difficulty levels."""
     BEGINNER = 1
     INTERMEDIATE = 2
     ADVANCED = 3
@@ -35,6 +36,7 @@ class DifficultyLevel(Enum):
 
 
 class ContentType(Enum):
+    """Types of training content."""
     ARTICLE = "article"
     VIDEO = "video"
     QUIZ = "quiz"
@@ -45,7 +47,7 @@ class ContentType(Enum):
 
 
 class SECategory(Enum):
-    
+    """Social engineering attack categories."""
     PHISHING = "phishing"
     VISHING = "vishing"
     SMISHING = "smishing"
@@ -64,7 +66,7 @@ class SECategory(Enum):
 
 @dataclass
 class TrainingContent:
-    
+    """Training content item with metadata and relationships."""
     content_id: str
     title: str
     description: str
@@ -97,7 +99,7 @@ class TrainingContent:
 
 @dataclass
 class PhishingTemplate:
-    
+    """Phishing email template for training purposes."""
     template_id: str
     name: str
     category: SECategory
@@ -124,7 +126,7 @@ class PhishingTemplate:
 
 @dataclass
 class LabScenario:
-    
+    """Lab scenario for hands-on training exercises."""
     scenario_id: str
     title: str
     description: str
@@ -153,7 +155,7 @@ class LabScenario:
 
 @dataclass
 class QuizQuestion:
-    
+    """Quiz question with multiple choice options."""
     question_id: str
     question_text: str
     options: List[str]
@@ -189,7 +191,7 @@ class TraineeProgress:
 
 
 class TrainingKB:
-    
+    """Training knowledge base manager with content relationships and search."""
     
     def __init__(self):
 
@@ -223,11 +225,11 @@ class TrainingKB:
         self._init_sample_content()
     
     def _generate_id(self, prefix: str, data: str) -> str:
-        
+        """Generate unique ID from prefix and data hash."""
         return f"{prefix}_{hashlib.md5(data.encode()).hexdigest()[:8]}"
     
     def _init_sample_content(self):
-        
+        """Initialize sample training content for demonstration."""
 
         self.add_content(TrainingContent(
             content_id=self._generate_id("content", "phishing_basics"),

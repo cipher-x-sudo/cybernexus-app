@@ -16,6 +16,7 @@ router = APIRouter()
 
 
 class ReportType(str, Enum):
+    """Types of security reports."""
     EXECUTIVE_SUMMARY = "executive_summary"
     THREAT_ASSESSMENT = "threat_assessment"
     VULNERABILITY_REPORT = "vulnerability_report"
@@ -27,6 +28,7 @@ class ReportType(str, Enum):
 
 
 class ReportFormat(str, Enum):
+    """Output formats for reports."""
     PDF = "pdf"
     HTML = "html"
     JSON = "json"
@@ -34,6 +36,7 @@ class ReportFormat(str, Enum):
 
 
 class ReportStatus(str, Enum):
+    """Status of report generation."""
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
@@ -41,6 +44,7 @@ class ReportStatus(str, Enum):
 
 
 class Report(BaseModel):
+    """Report model with generation status and metadata."""
     id: str
     title: str
     type: ReportType
@@ -54,6 +58,7 @@ class Report(BaseModel):
 
 
 class ReportCreate(BaseModel):
+    """Request model for creating a new report."""
     title: str
     type: ReportType
     format: ReportFormat = ReportFormat.PDF
@@ -64,6 +69,7 @@ class ReportCreate(BaseModel):
 
 
 class ReportTemplate(BaseModel):
+    """Report template with default sections."""
     id: str
     name: str
     type: ReportType
@@ -109,6 +115,7 @@ templates = [
 
 
 def generate_report_id() -> str:
+    """Generate unique report ID with sequential counter."""
     global report_counter
     report_counter += 1
     return f"RPT-{report_counter:08d}"
@@ -116,6 +123,7 @@ def generate_report_id() -> str:
 
 @router.get("/templates", response_model=List[ReportTemplate])
 async def list_templates():
+    """List available report templates."""
     return templates
 
 
@@ -126,13 +134,16 @@ async def list_reports(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0)
 ):
+    """List reports with optional filtering by type and status."""
     results = list(reports_db.values())
     
+    # Apply filters
     if report_type:
         results = [r for r in results if r["type"] == report_type]
     if status:
         results = [r for r in results if r["status"] == status]
     
+    # Sort by creation date (newest first) and paginate
     results.sort(key=lambda r: r["created_at"], reverse=True)
     
     return [Report(**r) for r in results[offset:offset + limit]]
@@ -140,6 +151,7 @@ async def list_reports(
 
 @router.get("/{report_id}", response_model=Report)
 async def get_report(report_id: str):
+    """Get a specific report by ID."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     return Report(**reports_db[report_id])
@@ -151,23 +163,28 @@ async def generate_report(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Generate a security report from findings with aggregation and recommendations."""
     report_id = generate_report_id()
     now = datetime.utcnow()
     
     try:
+        # Fetch all findings for the user
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
         
+        # Aggregate threat statistics
         total_threats = len(all_findings)
         critical_threats = len([f for f in all_findings if f.severity.lower() == "critical"])
         high_threats = len([f for f in all_findings if f.severity.lower() == "high"])
         
+        # Get top threats by risk score
         top_threats_list = sorted(
             all_findings,
             key=lambda f: f.risk_score or 0,
             reverse=True
         )[:10]
         
+        # Format top threats for report
         formatted_top_threats = [
             {
                 "title": f.title,
@@ -178,6 +195,7 @@ async def generate_report(
             for f in top_threats_list
         ]
         
+        # Collect all affected assets
         all_assets = set()
         for finding in all_findings:
             if finding.affected_assets:
@@ -185,6 +203,7 @@ async def generate_report(
             if finding.target:
                 all_assets.add(finding.target)
         
+        # Generate recommendations based on threat levels
         recommendations = []
         if critical_threats > 0:
             recommendations.append(f"Immediately address {critical_threats} critical threat(s)")
@@ -209,6 +228,7 @@ async def generate_report(
             ]
         }
         
+        # Generate report file using report generator
         output_format = report_config.format.value if hasattr(report_config.format, 'value') else str(report_config.format)
         report_result = report_generator.generate_executive_summary(report_data, format=output_format, report_id=report_id)
         
@@ -256,11 +276,13 @@ async def generate_report(
 
 @router.get("/{report_id}/download")
 async def download_report(report_id: str):
+    """Download generated report file."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     
     report = reports_db[report_id]
     
+    # Verify report is ready for download
     if report["status"] != ReportStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Report not ready for download")
     
@@ -268,6 +290,7 @@ async def download_report(report_id: str):
     if not file_path or not Path(file_path).exists():
         raise HTTPException(status_code=404, detail="Report file not found")
     
+    # Determine content type based on report format
     report_format = report.get("format")
     if isinstance(report_format, Enum):
         report_format = report_format.value
@@ -281,6 +304,7 @@ async def download_report(report_id: str):
     
     content_type = content_type_map.get(report_format, "application/octet-stream")
     
+    # Generate filename from report title
     filename = f"{report['title'].replace(' ', '_')}.{report_format}"
     
     return FileResponse(
@@ -295,6 +319,7 @@ async def download_report(report_id: str):
 
 @router.delete("/{report_id}")
 async def delete_report(report_id: str):
+    """Delete a report by ID."""
     if report_id not in reports_db:
         raise HTTPException(status_code=404, detail="Report not found")
     
@@ -307,6 +332,7 @@ async def schedule_report(
     report_config: ReportCreate,
     schedule: str = Query(description="Cron expression for scheduling")
 ):
+    """Schedule automatic report generation with cron expression."""
     return {
         "message": "Report scheduled successfully",
         "schedule": schedule,

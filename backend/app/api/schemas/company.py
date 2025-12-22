@@ -5,6 +5,7 @@ import re
 
 
 class Address(BaseModel):
+    """Physical address model for company profile."""
     street: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
@@ -13,6 +14,7 @@ class Address(BaseModel):
 
 
 class KeyAsset(BaseModel):
+    """Key asset model (domains, servers, applications) for company profile."""
     name: str
     type: str
     value: str
@@ -20,6 +22,7 @@ class KeyAsset(BaseModel):
 
 
 class AutomationCapabilityConfig(BaseModel):
+    """Configuration for a specific capability in automation."""
     enabled: bool = True
     targets: Optional[List[str]] = None
     keywords: Optional[List[str]] = None
@@ -27,11 +30,13 @@ class AutomationCapabilityConfig(BaseModel):
 
 
 class AutomationSchedule(BaseModel):
+    """Schedule configuration for automated scans."""
     cron: str = Field(..., description="Cron expression (e.g., '0 9 * * *' for daily at 9 AM)")
     timezone: str = Field(default="UTC", description="Timezone for schedule execution")
 
 
 class AutomationConfig(BaseModel):
+    """Automation configuration for company profile with schedule and capability settings."""
     enabled: bool = Field(default=True, description="Whether automation is enabled")
     schedule: AutomationSchedule
     capabilities: Dict[str, AutomationCapabilityConfig] = Field(
@@ -64,6 +69,7 @@ class CompanyProfileBase(BaseModel):
     @field_validator("primary_domain", "additional_domains", mode="before")
     @classmethod
     def validate_domains(cls, v):
+        """Validate domain format (supports both single domain and list of domains)."""
         if v is None:
             return v
         if isinstance(v, list):
@@ -78,6 +84,7 @@ class CompanyProfileBase(BaseModel):
     @field_validator("ip_ranges", mode="before")
     @classmethod
     def validate_ip_ranges(cls, v):
+        """Validate IP address or CIDR notation format."""
         if not v:
             return v
         if isinstance(v, list):
@@ -89,6 +96,7 @@ class CompanyProfileBase(BaseModel):
     
     @staticmethod
     def _is_valid_domain(domain: str) -> bool:
+        """Check if string is a valid domain name format."""
         if not domain:
             return False
         pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
@@ -96,6 +104,7 @@ class CompanyProfileBase(BaseModel):
     
     @staticmethod
     def _is_valid_ip_or_cidr(ip_range: str) -> bool:
+        """Check if string is a valid IP address or CIDR notation (prefix 0-32)."""
         if not ip_range:
             return False
         ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$'
@@ -112,10 +121,12 @@ class CompanyProfileBase(BaseModel):
 
 
 class CompanyProfileCreate(CompanyProfileBase):
+    """Request model for creating a company profile."""
     pass
 
 
 class CompanyProfileUpdate(BaseModel):
+    """Request model for partially updating a company profile (all fields optional)."""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     industry: Optional[str] = None
     company_size: Optional[str] = None
@@ -136,15 +147,18 @@ class CompanyProfileUpdate(BaseModel):
     @field_validator("primary_domain", "additional_domains", mode="before")
     @classmethod
     def validate_domains(cls, v):
+        """Validate domain format using base class validator."""
         return CompanyProfileBase.validate_domains(v)
     
     @field_validator("ip_ranges", mode="before")
     @classmethod
     def validate_ip_ranges(cls, v):
+        """Validate IP range format using base class validator."""
         return CompanyProfileBase.validate_ip_ranges(v)
 
 
 class CompanyProfile(CompanyProfileBase):
+    """Response model for company profile with timestamps."""
     id: str
     created_at: datetime
     updated_at: datetime
@@ -155,6 +169,7 @@ class CompanyProfile(CompanyProfileBase):
 
 
 class AutomationSyncResponse(BaseModel):
+    """Response model for automation sync operation."""
     success: bool
     message: str
     scheduled_search_ids: List[str] = Field(default_factory=list)

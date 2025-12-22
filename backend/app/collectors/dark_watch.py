@@ -47,6 +47,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class SiteCategory(Enum):
+    """Categories for dark web sites."""
     MARKETPLACE = "marketplace"
     FORUM = "forum"
     LEAK_SITE = "leak_site"
@@ -66,6 +67,7 @@ class SiteCategory(Enum):
 
 
 class ThreatLevel(Enum):
+    """Threat severity levels for discovered sites."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -75,6 +77,7 @@ class ThreatLevel(Enum):
 
 @dataclass
 class ExtractedEntity:
+    """Entity extracted from dark web content (emails, crypto addresses, etc.)."""
     entity_type: str
     value: str
     context: str
@@ -95,6 +98,7 @@ class ExtractedEntity:
 
 @dataclass
 class OnionSite:
+    """Dark web site metadata and extracted information."""
     onion_url: str
     site_id: str
     title: str
@@ -160,6 +164,7 @@ class BrandMention:
 
 @dataclass
 class CrawlJob:
+    """Job for crawling a dark web site with priority and configuration."""
     
     job_id: str
     target_url: str
@@ -173,10 +178,10 @@ class CrawlJob:
 
 
 class DarkWatch:
+    """Dark web intelligence collector with entity extraction and relationship mapping."""
     
-    
-
-    PATTERNS = {
+    # Regex patterns for entity extraction
+    PATTERNS = { {
         "email": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
         "bitcoin": r'\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b',
         "bitcoin_bech32": r'\bbc1[a-zA-HJ-NP-Z0-9]{39,59}\b',
@@ -192,6 +197,7 @@ class DarkWatch:
     }
     
 
+    # Keywords for automatic site categorization
     CATEGORY_KEYWORDS = {
         SiteCategory.MARKETPLACE: ["market", "shop", "buy", "sell", "vendor", "escrow"],
         SiteCategory.FORUM: ["forum", "board", "discussion", "thread", "community"],
@@ -205,28 +211,28 @@ class DarkWatch:
     }
     
     def __init__(self, monitored_keywords: List[str] = None):
-        
-
+        """Initialize dark web collector with DSA structures for efficient operations."""
+        # URL deduplication filter
         self.url_filter = BloomFilter(expected_items=10_000_000, false_positive_rate=0.001)
         
-
+        # Site relationship graph
         self.site_graph = Graph(directed=True)
         
-
+        # Storage maps for sites, entities, and brand mentions
         self.sites = HashMap()
         self.entities = HashMap()
         self.mentions = HashMap()
         
-
+        # Keyword matching for brand monitoring
         self.keyword_trie = Trie()
         self.monitored_keywords = monitored_keywords or []
         for keyword in self.monitored_keywords:
             self.keyword_trie.insert(keyword.lower())  # DSA-USED: Trie
         
-
+        # Priority queue for crawl jobs
         self.crawl_queue = MinHeap()
         
-
+        # Chronological crawl history
         self.crawl_history = DoublyLinkedList()
         
 
@@ -239,27 +245,27 @@ class DarkWatch:
         }
     
     def add_monitored_keyword(self, keyword: str):
-        
+        """Add a keyword to monitor for brand mentions."""
         self.monitored_keywords.append(keyword)
         self.keyword_trie.insert(keyword.lower())  # DSA-USED: Trie
     
     def _generate_site_id(self, onion_url: str) -> str:
-        
+        """Generate unique site ID from onion URL hash."""
         return hashlib.sha256(onion_url.encode()).hexdigest()[:16]
     
     def _generate_mention_id(self, keyword: str, url: str) -> str:
-        
+        """Generate unique mention ID from keyword, URL, and timestamp."""
         data = f"{keyword}:{url}:{datetime.now().isoformat()}"
         return hashlib.md5(data.encode()).hexdigest()[:12]
     
     def _hash_content(self, content: str) -> str:
-        
-
+        """Normalize and hash content for deduplication."""
+        # Normalize whitespace and case for consistent hashing
         normalized = re.sub(r'\s+', ' ', content.lower().strip())
         return hashlib.sha256(normalized.encode()).hexdigest()
     
     def _detect_language(self, text: str) -> str:
-        
+        """Detect language of text content."""
         if not text or len(text) < 10:
             return 'unknown'
         
@@ -273,9 +279,10 @@ class DarkWatch:
             return max(scores, key=scores.get) if max(scores.values()) > 0 else 'unknown'
     
     def _categorize_site(self, content: str, title: str) -> SiteCategory:
-        
+        """Categorize site based on keyword matching."""
         text = f"{title} {content}".lower()
         
+        # Score each category based on keyword matches
         scores = {}
         for category, keywords in self.CATEGORY_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw in text)
@@ -287,7 +294,7 @@ class DarkWatch:
         return SiteCategory.UNKNOWN
     
     def _extract_entities(self, content: str, source_url: str) -> List[ExtractedEntity]:
-        
+        """Extract entities (emails, crypto addresses, etc.) from content using regex patterns."""
         entities = []
         
         for entity_type, pattern in self.PATTERNS.items():
@@ -295,7 +302,7 @@ class DarkWatch:
             for match in matches:
                 value = match.group()
                 
-
+                # Extract context around the match (50 chars before/after)
                 start = max(0, match.start() - 50)
                 end = min(len(content), match.end() + 50)
                 context = content[start:end]

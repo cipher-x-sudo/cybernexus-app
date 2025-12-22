@@ -17,12 +17,14 @@ router = APIRouter()
 
 
 class BlockIPRequest(BaseModel):
+    """Request model for blocking an IP address."""
     ip: str
     reason: str = ""
     created_by: str = ""
 
 
 class BlockEndpointRequest(BaseModel):
+    """Request model for blocking an endpoint pattern."""
     pattern: str
     method: str = "ALL"
     reason: str = ""
@@ -30,6 +32,7 @@ class BlockEndpointRequest(BaseModel):
 
 
 class BlockPatternRequest(BaseModel):
+    """Request model for blocking a request pattern."""
     pattern_type: str
     pattern: str
     reason: str = ""
@@ -37,6 +40,7 @@ class BlockPatternRequest(BaseModel):
 
 
 class ExportRequest(BaseModel):
+    """Request model for exporting network logs."""
     format: str = "json"
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -57,9 +61,11 @@ async def get_logs(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get network logs with optional filtering by time, IP, endpoint, method, status, and tunnel detection."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
+        # Parse datetime strings
         start_dt = None
         end_dt = None
         if start_time:
@@ -91,6 +97,7 @@ async def get_log(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get a specific network log entry by request ID."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         log = await storage.get_log(request_id)
@@ -113,6 +120,7 @@ async def search_logs(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Search network logs by query string (searches path, query params, request/response body)."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         logs = await storage.search_logs(q, limit=limit)
@@ -129,9 +137,11 @@ async def get_stats(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get aggregated statistics about network logs and tunnel detections."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
+        # Parse datetime strings
         start_dt = None
         end_dt = None
         if start_time:
@@ -141,6 +151,7 @@ async def get_stats(
         
         stats = await storage.get_stats(start_dt, end_dt)
         
+        # Add tunnel detector statistics
         analyzer = get_tunnel_analyzer()
         tunnel_stats = analyzer.get_detector_stats()
         stats["tunnel_detector"] = tunnel_stats
@@ -158,6 +169,7 @@ async def get_tunnels(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get tunnel detections filtered by minimum confidence level."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         detections = await storage.get_tunnel_detections(limit=limit, min_confidence=min_confidence)
@@ -169,6 +181,7 @@ async def get_tunnels(
 
 @router.post("/blocks/ip")
 async def block_ip(request: BlockIPRequest):
+    """Block an IP address from accessing the system."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.block_ip(
@@ -190,6 +203,7 @@ async def block_ip(request: BlockIPRequest):
 
 @router.delete("/blocks/ip/{ip}")
 async def unblock_ip(ip: str):
+    """Remove an IP address from the block list."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_ip(ip)
@@ -207,6 +221,7 @@ async def unblock_ip(ip: str):
 
 @router.get("/blocks/ip")
 async def get_blocked_ips():
+    """Get list of all blocked IP addresses."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_ips()
@@ -218,6 +233,7 @@ async def get_blocked_ips():
 
 @router.post("/blocks/endpoint")
 async def block_endpoint(request: BlockEndpointRequest):
+    """Block an endpoint pattern (optionally for specific HTTP method)."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.block_endpoint(
@@ -244,6 +260,7 @@ async def block_endpoint(request: BlockEndpointRequest):
 
 @router.delete("/blocks/endpoint/{pattern}")
 async def unblock_endpoint(pattern: str):
+    """Remove an endpoint pattern from the block list."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_endpoint(pattern)
@@ -261,6 +278,7 @@ async def unblock_endpoint(pattern: str):
 
 @router.get("/blocks/endpoint")
 async def get_blocked_endpoints():
+    """Get list of all blocked endpoint patterns."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_endpoints()
@@ -272,6 +290,7 @@ async def get_blocked_endpoints():
 
 @router.post("/blocks/pattern")
 async def block_pattern(request: BlockPatternRequest):
+    """Block a request pattern (e.g., user-agent, header pattern)."""
     try:
         block_manager = get_block_manager()
         block_id = await block_manager.block_pattern(
@@ -299,6 +318,7 @@ async def block_pattern(request: BlockPatternRequest):
 
 @router.delete("/blocks/pattern/{block_id}")
 async def unblock_pattern(block_id: str):
+    """Remove a pattern from the block list by block ID."""
     try:
         block_manager = get_block_manager()
         success = await block_manager.unblock_pattern(block_id)
@@ -316,6 +336,7 @@ async def unblock_pattern(block_id: str):
 
 @router.get("/blocks/pattern")
 async def get_blocked_patterns():
+    """Get list of all blocked request patterns."""
     try:
         block_manager = get_block_manager()
         blocked = await block_manager.get_blocked_patterns()
@@ -327,6 +348,7 @@ async def get_blocked_patterns():
 
 @router.get("/blocks")
 async def get_all_blocks():
+    """Get all blocks (IPs, endpoints, patterns) in a single response."""
     try:
         block_manager = get_block_manager()
         blocks = await block_manager.get_all_blocks()
@@ -341,6 +363,7 @@ async def get_rate_limit_status(
     ip: str,
     endpoint: Optional[str] = Query(default=None)
 ):
+    """Get current rate limit status for an IP address (optionally for specific endpoint)."""
     try:
         rate_limiter = get_rate_limiter()
         status = await rate_limiter.get_rate_limit_status(ip, endpoint)
@@ -356,9 +379,11 @@ async def export_logs(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Export network logs in specified format (JSON, CSV, HAR) with optional filtering."""
     try:
         storage = DBNetworkLogStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         
+        # Parse datetime strings
         start_dt = None
         end_dt = None
         if request.start_time:
@@ -373,6 +398,7 @@ async def export_logs(
             filters=request.filters
         )
         
+        # Set appropriate content type for download
         content_type = "application/json"
         if request.format == "csv":
             content_type = "text/csv"

@@ -16,6 +16,7 @@ router = APIRouter()
 
 
 class RelationType(str, Enum):
+    """Types of relationships between graph nodes."""
     RESOLVES_TO = "resolves_to"
     CONTAINS = "contains"
     COMMUNICATES_WITH = "communicates_with"
@@ -29,6 +30,7 @@ class RelationType(str, Enum):
 
 
 class GraphNode(BaseModel):
+    """Graph node model with optional 3D coordinates for visualization."""
     id: str
     label: str
     type: str
@@ -40,6 +42,7 @@ class GraphNode(BaseModel):
 
 
 class GraphEdge(BaseModel):
+    """Graph edge model representing relationship between nodes."""
     id: str
     source: str
     target: str
@@ -49,17 +52,20 @@ class GraphEdge(BaseModel):
 
 
 class GraphData(BaseModel):
+    """Complete graph structure with nodes and edges."""
     nodes: List[GraphNode]
     edges: List[GraphEdge]
 
 
 class PathResult(BaseModel):
+    """Result of path finding algorithm between two nodes."""
     path: List[str]
     total_weight: float
     edges: List[GraphEdge]
 
 
 class ClusterResult(BaseModel):
+    """Result of graph clustering algorithm (connected components)."""
     cluster_id: int
     nodes: List[str]
     center: Optional[str] = None
@@ -77,6 +83,7 @@ async def get_full_graph(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get full graph data with optional filtering by entity types and minimum severity."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         graph_data = await storage.get_graph_data()
@@ -84,21 +91,26 @@ async def get_full_graph(
         nodes = []
         edges = []
         
+        # Process nodes with entity data enrichment
         if "nodes" in graph_data:
             for node_id, node_data in graph_data["nodes"].items():
+                # Try to get entity data for richer node information
                 entity_id = node_data.get("data", {}).get("id") if isinstance(node_data.get("data"), dict) else None
                 entity = None
                 if entity_id:
                     entity = await storage.get_entity(entity_id)
                 if entity:
+                    # Use entity data if available
                     severity = entity.get("severity", "info")
                     node_type = entity.get("type", node_data.get("node_type", "unknown"))
                     label = entity.get("value", node_data.get("label", node_id))
                 else:
+                    # Fall back to node data
                     severity = node_data.get("severity", "info")
                     node_type = node_data.get("node_type", "unknown")
                     label = node_data.get("label", node_id)
     
+                # Apply filters
                 if entity_types and node_type not in entity_types:
                     continue
                 if min_severity:
@@ -114,6 +126,7 @@ async def get_full_graph(
                     metadata=node_data.get("data", {})
                 ))
         
+        # Process edges (only include edges between filtered nodes)
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
                 source = edge_data.get("source")
@@ -121,6 +134,7 @@ async def get_full_graph(
                 relation = edge_data.get("relation", "associated_with")
                 weight = edge_data.get("weight", 1.0)
                 
+                # Only include edges between nodes that passed filters
                 node_ids = {n.id for n in nodes}
                 if source in node_ids and target in node_ids:
                     edges.append(GraphEdge(
@@ -132,6 +146,7 @@ async def get_full_graph(
                         metadata=edge_data.get("metadata", {})
                     ))
         
+        # Apply limit and filter edges to match nodes
         nodes = nodes[:limit]
         node_ids = {n.id for n in nodes}
         edges = [e for e in edges if e.source in node_ids and e.target in node_ids]
@@ -149,6 +164,7 @@ async def get_node(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get a specific graph node by ID."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
@@ -180,18 +196,21 @@ async def get_neighbors(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get neighboring nodes up to specified depth (BFS traversal)."""
     try:
         storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
         entity = await storage.get_entity(node_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Node not found")
     
+        # Get neighbor IDs using BFS traversal
         neighbor_ids = await storage.get_neighbors(node_id, depth=depth)
         
         nodes = []
         edges = []
         visited = {node_id}
         
+        # Add the starting node
         graph_data = await storage.get_graph_data()
         node_data = graph_data.get("nodes", {}).get(node_id, {})
         nodes.append(GraphNode(
@@ -202,6 +221,7 @@ async def get_neighbors(
             metadata=entity
         ))
         
+        # Add neighbor nodes
         for neighbor_id in neighbor_ids:
             if neighbor_id in visited:
                 continue
@@ -218,6 +238,7 @@ async def get_neighbors(
                     metadata=neighbor_entity
                 ))
         
+        # Include edges between visited nodes
         if "edges" in graph_data:
             for edge_key, edge_data in graph_data["edges"].items():
                 source = edge_data.get("source")
@@ -249,6 +270,7 @@ async def get_graph_for_job(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Build graph from job data by extracting entities from logs, findings, and metadata."""
     try:
         from urllib.parse import urlparse
         import re
@@ -265,7 +287,9 @@ async def get_graph_for_job(
         graph_data = await storage.get_graph_data()
         node_ids = []
         
+        # Helper functions for entity type detection and extraction
         def detect_entity_type(value: str) -> str:
+            """Detect entity type (email, ip_address, domain) from string value."""
             if not value:
                 return "domain"
             
@@ -280,6 +304,7 @@ async def get_graph_for_job(
             return "domain"
         
         def extract_domain_or_ip(value: str) -> str:
+            """Extract domain or IP from URL or string value."""
             if not value:
                 return ""
             
@@ -299,6 +324,7 @@ async def get_graph_for_job(
                 return value
         
         async def find_or_create_entity(value: str, entity_type: str = "domain") -> Optional[str]:
+            """Find existing entity by value or create new one if not found."""
             if not value:
                 return None
             
@@ -680,6 +706,7 @@ async def find_path(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Find shortest path between two nodes using BFS or Dijkstra algorithm."""
     try:
         if source == target:
             return PathResult(path=[source], total_weight=0, edges=[])
@@ -690,6 +717,7 @@ async def find_path(
         if not path:
             raise HTTPException(status_code=404, detail="No path found between nodes")
         
+        # Build edge list for path
         graph_data = await storage.get_graph_data()
         edges_list = []
         total_weight = 0
@@ -698,6 +726,7 @@ async def find_path(
             source_id = path[i]
             target_id = path[i + 1]
             
+            # Find edge between consecutive nodes in path
             if "edges" in graph_data:
                 for edge_key, edge_data in graph_data["edges"].items():
                     if (edge_data.get("source") == source_id and edge_data.get("target") == target_id) or \
@@ -726,6 +755,8 @@ async def find_path(
 
 @router.get("/clusters", response_model=List[ClusterResult])
 async def find_clusters(min_size: int = Query(default=2, ge=2)):
+    """Find connected components (clusters) in the graph using BFS."""
+    # Build adjacency list from edges
     adj = {}
     all_nodes = set()
     
@@ -739,6 +770,7 @@ async def find_clusters(min_size: int = Query(default=2, ge=2)):
         all_nodes.add(edge.source)
         all_nodes.add(edge.target)
     
+    # Find connected components using BFS
     visited = set()
     clusters = []
     cluster_id = 0
@@ -754,6 +786,7 @@ async def find_clusters(min_size: int = Query(default=2, ge=2)):
                     component.append(curr)
                     queue.extend(n for n in adj.get(curr, []) if n not in visited)
             
+            # Only include components meeting minimum size
             if len(component) >= min_size:
                 clusters.append(ClusterResult(
                     cluster_id=cluster_id,
@@ -771,6 +804,7 @@ async def create_edge(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Create a new relationship edge between two nodes."""
     storage = DBStorage(db, user_id=current_user.id, is_admin=is_admin(current_user))
     await storage.add_relationship(
         source_id=edge.source,
@@ -788,6 +822,7 @@ async def delete_edge(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """Delete a graph edge by ID (non-admin users can only delete their own edges)."""
     from app.core.database.models import GraphEdge as GraphEdgeModel
     
     query = select(GraphEdgeModel).where(GraphEdgeModel.id == edge_id)

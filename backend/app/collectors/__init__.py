@@ -1,3 +1,9 @@
+"""Collectors module exports.
+
+This module provides security intelligence collectors for various
+threat detection and analysis capabilities.
+"""
+
 from .web_recon import WebRecon
 from .config_audit import ConfigAudit
 from .email_audit import EmailAudit

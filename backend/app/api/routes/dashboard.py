@@ -19,14 +19,18 @@ def calculate_risk_score(
     resolved_findings: Optional[Dict[str, int]] = None,
     positive_indicators: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
+    """Calculate security risk score from findings, resolved findings, and positive indicators."""
+    # Count findings by severity
     critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
     high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
     medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
     low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
     
+    # Calculate deductions from active findings (weighted by severity)
     base_score = 100
     deductions = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
     
+    # Calculate points from resolved findings (bonus points for remediation)
     resolved_points = 0
     resolved_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     if resolved_findings:
@@ -38,13 +42,16 @@ def calculate_risk_score(
             resolved_counts.get("low", 0) * 3
         )
     
+    # Add points from positive security indicators
     indicator_points = 0
     if positive_indicators:
         indicator_points = sum(ind.get("points_awarded", 0) for ind in positive_indicators)
     
+    # Calculate final score: base - deductions + bonuses (clamped to 0-100)
     score = base_score - deductions + resolved_points + indicator_points
     score = max(0, min(100, score))
     
+    # Determine risk level based on score
     if score >= 80:
         risk_level = "minimal"
     elif score >= 60:
@@ -77,9 +84,11 @@ def calculate_risk_score(
 
 
 def calculate_trend(current_score: int, previous_score: Optional[int]) -> str:
+    """Calculate trend direction based on score change (improving/worsening/stable)."""
     if previous_score is None:
         return "stable"
     
+    # Consider trend significant if change > 5 points
     diff = current_score - previous_score
     if diff > 5:
         return "improving"
@@ -94,10 +103,12 @@ async def get_dashboard_overview(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Get comprehensive dashboard overview with risk score, findings, jobs, and statistics."""
     try:
         orchestrator = get_orchestrator()
         risk_engine = get_risk_engine()
         
+        # Fetch all findings and convert to dict format
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
         
@@ -112,20 +123,24 @@ async def get_dashboard_overview(
             "discovered_at": f.discovered_at.isoformat() if f.discovered_at else datetime.now(timezone.utc).isoformat()
         } for f in all_findings]
         
+        # Get resolved findings and positive indicators for risk calculation
         resolved_findings = await finding_storage.get_resolved_findings()
-        
         positive_indicators = await finding_storage.get_positive_indicators(limit=100)
         
+        # Calculate overall risk score
         risk_data = calculate_risk_score(findings_data, resolved_findings, positive_indicators)
         
+        # Get top critical/high findings sorted by risk score
         critical_findings = [f for f in findings_data if f.get("severity", "").lower() in ["critical", "high"]]
         critical_findings = sorted(critical_findings, key=lambda x: x.get("risk_score", 0), reverse=True)[:10]
         
+        # Get recent jobs with formatted time ago
         job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         recent_jobs = await job_storage.list_jobs(limit=10, offset=0)
         jobs_data = []
         for job in recent_jobs:
             now = datetime.now(timezone.utc)
+            # Format time ago based on completion or start time
             if job.completed_at:
                 time_diff = now - job.completed_at
                 if time_diff.days > 0:
@@ -156,16 +171,16 @@ async def get_dashboard_overview(
             })
         
         recent_events = orchestrator.get_recent_events(limit=20)
-        
         stats = orchestrator.get_stats()
-        
         total_jobs_count = await job_storage.count_jobs()
         
+        # Calculate statistics per capability
         capability_stats = {}
         for capability in Capability:
             cap_jobs = await job_storage.list_jobs(capability=capability, limit=100)
             cap_findings = await finding_storage.get_findings(capability=capability, limit=100)
             
+            # Find last run time for this capability
             last_run = None
             if cap_jobs:
                 completed_jobs = [j for j in cap_jobs if j.status == JobStatus.COMPLETED]
@@ -228,6 +243,7 @@ async def get_dashboard_overview(
 
 
 def _is_within_24h(timestamp_str: str) -> bool:
+    """Check if timestamp string is within the last 24 hours."""
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         if not timestamp.tzinfo:
@@ -244,6 +260,7 @@ async def get_critical_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Get critical and high severity findings with formatted time information."""
     try:
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         findings = await finding_storage.get_critical_findings(limit=limit)
@@ -251,6 +268,7 @@ async def get_critical_findings(
         findings_data = []
         now = datetime.now(timezone.utc)
         for finding in findings:
+            # Format time ago for discovery
             time_diff = now - finding.discovered_at
             if time_diff.days > 0:
                 time_ago = f"{time_diff.days}d ago"
@@ -259,6 +277,7 @@ async def get_critical_findings(
             else:
                 time_ago = f"{time_diff.seconds // 60}m ago"
             
+            # Format time ago for resolution if applicable
             finding_status = getattr(finding, 'status', 'active')
             resolved_at = getattr(finding, 'resolved_at', None)
             
@@ -301,12 +320,14 @@ async def get_risk_breakdown(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Get detailed risk breakdown by capability category with recommendations."""
     try:        
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         all_findings = await finding_storage.get_findings(limit=1000)
         
         active_findings = list(all_findings)
         
+        # Return default structure if no findings
         if not active_findings and not all_findings:
             return {
                 "overall_score": 100,
@@ -365,6 +386,7 @@ async def get_risk_breakdown(
             "investigation": "Investigation"
         }
         
+        # Group findings by capability
         findings_by_capability: Dict[str, List[Dict[str, Any]]] = {}
         for finding in findings_data:
             capability = finding.get("capability", "unknown")
@@ -372,6 +394,7 @@ async def get_risk_breakdown(
                 findings_by_capability[capability] = []
             findings_by_capability[capability].append(finding)
         
+        # Calculate risk score per capability category
         categories = {}
         total_deductions = {
             "critical": 0,
@@ -381,11 +404,13 @@ async def get_risk_breakdown(
         }
         
         for capability, findings in findings_by_capability.items():
+            # Count findings by severity
             critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
             high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
             medium_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
             low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
             
+            # Calculate category score (same formula as overall risk)
             category_score = 100
             category_score -= (critical_count * 20)
             category_score -= (high_count * 10)
@@ -396,6 +421,7 @@ async def get_risk_breakdown(
             total_findings = len(findings)
             contribution = (critical_count * 20) + (high_count * 10) + (medium_count * 5) + (low_count * 2)
             
+            # Accumulate total deductions
             total_deductions["critical"] += critical_count
             total_deductions["high"] += high_count
             total_deductions["medium"] += medium_count
@@ -414,6 +440,7 @@ async def get_risk_breakdown(
                 }
             }
         
+        # Generate recommendations based on findings and risk score
         recommendations = []
         
         if risk_data["critical_count"] > 0:
@@ -432,6 +459,7 @@ async def get_risk_breakdown(
                 "action": "Schedule remediation for high severity findings within 7 days."
             })
         
+        # Add category-specific recommendations
         for capability, cat_data in categories.items():
             if cat_data["severity_breakdown"]["critical"] > 0 or cat_data["severity_breakdown"]["high"] > 0:
                 recommendations.append({
@@ -489,6 +517,7 @@ async def get_positive_indicators(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Get positive security indicators that contribute to risk score."""
     try:
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         indicators = await finding_storage.get_positive_indicators(limit=100)
@@ -514,10 +543,12 @@ async def create_positive_indicator(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
+    """Create a positive security indicator that awards points to risk score."""
     try:
         from app.core.database.models import PositiveIndicator
         import uuid
         
+        # Create and save positive indicator
         indicator = PositiveIndicator(
             id=str(uuid.uuid4()),
             user_id=current_user.id,

@@ -1,3 +1,4 @@
+"""Pydantic schema models for API request/response validation."""
 from .company import (
     CompanyProfile,
     CompanyProfileCreate,

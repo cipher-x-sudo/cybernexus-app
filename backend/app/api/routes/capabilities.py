@@ -25,6 +25,7 @@ router = APIRouter()
 
 
 class CapabilityResponse(BaseModel):
+    """Response model for capability information."""
     id: str
     name: str
     description: str
@@ -36,6 +37,7 @@ class CapabilityResponse(BaseModel):
 
 
 class JobCreateRequest(BaseModel):
+    """Request model for creating a new job."""
     capability: str = Field(..., description="Capability ID to execute")
     target: str = Field(..., description="Target domain, URL, or identifier")
     config: Optional[Dict[str, Any]] = Field(default=None, description="Custom configuration")
@@ -43,6 +45,7 @@ class JobCreateRequest(BaseModel):
 
 
 class JobResponse(BaseModel):
+    """Response model for job status and execution details."""
     id: str
     capability: str
     target: str
@@ -60,6 +63,7 @@ class JobResponse(BaseModel):
 
 
 class JobHistoryResponse(BaseModel):
+    """Paginated response model for job history."""
     jobs: List[JobResponse]
     total: int
     page: int
@@ -68,6 +72,7 @@ class JobHistoryResponse(BaseModel):
 
 
 class FindingResponse(BaseModel):
+    """Response model for security finding."""
     id: str
     capability: str
     severity: str
@@ -81,6 +86,7 @@ class FindingResponse(BaseModel):
 
 
 class RiskScoreResponse(BaseModel):
+    """Response model for risk score calculation."""
     target: str
     overall_score: float
     risk_level: str
@@ -91,6 +97,7 @@ class RiskScoreResponse(BaseModel):
 
 
 class IncrementalFindingsResponse(BaseModel):
+    """Response model for incremental findings retrieval (pagination support)."""
     findings: List[FindingResponse]
     has_more: bool
     total_findings: int
@@ -100,10 +107,12 @@ class IncrementalFindingsResponse(BaseModel):
 
 
 class QuickScanRequest(BaseModel):
+    """Request model for quick scan operation."""
     domain: str = Field(..., description="Domain to scan")
 
 
 class QuickScanResponse(BaseModel):
+    """Response model for quick scan results with summary and risk score."""
     domain: str
     started_at: str
     completed_at: str
@@ -114,12 +123,14 @@ class QuickScanResponse(BaseModel):
 
 @router.get("/", response_model=List[CapabilityResponse])
 async def list_capabilities():
+    """List all available security capabilities."""
     orchestrator = get_orchestrator()
     return orchestrator.get_capabilities()
 
 
 @router.get("/{capability_id}", response_model=CapabilityResponse)
 async def get_capability(capability_id: str):
+    """Get details for a specific capability."""
     orchestrator = get_orchestrator()
     capability = orchestrator.get_capability(capability_id)
     
@@ -133,18 +144,21 @@ async def get_capability(capability_id: str):
 
 
 def run_job_in_thread(job_id: str, orchestrator_instance):
-    
+    """Execute job in background thread with proper async event loop and cleanup."""
     try:
+        # Create new event loop for thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             async def init_and_execute():
+                # Initialize database and execute job
                 from app.core.database.database import init_db, close_db
                 from app.services.browser_capture import get_browser_capture_service
                 init_db()
                 try:
                     await orchestrator_instance.execute_job(job_id)
                 finally:
+                    # Cleanup database and browser service
                     await close_db()
                     try:
                         browser_service = get_browser_capture_service()
@@ -154,6 +168,7 @@ def run_job_in_thread(job_id: str, orchestrator_instance):
             
             loop.run_until_complete(init_and_execute())
         finally:
+            # Cancel pending tasks and close loop
             pending = asyncio.all_tasks(loop)
             if pending:
                 for task in pending:
@@ -172,7 +187,7 @@ async def create_job(
     request: JobCreateRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    
+    """Create and execute a new security scan job in background thread."""
     import time
     request_start_time = time.time()
     
@@ -184,6 +199,7 @@ async def create_job(
         )
         orchestrator = get_orchestrator()
         
+        # Validate capability enum
         validation_start = time.time()
         try:
             capability = Capability(request.capability)
@@ -200,6 +216,7 @@ async def create_job(
                 detail=f"Invalid capability: {request.capability}"
             )
         
+        # Map priority string to enum
         priority_map = {
             "critical": JobPriority.CRITICAL,
             "high": JobPriority.HIGH,
@@ -210,6 +227,7 @@ async def create_job(
         priority = priority_map.get(request.priority.lower(), JobPriority.NORMAL)
         logger.debug(f"[API] [create_job] Mapped priority: {request.priority} -> {priority.value}")
         
+        # Create job in orchestrator
         job_creation_start = time.time()
         try:
             job = await orchestrator.create_job(
@@ -233,14 +251,17 @@ async def create_job(
             )
             raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
         
+        # Schedule job execution in background thread pool
         bg_task_start = time.time()
         try:
+            # Initialize thread pool executor if needed
             if not hasattr(run_job_in_thread, '_executor'):
                 run_job_in_thread._executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="job-executor")
             
             executor = run_job_in_thread._executor
             future = executor.submit(run_job_in_thread, job.id, orchestrator)
             
+            # Add callback to log thread completion/errors
             def log_thread_completion(future):
                 try:
                     future.result()
@@ -307,7 +328,8 @@ async def list_jobs(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """List jobs with optional filtering by capability, status, and date range."""
+    # Parse capability filter
     cap_filter = None
     if capability:
         try:
@@ -315,6 +337,7 @@ async def list_jobs(
         except ValueError:
             pass
     
+    # Parse status filter
     status_filter = None
     if status:
         try:
@@ -322,6 +345,7 @@ async def list_jobs(
         except ValueError:
             pass
     
+    # Parse date range filters
     start_date_obj = None
     end_date_obj = None
     if start_date:
@@ -335,6 +359,7 @@ async def list_jobs(
         except (ValueError, AttributeError):
             pass
     
+    # Fetch jobs from storage
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     jobs = await storage.list_jobs(
         capability=cap_filter,
@@ -345,6 +370,7 @@ async def list_jobs(
         end_date=end_date_obj
     )
     
+    # Get findings count for each job
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     
@@ -380,7 +406,8 @@ async def get_job_history(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get paginated job history with optional filtering."""
+    # Calculate offset from page number
     offset = (page - 1) * page_size
     limit = page_size
     
@@ -471,7 +498,7 @@ async def get_recent_jobs(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get most recent jobs with formatted time ago information."""
     from datetime import datetime, timezone
     
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -489,6 +516,7 @@ async def get_recent_jobs(
         findings = await finding_storage.get_findings_for_job(job.id)
         findings_count = len(findings)
         
+        # Format time ago based on completion or start time
         if job.completed_at:
             time_diff = now - job.completed_at
             if time_diff.days > 0:
@@ -529,13 +557,14 @@ async def get_job(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get job details by ID including findings count."""
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     job = await storage.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
+    # Get findings count for the job
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_findings_for_job(job_id)
@@ -565,7 +594,7 @@ async def restart_job(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Restart a job by resetting status to pending and re-queuing it."""
     from datetime import datetime
     
     storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
@@ -576,9 +605,11 @@ async def restart_job(
     
     orchestrator = get_orchestrator()
     
+    # Check if job exists in orchestrator (active job)
     orchestrator_job = orchestrator.get_job(job_id)
     
     if orchestrator_job:
+        # Reset job status and re-queue
         orchestrator_job.status = JobStatus.PENDING
         orchestrator_job.progress = 0
         orchestrator_job.error = None
@@ -589,10 +620,12 @@ async def restart_job(
             "target": orchestrator_job.target
         })
         orchestrator._update_job_status(orchestrator_job, JobStatus.PENDING)
+        # Re-add to job queue
         orchestrator._job_queue.push((orchestrator_job.priority.value, datetime.now().timestamp(), job_id))
         await orchestrator._save_job_to_db(orchestrator_job, user_id=current_user.id)
         job_to_return = orchestrator_job
     else:
+        # Update database job directly
         current_logs = job.execution_logs or []
         from datetime import datetime
         restart_log = {
@@ -684,22 +717,25 @@ async def get_job_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get findings for a job with optional incremental polling support."""
     from datetime import datetime as dt
     
     job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     db_job = await job_storage.get_job(job_id)
     
     if not db_job:
+        # Try to get from orchestrator (active job)
         orchestrator = get_orchestrator()
         orchestrator_job = orchestrator.get_job(job_id)
         if not orchestrator_job:
             raise HTTPException(status_code=404, detail="Job not found")
         job = orchestrator_job
         
+        # Filter findings by timestamp or ID if 'since' parameter provided
         if since:
             try:
                 try:
+                    # Try parsing as timestamp first
                     since_timestamp = dt.fromisoformat(since.replace('Z', '+00:00'))
                     filtered_findings = job.get_findings_since(since_timestamp=since_timestamp)
                     logger.debug(
@@ -707,6 +743,7 @@ async def get_job_findings(
                         f"since={since}, found={len(filtered_findings)} new findings"
                     )
                 except (ValueError, AttributeError):
+                    # Fall back to finding ID
                     filtered_findings = job.get_findings_since(since_id=since)
                     logger.debug(
                         f"[API] get_job_findings: job_id={job_id}, incremental mode (finding_id), "
@@ -721,6 +758,7 @@ async def get_job_findings(
         else:
             filtered_findings = job.findings
     else:
+        # Get findings from database
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         db_findings = await finding_storage.get_findings_for_job(job_id)
@@ -808,7 +846,7 @@ async def get_job_findings_incremental(
     last_timestamp: Optional[str] = Query(None, description="Last received timestamp (ISO format) for incremental polling"),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of findings to return")
 ):
-    
+    """Get new findings since last poll (incremental polling endpoint)."""
     from datetime import datetime as dt
     
     orchestrator = get_orchestrator()
@@ -819,6 +857,7 @@ async def get_job_findings_incremental(
     
     total_findings = len(job.findings)
     
+    # Get new findings based on last_finding_id or last_timestamp
     if last_finding_id:
         new_findings = job.get_findings_since(since_id=last_finding_id)
         logger.debug(
@@ -840,12 +879,14 @@ async def get_job_findings_incremental(
             )
             new_findings = job.findings
     else:
+        # First call - return all findings
         new_findings = job.findings
         logger.debug(
             f"[API] get_job_findings_incremental: job_id={job_id}, "
             f"first call, returning all {len(new_findings)} findings"
         )
     
+    # Apply limit and determine if more findings available
     limited_findings = new_findings[:limit]
     new_count = len(limited_findings)
     has_more = len(new_findings) > limit
@@ -885,7 +926,7 @@ async def get_job_findings_incremental(
 
 @router.get("/jobs/{job_id}/findings/stream")
 async def stream_job_findings(job_id: str):
-    
+    """Stream job findings in real-time using Server-Sent Events (SSE)."""
     from app.config import settings
     
     if not settings.DARKWEB_STREAMING_ENABLED:
@@ -900,6 +941,7 @@ async def stream_job_findings(job_id: str):
     logger.debug(f"[API] Starting SSE stream for job_id={job_id}")
     
     async def generate_stream() -> AsyncGenerator[str, None]:
+        """Generate SSE stream of findings as they are discovered."""
         last_finding_count = 0
         check_interval = 1.0
         max_wait_time = 300
@@ -916,6 +958,7 @@ async def stream_job_findings(job_id: str):
             current_findings_count = len(current_job.findings)
             
 
+            # Stream new findings as they are discovered
             if current_findings_count > last_finding_count:
                 new_findings = current_job.findings[last_finding_count:]
                 logger.debug(f"[API] Streaming {len(new_findings)} new findings for job_id={job_id}")
@@ -996,7 +1039,8 @@ async def list_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """List findings with optional filtering by capability, severity, target, and risk score."""
+    # Convert capability string to enum if provided
     cap_filter = None
     if capability:
         try:
@@ -1038,7 +1082,7 @@ async def resolve_finding(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Mark a finding as resolved, false positive, or accepted risk."""
     if status not in ["resolved", "false_positive", "accepted_risk"]:
         raise HTTPException(status_code=400, detail="Invalid status. Must be: resolved, false_positive, or accepted_risk")
     
@@ -1059,7 +1103,7 @@ async def get_finding(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get a specific finding by ID."""
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     finding = await finding_storage.get_finding(finding_id)
@@ -1087,7 +1131,7 @@ async def get_critical_findings(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get critical findings (high severity and risk score)."""
     from app.core.database.finding_storage import DBFindingStorage
     finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
     findings = await finding_storage.get_critical_findings(limit=limit)
@@ -1115,7 +1159,7 @@ async def get_critical_findings(
 
 @router.get("/risk/{target}", response_model=RiskScoreResponse)
 async def get_risk_score(target: str):
-    
+    """Calculate and return risk score for a target based on findings."""
     risk_engine = get_risk_engine()
     orchestrator = get_orchestrator()
     
@@ -1127,6 +1171,7 @@ async def get_risk_score(target: str):
             detail=f"No data available for target: {target}"
         )
     
+    # Calculate risk score from findings
     findings_dicts = [f.to_dict() for f in findings]
     risk_score = risk_engine.calculate_risk_score(target, findings_dicts)
     
@@ -1138,7 +1183,7 @@ async def get_risk_history(
     target: str,
     days: int = Query(default=30, ge=1, le=365)
 ):
-    
+    """Get risk score history for a target over specified days."""
     risk_engine = get_risk_engine()
     history = risk_engine.get_risk_history(target, days=days)
     
@@ -1151,7 +1196,7 @@ async def get_risk_history(
 
 @router.get("/risk/{target}/breakdown")
 async def get_risk_breakdown(target: str):
-    
+    """Get risk breakdown by category for a target."""
     risk_engine = get_risk_engine()
     breakdown = risk_engine.get_category_breakdown(target)
     
@@ -1169,7 +1214,7 @@ async def get_top_risks(
     target: str,
     limit: int = Query(default=5, ge=1, le=10)
 ):
-    
+    """Get top risks for a target ordered by risk score."""
     risk_engine = get_risk_engine()
     top_risks = risk_engine.get_top_risks(target, limit=limit)
     
@@ -1185,15 +1230,17 @@ async def get_top_risks(
 
 @router.post("/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(request: QuickScanRequest):
-    
+    """Execute a quick scan across multiple capabilities for a domain and return aggregated results."""
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
     logger.info(f"Starting quick scan for {request.domain}")
     
     try:
+        # Run quick scan across multiple capabilities
         results = await orchestrator.quick_scan(request.domain)
         
+        # Calculate risk score from discovered findings
         findings = orchestrator.get_findings_for_target(request.domain)
         findings_dicts = [f.to_dict() for f in findings]
         risk_score = risk_engine.calculate_risk_score(request.domain, findings_dicts)
@@ -1232,7 +1279,7 @@ async def quick_scan(request: QuickScanRequest):
 
 @router.get("/stats")
 async def get_stats():
-    
+    """Get global statistics from orchestrator and risk engine."""
     orchestrator = get_orchestrator()
     risk_engine = get_risk_engine()
     
@@ -1249,12 +1296,13 @@ async def get_recent_events(
     current_user: User = Depends(get_current_active_user),
     db = Depends(get_db)
 ):
-    
+    """Get recent events from jobs and findings, sorted by timestamp."""
     from datetime import datetime, timezone
     
     events = []
     
     try:
+        # Get job events (completed and started)
         job_storage = DBJobStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         recent_jobs = await job_storage.list_jobs(limit=limit, offset=0)
         
@@ -1278,6 +1326,7 @@ async def get_recent_events(
                     "target": job.target
                 })
         
+        # Get finding events
         from app.core.database.finding_storage import DBFindingStorage
         finding_storage = DBFindingStorage(db, user_id=current_user.id, is_admin=current_user.role == "admin")
         recent_findings = await finding_storage.get_findings(limit=limit * 2)
@@ -1292,6 +1341,7 @@ async def get_recent_events(
                 "capability": finding.capability.value
             })
         
+        # Sort by timestamp (most recent first) and limit results
         events.sort(key=lambda e: e["timestamp"], reverse=True)
         
         events = events[:limit]
@@ -1314,7 +1364,7 @@ async def get_recent_events(
 
 @router.websocket("/ws/darkweb/{job_id}")
 async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
-    
+    """WebSocket endpoint for real-time dark web job updates and findings streaming."""
     await websocket.accept()
     orchestrator = get_orchestrator()
     
@@ -1510,7 +1560,7 @@ async def websocket_darkweb_job(websocket: WebSocket, job_id: str):
 
 @router.websocket("/ws/exposure/{job_id}")
 async def websocket_exposure_job(websocket: WebSocket, job_id: str):
-    
+    """WebSocket endpoint for real-time exposure discovery job updates and findings streaming."""
     logger.info(f"[WebSocket] [exposure] [job_id={job_id}] Client attempting to connect")
     await websocket.accept()
     logger.debug(f"[WebSocket] [exposure] [job_id={job_id}] WebSocket connection accepted")
@@ -1721,17 +1771,19 @@ async def get_email_history(
     domain: str,
     limit: int = Query(default=10, ge=1, le=50)
 ):
-    
+    """Get email security scan history for a domain with computed scores."""
     try:
         orchestrator = get_orchestrator()
         
 
+        # Get email security jobs for the domain
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=limit * 2 
         )
         
 
+        # Filter and sort by creation date
         domain_jobs = [j for j in jobs if j.target.lower() == domain.lower()]
         domain_jobs.sort(key=lambda x: x.created_at, reverse=True)
         domain_jobs = domain_jobs[:limit]
@@ -1741,7 +1793,7 @@ async def get_email_history(
             findings = job.findings
             score = 0
             if findings:
-
+                # Calculate score from average risk (inverted: lower risk = higher score)
                 avg_risk = sum(f.risk_score for f in findings) / len(findings)
                 score = max(0, 100 - avg_risk)
             
@@ -1761,11 +1813,12 @@ async def get_email_history(
 
 @router.get("/email/{domain}/compliance")
 async def get_email_compliance(domain: str):
-    
+    """Get email security compliance information for a domain."""
     try:
         orchestrator = get_orchestrator()
         
 
+        # Find latest email security scan for the domain
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1797,11 +1850,12 @@ async def run_email_bypass_test(
     domain: str,
     background_tasks: BackgroundTasks
 ):
-    
+    """Create and execute an email security bypass test job for a domain."""
     try:
         orchestrator = get_orchestrator()
         
 
+        # Create job with bypass test configuration
         job = orchestrator.create_job(
             capability=Capability.EMAIL_SECURITY,
             target=domain,
@@ -1810,6 +1864,7 @@ async def run_email_bypass_test(
         )
         
 
+        # Execute job in background
         background_tasks.add_task(orchestrator.execute_job, job.id)
         
         return {
@@ -1825,11 +1880,12 @@ async def run_email_bypass_test(
 
 @router.get("/email/{domain}/infrastructure")
 async def get_email_infrastructure(domain: str):
-    
+    """Get email infrastructure graph data (nodes and edges) from latest scan findings."""
     try:
         orchestrator = get_orchestrator()
         
 
+        # Get latest email security scan for the domain
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1843,6 +1899,7 @@ async def get_email_infrastructure(domain: str):
         findings = latest_job.findings
         
 
+        # Build graph structure from findings
         nodes = [{"id": domain, "type": "domain", "label": domain}]
         edges = []
         
@@ -1886,11 +1943,12 @@ async def export_email_report(
     domain: str,
     format: str = Query(default="json", regex="^(json|csv)$")
 ):
-    
+    """Export email security report in JSON or CSV format."""
     try:
         orchestrator = get_orchestrator()
         
 
+        # Get latest email security scan for the domain
         jobs = orchestrator.get_jobs(
             capability=Capability.EMAIL_SECURITY,
             limit=50
@@ -1904,6 +1962,7 @@ async def export_email_report(
         findings = latest_job.findings
         
         if format == "csv":
+            # Export as CSV file
             import csv
             from io import StringIO
             
@@ -1931,7 +1990,7 @@ async def export_email_report(
                 headers={"Content-Disposition": f"attachment; filename=email_report_{domain}.csv"}
             )
         else:
-
+            # Export as JSON
             return {
                 "domain": domain,
                 "scan_date": latest_job.created_at.isoformat(),
@@ -1960,7 +2019,7 @@ async def compare_email_scans(
     job_id1: str = Query(..., description="First job ID to compare"),
     job_id2: str = Query(..., description="Second job ID to compare")
 ):
-    
+    """Compare two email security scans and identify new and resolved findings."""
     try:
         orchestrator = get_orchestrator()
         
@@ -2021,7 +2080,7 @@ async def compare_email_scans(
 
 @router.get("/investigation/{job_id}/screenshot")
 async def get_investigation_screenshot(job_id: str):
-    
+    """Retrieve screenshot captured during investigation job execution."""
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2061,7 +2120,7 @@ async def get_investigation_screenshot(job_id: str):
 
 @router.get("/investigation/{job_id}/har")
 async def get_investigation_har(job_id: str):
-    
+    """Retrieve HAR (HTTP Archive) file captured during investigation job."""
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2095,7 +2154,7 @@ async def get_investigation_har(job_id: str):
 
 @router.get("/investigation/{job_id}/domain-tree")
 async def get_investigation_domain_tree(job_id: str):
-    
+    """Get domain tree data (nodes and edges) from investigation job capture."""
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)
@@ -2158,7 +2217,7 @@ async def compare_investigations(
     job_id1: str = Query(..., description="First investigation job ID"),
     job_id2: str = Query(..., description="Second investigation job ID")
 ):
-    
+    """Compare two investigation jobs including visual similarity, domain differences, and findings."""
     try:
         orchestrator = get_orchestrator()
         
@@ -2251,7 +2310,7 @@ async def export_investigation(
     job_id: str,
     format: str = Query(default="json", regex="^(json|html)$")
 ):
-    
+    """Export investigation results in JSON or HTML format."""
     try:
         orchestrator = get_orchestrator()
         job = orchestrator.get_job(job_id)

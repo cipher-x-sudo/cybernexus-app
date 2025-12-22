@@ -15,6 +15,7 @@ router = APIRouter()
 
 
 class SiteNodeResponse(BaseModel):
+    """Response model for site network node."""
     id: str
     url: str
     title: str
@@ -24,16 +25,19 @@ class SiteNodeResponse(BaseModel):
 
 
 class SiteEdgeResponse(BaseModel):
+    """Response model for site network edge (connection)."""
     source: str
     target: str
 
 
 class SiteNetworkResponse(BaseModel):
+    """Response model for site network graph (nodes and edges)."""
     nodes: List[SiteNodeResponse]
     edges: List[SiteEdgeResponse]
 
 
 class OnionSiteResponse(BaseModel):
+    """Response model for dark web onion site information."""
     site_id: str
     onion_url: str
     title: str
@@ -51,6 +55,7 @@ class OnionSiteResponse(BaseModel):
 
 
 class ExtractedEntityResponse(BaseModel):
+    """Response model for extracted entity (email, bitcoin address, etc.)."""
     type: str
     value: str
     context: str
@@ -60,6 +65,7 @@ class ExtractedEntityResponse(BaseModel):
 
 
 class BrandMentionResponse(BaseModel):
+    """Response model for brand mention on dark web."""
     mention_id: str
     keyword: str
     context: str
@@ -72,6 +78,7 @@ class BrandMentionResponse(BaseModel):
 
 
 class StatisticsResponse(BaseModel):
+    """Response model for dark web intelligence statistics."""
     sites_indexed: int
     entities_extracted: int
     brand_mentions: int
@@ -85,6 +92,7 @@ class StatisticsResponse(BaseModel):
 
 
 class ActivityResponse(BaseModel):
+    """Response model for recent dark web activity."""
     period_hours: int
     sites_discovered: int
     brand_mentions: int
@@ -93,6 +101,7 @@ class ActivityResponse(BaseModel):
 
 
 class MentionResponse(BaseModel):
+    """Response model for brand mention with source classification."""
     id: str
     title: str
     content: str
@@ -105,6 +114,7 @@ class MentionResponse(BaseModel):
 
 
 def _get_darkwatch_instance(job_id: str):
+    """Get DarkWatch instance for a job, validating job exists and is dark web intelligence type."""
     orchestrator = get_orchestrator()
     job = orchestrator.get_job(job_id)
     
@@ -129,6 +139,7 @@ def _get_darkwatch_instance(job_id: str):
 
 
 def _map_threat_to_severity(threat_level: str) -> str:
+    """Map threat level to severity string (normalizes to lowercase)."""
     mapping = {
         "critical": "critical",
         "high": "high",
@@ -145,12 +156,13 @@ async def get_site_network(
     site_id: str,
     depth: int = Query(default=2, ge=1, le=5, description="Network traversal depth")
 ):
-    
+    """Get network graph of connected sites starting from a specific site (BFS traversal)."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
         network = darkwatch.get_site_network(site_id, depth=depth)
         
+        # Convert network nodes to response format
         nodes = [
             SiteNodeResponse(
                 id=node["id"],
@@ -163,6 +175,7 @@ async def get_site_network(
             for node in network.get("nodes", [])
         ]
         
+        # Convert network edges to response format
         edges = [
             SiteEdgeResponse(source=edge["source"], target=edge["target"])
             for edge in network.get("edges", [])
@@ -177,7 +190,7 @@ async def get_site_network(
 
 @router.get("/jobs/{job_id}/sites/{site_id}/clones", response_model=List[OnionSiteResponse])
 async def get_site_clones(job_id: str, site_id: str):
-    
+    """Find cloned/duplicate sites based on content similarity."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -214,7 +227,7 @@ async def search_entities(
     entity_type: Optional[str] = Query(None, description="Filter by entity type (email, bitcoin, etc.)"),
     value_pattern: Optional[str] = Query(None, description="Regex pattern to match entity values")
 ):
-    
+    """Search extracted entities by type and/or value pattern."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -246,9 +259,11 @@ async def get_brand_mentions(
     keyword: Optional[str] = Query(None, description="Filter by specific keyword"),
     min_threat_level: str = Query(default="info", description="Minimum threat level (critical, high, medium, low, info)")
 ):
+    """Get brand mentions from dark web intelligence job, optionally filtered by keyword and threat level."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
+        # Map string threat level to enum
         threat_level_map = {
             "critical": ThreatLevel.CRITICAL,
             "high": ThreatLevel.HIGH,
@@ -285,7 +300,7 @@ async def get_brand_mentions(
 
 @router.get("/jobs/{job_id}/statistics", response_model=StatisticsResponse)
 async def get_statistics(job_id: str):
-    
+    """Get aggregated statistics about dark web intelligence collection."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -314,7 +329,7 @@ async def get_recent_activity(
     job_id: str,
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back")
 ):
-    
+    """Get recent activity statistics for specified time period."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -338,7 +353,7 @@ async def get_high_risk_sites(
     job_id: str,
     limit: int = Query(default=20, ge=1, le=100, description="Maximum number of sites to return")
 ):
-    
+    """Get high-risk dark web sites sorted by risk score."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -374,7 +389,7 @@ async def export_intelligence(
     job_id: str,
     format: str = Query(default="json", description="Export format (json)")
 ):
-    
+    """Export dark web intelligence data in JSON format."""
     darkwatch, job = _get_darkwatch_instance(job_id)
     
     try:
@@ -403,13 +418,14 @@ async def get_all_mentions(
     keyword: Optional[str] = Query(None, description="Filter by keyword"),
     min_threat_level: str = Query(default="info", description="Minimum threat level")
 ):
-    
+    """Get brand mentions from all dark web jobs or a specific job, with source classification."""
     orchestrator = get_orchestrator()
     
     try:
         mentions_list = []
         
         if job_id:
+            # Get mentions from specific job
             darkwatch, job = _get_darkwatch_instance(job_id)
             threat_level_map = {
                 "critical": ThreatLevel.CRITICAL,
@@ -422,6 +438,7 @@ async def get_all_mentions(
             
             mentions = darkwatch.get_brand_mentions(keyword=keyword, min_threat_level=min_level)
             
+            # Classify source type based on URL patterns
             for mention in mentions:
                 source = "tor_site"
                 if "forum" in mention.source_url.lower():
@@ -442,6 +459,7 @@ async def get_all_mentions(
                     timestamp=mention.discovered_at.isoformat()
                 ))
         else:
+            # Get mentions from all dark web jobs
             darkweb_jobs = orchestrator.get_jobs(capability=Capability.DARK_WEB_INTELLIGENCE, limit=100)
             
             for job in darkweb_jobs:
@@ -458,6 +476,7 @@ async def get_all_mentions(
                     
                     mentions = darkwatch.get_brand_mentions(keyword=keyword, min_threat_level=min_level)
                     
+                    # Classify source type
                     for mention in mentions:
                         source = "tor_site"
                         if "forum" in mention.source_url.lower():
@@ -478,6 +497,7 @@ async def get_all_mentions(
                             timestamp=mention.discovered_at.isoformat()
                         ))
         
+        # Sort by timestamp (newest first)
         mentions_list.sort(key=lambda x: x.timestamp, reverse=True)
         
         return mentions_list
