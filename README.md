@@ -125,19 +125,19 @@ Deep analysis of suspicious URLs, domains, or artifacts with comprehensive captu
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (Next.js)                        │
+│                        FRONTEND (Next.js)                       │
 │   Dashboard │ 3D Graph │ Threat Map │ Timeline │ Reports        │
 ├─────────────────────────────────────────────────────────────────┤
-│                     BACKEND (Python FastAPI)                     │
+│                     BACKEND (Python FastAPI)                    │
 │         REST API + WebSocket + JWT Authentication               │
 ├─────────────────────────────────────────────────────────────────┤
-│                    PERSISTENCE LAYER                             │
+│                    PERSISTENCE LAYER                            │
 │  PostgreSQL (SQLAlchemy) │ Redis Cache │ Custom DSA (Memory)    │
 ├─────────────────────────────────────────────────────────────────┤
-│                    CUSTOM DSA IN-MEMORY LAYER                    │
+│                    CUSTOM DSA IN-MEMORY LAYER                   │
 │     Graph │ AVL Tree │ HashMap │ Heap │ Trie │ Bloom Filter     │
 ├─────────────────────────────────────────────────────────────────┤
-│                      COLLECTORS LAYER                            │
+│                      COLLECTORS LAYER                           │
 │  WebRecon │ DarkWatch │ ConfigAudit │ EmailAudit │ DomainTree   │
 └─────────────────────────────────────────────────────────────────┘
 ```
