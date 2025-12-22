@@ -31,7 +31,7 @@ class TorStatusCache:
     def get_status(self) -> Dict[str, Any]:
         
         with self._lock:
-            # Return a copy to avoid external modifications
+
             return self._status.copy()
     
     def update_status(self, status: Dict[str, Any]) -> None:
@@ -43,7 +43,7 @@ class TorStatusCache:
     
     def update_status_async(self) -> None:
         
-        # Check if already checking (non-blocking)
+
         if not self._check_lock.acquire(blocking=False):
             logger.debug("Tor status check already in progress, skipping")
             return
@@ -58,7 +58,7 @@ class TorStatusCache:
             
         except Exception as e:
             logger.error(f"Error updating Tor status cache: {e}", exc_info=True)
-            # Update cache with error status
+
             with self._lock:
                 self._status["status"] = "error"
                 self._status["error"] = f"Check failed: {str(e)}"
@@ -80,7 +80,7 @@ class TorStatusCache:
         return self._is_checking
 
 
-# Global singleton instance
+
 _tor_status_cache: Optional[TorStatusCache] = None
 _cache_lock = threading.Lock()
 

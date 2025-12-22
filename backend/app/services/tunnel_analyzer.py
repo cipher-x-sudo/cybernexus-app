@@ -102,7 +102,7 @@ class TunnelAnalyzer:
             return {}
 
 
-# Global tunnel analyzer instance
+
 _tunnel_analyzer: Optional[TunnelAnalyzer] = None
 
 

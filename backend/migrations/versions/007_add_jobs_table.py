@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy import inspect
 
-# revision identifiers, used by Alembic.
+
 revision = '007_jobs'
 down_revision = '006_notifications_timestamp'
 branch_labels = None
@@ -12,7 +12,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Check if jobs table already exists
+
     conn = op.get_bind()
     inspector = inspect(conn)
     tables = inspector.get_table_names()
@@ -37,7 +37,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
         
-        # Create indexes
+
         op.create_index('ix_jobs_user_id', 'jobs', ['user_id'])
         op.create_index('ix_jobs_capability', 'jobs', ['capability'])
         op.create_index('ix_jobs_status', 'jobs', ['status'])
@@ -49,13 +49,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Only drop if exists
+
     conn = op.get_bind()
     inspector = inspect(conn)
     tables = inspector.get_table_names()
     
     if 'jobs' in tables:
-        # Drop indexes first
+
         indexes = [idx['name'] for idx in inspector.get_indexes('jobs')]
         for idx_name in indexes:
             try:

@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy import inspect
 
-# revision identifiers, used by Alembic.
+
 revision = '009_scheduled_searches'
 down_revision = '008_positive_points'
 branch_labels = None
@@ -38,7 +38,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
         
-        # Create indexes
+
         op.create_index('ix_scheduled_searches_user_id', 'scheduled_searches', ['user_id'])
         op.create_index('ix_scheduled_searches_capability', 'scheduled_searches', ['capability'])
         op.create_index('ix_scheduled_searches_enabled', 'scheduled_searches', ['enabled'])

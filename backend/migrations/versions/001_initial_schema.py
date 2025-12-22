@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 import uuid
 
-# revision identifiers, used by Alembic.
+
 revision = '001_initial'
 down_revision = None
 branch_labels = None
@@ -12,7 +12,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create users table
+
     op.create_table(
         'users',
         sa.Column('id', sa.String(), primary_key=True),
@@ -30,7 +30,7 @@ def upgrade() -> None:
     op.create_index('idx_user_username', 'users', ['username'], unique=True)
     op.create_index('idx_user_email', 'users', ['email'], unique=True)
     
-    # Create entities table
+
     op.create_table(
         'entities',
         sa.Column('id', sa.String(length=255), primary_key=True),
@@ -48,7 +48,7 @@ def upgrade() -> None:
     op.create_index('ix_entities_type', 'entities', ['type'])
     op.create_index('ix_entities_value', 'entities', ['value'])
     
-    # Create graph_nodes table
+
     op.create_table(
         'graph_nodes',
         sa.Column('id', sa.String(length=255), primary_key=True),
@@ -66,7 +66,7 @@ def upgrade() -> None:
     op.create_index('ix_graph_nodes_entity_id', 'graph_nodes', ['entity_id'])
     op.create_index('ix_graph_nodes_node_type', 'graph_nodes', ['node_type'])
     
-    # Create graph_edges table
+
     op.create_table(
         'graph_edges',
         sa.Column('id', sa.String(length=255), primary_key=True),
@@ -87,7 +87,7 @@ def upgrade() -> None:
     op.create_index('ix_graph_edges_target_id', 'graph_edges', ['target_id'])
     op.create_index('ix_graph_edges_relation', 'graph_edges', ['relation'])
     
-    # Create user_activity_logs table
+
     op.create_table(
         'user_activity_logs',
         sa.Column('id', sa.String(), primary_key=True),
@@ -109,7 +109,7 @@ def upgrade() -> None:
     op.create_index('ix_user_activity_logs_resource_id', 'user_activity_logs', ['resource_id'])
     op.create_index('ix_user_activity_logs_timestamp', 'user_activity_logs', ['timestamp'])
     
-    # Create network_logs table
+
     op.create_table(
         'network_logs',
         sa.Column('id', sa.String(), primary_key=True),
@@ -140,7 +140,7 @@ def upgrade() -> None:
     op.create_index('ix_network_logs_status', 'network_logs', ['status'])
     op.create_index('ix_network_logs_timestamp', 'network_logs', ['timestamp'])
     
-    # Create findings table
+
     op.create_table(
         'findings',
         sa.Column('id', sa.String(length=255), primary_key=True),
@@ -166,7 +166,7 @@ def upgrade() -> None:
     op.create_index('ix_findings_severity', 'findings', ['severity'])
     op.create_index('ix_findings_discovered_at', 'findings', ['discovered_at'])
     
-    # Create company_profiles table
+
     op.create_table(
         'company_profiles',
         sa.Column('id', sa.String(), primary_key=True),

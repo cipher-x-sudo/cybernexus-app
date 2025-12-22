@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from passlib.context import CryptContext
 import uuid
 
-# revision identifiers, used by Alembic.
+
 revision = '002_admin'
 down_revision = '001_initial'
 branch_labels = None
@@ -14,7 +14,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def upgrade() -> None:
-    # Create admin user
+
     admin_id = str(uuid.uuid4())
     hashed_password = pwd_context.hash("admin123")
     

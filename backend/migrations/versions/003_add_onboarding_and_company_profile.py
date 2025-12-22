@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy import inspect
 
-# revision identifiers, used by Alembic.
+
 revision = '003_onboarding'
 down_revision = '002_admin'
 branch_labels = None
@@ -12,7 +12,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Check if onboarding_completed column already exists (for fresh installs with updated initial schema)
+
     conn = op.get_bind()
     inspector = inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('users')]
@@ -20,7 +20,7 @@ def upgrade() -> None:
     if 'onboarding_completed' not in columns:
         op.add_column('users', sa.Column('onboarding_completed', sa.Boolean(), nullable=False, server_default='false'))
     
-    # Check if company_profiles table already exists
+
     tables = inspector.get_table_names()
     if 'company_profiles' not in tables:
         op.create_table(
@@ -51,7 +51,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Only drop if exists
+
     conn = op.get_bind()
     inspector = inspect(conn)
     tables = inspector.get_table_names()

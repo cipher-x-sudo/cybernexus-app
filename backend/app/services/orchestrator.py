@@ -648,7 +648,7 @@ class Orchestrator:
             "check_dnssec": config.get("check_dnssec", True)
         }
         
-        # Run comprehensive email audit
+
         job.progress = 20
         results = await self._email_audit.audit(job.target, audit_config)
         
@@ -785,7 +785,7 @@ class Orchestrator:
                     risk_score=15.0
                 ))
             
-            # Check for missing report URI
+
             if not dmarc.get("rua"):
                 findings.append(Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
@@ -947,7 +947,7 @@ class Orchestrator:
         logger.info(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Starting comprehensive exposure discovery")
         logger.debug(f"[ExposureDiscovery] [job_id={job.id}] [target={job.target}] Job created at {job.created_at.isoformat()}, priority: {job.priority.value}")
         
-        # Progress callback for WebSocket streaming (sync wrapper)
+
         def progress_callback(progress: int, message: str):
             job.progress = progress
             logger.debug(
@@ -989,7 +989,7 @@ class Orchestrator:
             )
             raise
         
-        # Helper to create and stream finding
+
         async def create_and_stream_finding(
             category: str,
             severity: str,
@@ -1424,7 +1424,7 @@ class Orchestrator:
                 risk_score=self._severity_to_score(severity)
             ))
         
-        # Report present headers as info
+
         present_headers = headers.get("present", [])
         if present_headers:
             findings.append(Finding(
@@ -1448,14 +1448,14 @@ class Orchestrator:
             if not vuln_recommendations:
                 vuln_recommendations = ["Patch the identified vulnerability", "Review server configuration"]
             
-            # Build evidence dict
+
             evidence = {
                 "check": vuln.get("check"),
                 "evidence": vuln.get("evidence"),
                 "url": vuln.get("url")
             }
             
-            # Add any additional evidence fields
+
             if isinstance(vuln.get("evidence"), dict):
                 evidence.update(vuln.get("evidence", {}))
             
@@ -1472,10 +1472,10 @@ class Orchestrator:
                 risk_score=self._severity_to_score(vuln.get("severity", "medium"))
             ))
         
-        # Report server info
+
         server_info = results.get("server_info", {})
         if server_info.get("server") and server_info.get("server") != "unknown":
-            # Check for version disclosure
+
             version = server_info.get("nginx_version")
             if version:
                 findings.append(Finding(
@@ -1495,7 +1495,7 @@ class Orchestrator:
                     risk_score=30.0
                 ))
         
-        # Overall score as a finding
+
         score = results.get("score", 0)
         if score < 50:
             findings.append(Finding(
@@ -1585,7 +1585,7 @@ class Orchestrator:
             start_time = time.time()
             job.progress = 5
             
-            # Check Tor connectivity before starting
+
             logger.info(f"[DarkWeb] [job_id={job.id}] Checking Tor proxy connectivity...")
             tor_check_start = time.time()
             tor_status = check_tor_connectivity()
@@ -1601,7 +1601,7 @@ class Orchestrator:
                     f"Status: {tor_status['status']}, Error: {tor_status.get('error')}"
                 )
             
-            # Use DarkWatch collector
+
             from app.collectors.dark_watch import DarkWatch
             init_start = time.time()
             logger.info(
@@ -1613,19 +1613,19 @@ class Orchestrator:
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] DarkWatch collector initialized successfully in {init_time:.2f}s"
             )
-            # Store DarkWatch instance for API access to advanced features
+
             self._darkwatch_instances.put(job.id, dark_watch)
             job.progress = 10
             
-            # Discover URLs using engines
+
             logger.info(f"[DarkWeb] [job_id={job.id}] Starting URL discovery using engines...")
             discovery_start = time.time()
             job.progress = 15
             
-            # Extract keywords from job.target
+
             keywords = None
             if job.target:
-                # Split by comma if multiple keywords, otherwise use single keyword
+
                 keywords = [kw.strip() for kw in job.target.split(',') if kw.strip()]
                 logger.info(f"[DarkWeb] [job_id={job.id}] Extracted keywords: {keywords}")
             else:
@@ -1657,7 +1657,7 @@ class Orchestrator:
                 
                 job.progress = 25
             except ValueError as e:
-                # ValueError means no keywords provided - create error finding
+
                 discovery_time = time.time() - discovery_start
                 logger.error(
                     f"[DarkWeb] [job_id={job.id}] URL discovery failed: {e}",
@@ -1688,7 +1688,7 @@ class Orchestrator:
                 urls = []  # Continue with empty list, will try database fallback
                 job.progress = 20
             
-            # If no URLs discovered, try to get URLs from database
+
             if not urls:
                 logger.info(
                     f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines (0 URLs), "
@@ -1709,7 +1709,7 @@ class Orchestrator:
                         f"querying for URLs..."
                     )
                     db_start = time.time()
-                    # Get some URLs from database (select returns tuples: id, type, url, title, baseurl, ...)
+
                     db_records = db.select()
                     db_time = time.time() - db_start
                     logger.info(
@@ -1718,7 +1718,7 @@ class Orchestrator:
                     )
                     
                     if db_records:
-                        # Extract URLs from tuples (url is index 2, baseurl is index 4)
+
                         urls = []
                         extraction_start = time.time()
                         for idx, record in enumerate(db_records[:10]):  # Limit to 10
@@ -1750,7 +1750,7 @@ class Orchestrator:
                         exc_info=True
                     )
             
-            # If still no URLs, create a finding indicating no data available
+
             if not urls:
                 no_urls_time = time.time() - discovery_start
                 logger.warning(
@@ -1775,7 +1775,7 @@ class Orchestrator:
                     risk_score=10.0
                 )
                 findings.append(finding)
-                # Store in job immediately (thread-safe)
+
                 job.add_findings(findings)
                 logger.info(
                     f"[DarkWeb] [job_id={job.id}] Created 'no URLs discovered' finding and returning. "
@@ -1783,7 +1783,7 @@ class Orchestrator:
                 )
                 return findings
             
-            # Store discovered URLs in job metadata for "crawl more" functionality
+
             logger.info(f"[DarkWeb] [job_id={job.id}] About to store {len(urls)} URLs in metadata")
             if not job.metadata:
                 job.metadata = {}
@@ -1792,13 +1792,13 @@ class Orchestrator:
             job.metadata['uncrawled_urls'] = urls.copy()
             logger.info(f"[DarkWeb] [job_id={job.id}] Stored {len(urls)} URLs in job metadata")
             
-            # Get config from job.config or use defaults
+
             job_config = job.config if job.config else {}
             max_urls_config = job_config.get("max_urls", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
             worker_threads_config = job_config.get("worker_threads", settings.DARKWEB_MAX_WORKERS)
             depth_config = job_config.get("depth", 1)
             
-            # Limit initial crawl to configured or default limit
+
             crawl_limit = min(max_urls_config, len(urls))
             logger.info(
                 f"[DarkWeb] [job_id={job.id}] Applying crawl limit: {crawl_limit} from {len(urls)} URLs "
@@ -1821,7 +1821,7 @@ class Orchestrator:
             )
             job.progress = 30
             
-            # Helper function to crawl and analyze a single URL
+
             def crawl_and_analyze_url(url: str) -> List[Finding]:
                 
                 url_findings = []
@@ -1841,7 +1841,7 @@ class Orchestrator:
                         f"Threat level: {site.threat_level.value}"
                     )
                     
-                    # Convert to Finding objects if keywords matched
+
                     if site.keywords_matched:
                         finding = Finding(
                             id=f"find-{uuid.uuid4().hex[:8]}",
@@ -1858,7 +1858,7 @@ class Orchestrator:
                         url_findings.append(finding)
                         logger.debug(f"[DarkWeb] Created keyword match finding for {url}")
                     
-                    # Also create findings for high-risk entities
+
                     for entity in site.extracted_entities:
                         if entity.entity_type in ["email", "credit_card"]:
                             finding = Finding(
@@ -1886,7 +1886,7 @@ class Orchestrator:
                 
                 return url_findings
             
-            # Process URLs in parallel using ThreadPoolExecutor
+
             batch_progress_base = 30
             batch_progress_range = 60  # 30% to 90%
             total_urls = len(urls_to_crawl)
@@ -1895,19 +1895,19 @@ class Orchestrator:
             crawl_start_time = time.time()
             logger.info(f"[DarkWeb] [job_id={job.id}] ThreadPoolExecutor starting with {max_workers} workers for {len(urls_to_crawl)} URLs")
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all URL crawl tasks
+
                 future_to_url = {
                     executor.submit(crawl_and_analyze_url, url): url 
                     for url in urls_to_crawl
                 }
                 
-                # Process completed tasks as they finish
+
                 for future in as_completed(future_to_url, timeout=crawl_timeout):
                     url = future_to_url[future]
                     try:
                         url_findings = future.result(timeout=120)  # Individual URL timeout
                         
-                        # Thread-safe addition of findings
+
                         if url_findings:
                             findings.extend(url_findings)
                             job.add_findings(url_findings)
@@ -1916,7 +1916,7 @@ class Orchestrator:
                                 f"Total findings so far: {len(job.findings)}"
                             )
                         
-                        # Update progress
+
                         completed_count += 1
                         progress = batch_progress_base + int((completed_count / total_urls) * batch_progress_range)
                         job.progress = progress
@@ -1941,7 +1941,7 @@ class Orchestrator:
                 f"Elapsed time: {elapsed_total:.2f}s"
             )
             
-            # Update job metadata with crawled URLs
+
             if job.metadata:
                 job.metadata['crawled_urls'] = urls_to_crawl.copy()
                 uncrawled = [url for url in job.metadata.get('discovered_urls', []) if url not in urls_to_crawl]
@@ -1949,7 +1949,7 @@ class Orchestrator:
             
             job.progress = 90
             
-            # If no findings created but URLs were crawled, create info finding
+
             if not findings and urls:
                 logger.info(f"[DarkWeb] Crawled {len(urls_to_crawl)} URLs but no matches found for '{job.target}'")
                 finding = Finding(
@@ -1975,7 +1975,7 @@ class Orchestrator:
                 exc_info=True
             )
             job.progress = 95
-            # Create error finding
+
             finding = Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.DARK_WEB_INTELLIGENCE,
@@ -1994,7 +1994,7 @@ class Orchestrator:
         total_time = time.time() - start_time
         job.progress = 100
         
-        # Ensure DarkWatch instance is stored (in case it wasn't stored earlier)
+
         if 'dark_watch' in locals() and dark_watch:
             self._darkwatch_instances.put(job.id, dark_watch)
             logger.debug(f"[DarkWeb] [job_id={job.id}] DarkWatch instance stored for API access")
@@ -2023,7 +2023,7 @@ class Orchestrator:
                 "timestamp": datetime.now().isoformat()
             })
         
-        # Helper to send progress update
+
         async def send_progress(progress: int, message: str = ""):
             
             await self.send_websocket_message(job.id, {
@@ -2041,7 +2041,7 @@ class Orchestrator:
             job.progress = 5
             await send_progress(5, "Initializing dark web intelligence collection")
             
-            # Check Tor connectivity
+
             logger.info(f"[DarkWeb] [job_id={job.id}] Checking Tor proxy connectivity...")
             tor_check_start = time.time()
             tor_status = check_tor_connectivity()
@@ -2055,7 +2055,7 @@ class Orchestrator:
                     f"[DarkWeb] [job_id={job.id}] Tor proxy check failed after {tor_check_time:.2f}s"
                 )
             
-            # Initialize DarkWatch
+
             from app.collectors.dark_watch import DarkWatch
             init_start = time.time()
             logger.info(
@@ -2071,7 +2071,7 @@ class Orchestrator:
             job.progress = 10
             await send_progress(10, "DarkWatch collector initialized")
             
-            # Extract keywords
+
             keywords = None
             if job.target:
                 keywords = [kw.strip() for kw in job.target.split(',') if kw.strip()]
@@ -2079,7 +2079,7 @@ class Orchestrator:
             else:
                 logger.warning(f"[DarkWeb] [job_id={job.id}] No target/keywords provided for discovery")
             
-            # Discover URLs with callback for streaming
+
             logger.info(f"[DarkWeb] [job_id={job.id}] Starting URL discovery using engines...")
             discovery_start = time.time()
             job.progress = 15
@@ -2093,7 +2093,7 @@ class Orchestrator:
                 discovered_urls_by_engine[engine_name] = engine_urls
                 urls.extend(engine_urls)
                 
-                # Create finding (synchronous operation)
+
                 finding = Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
                     capability=Capability.DARK_WEB_INTELLIGENCE,
@@ -2112,7 +2112,7 @@ class Orchestrator:
                 )
                 findings.append(finding)
                 job.add_finding(finding)
-                # Store for async sending after discovery completes
+
                 pending_engine_findings.append(finding)
             
             try:
@@ -2120,10 +2120,10 @@ class Orchestrator:
                     raise ValueError("No keywords provided. Keywords are required for dark web discovery.")
                 
                 logger.info(f"[DarkWeb] [job_id={job.id}] Calling _discover_urls_with_engines with keywords: {keywords}")
-                # Use callback to get URLs as they are discovered
+
                 all_urls = dark_watch._discover_urls_with_engines(keywords=keywords, on_engine_complete=on_engine_complete)
                 
-                # Merge with callback-discovered URLs (in case callback missed some)
+
                 unique_urls = list(set(urls + (all_urls if all_urls else [])))
                 urls = unique_urls
                 
@@ -2132,7 +2132,7 @@ class Orchestrator:
                     f"Found {len(urls)} URLs from engines"
                 )
                 
-                # Send all engine findings via WebSocket now that discovery is complete
+
                 for finding in pending_engine_findings:
                     await send_finding(finding)
                 pending_engine_findings.clear()
@@ -2172,7 +2172,7 @@ class Orchestrator:
                 urls = []
                 job.progress = 20
             
-            # Database fallback if no URLs (same as original)
+
             if not urls:
                 logger.info(
                     f"[DarkWeb] [job_id={job.id}] No URLs discovered from engines, "
@@ -2204,7 +2204,7 @@ class Orchestrator:
                         exc_info=True
                     )
             
-            # If still no URLs, create finding
+
             if not urls:
                 no_urls_time = time.time() - discovery_start
                 finding = Finding(
@@ -2229,20 +2229,20 @@ class Orchestrator:
                 await send_finding(finding)
                 return findings
             
-            # Store URLs in metadata
+
             if not job.metadata:
                 job.metadata = {}
             job.metadata['discovered_urls'] = urls
             job.metadata['crawled_urls'] = []
             job.metadata['uncrawled_urls'] = urls.copy()
             
-            # Get config from job.config or use defaults
+
             job_config = job.config if job.config else {}
             max_urls_config = job_config.get("max_urls", settings.DARKWEB_DEFAULT_CRAWL_LIMIT)
             worker_threads_config = job_config.get("worker_threads", settings.DARKWEB_MAX_WORKERS)
             depth_config = job_config.get("depth", 1)
             
-            # Limit initial crawl to configured or default limit
+
             crawl_limit = min(max_urls_config, len(urls))
             urls_to_crawl = urls[:crawl_limit]
             logger.info(
@@ -2255,7 +2255,7 @@ class Orchestrator:
             job.progress = 30
             await send_progress(30, f"Starting crawl of {len(urls_to_crawl)} URLs")
             
-            # Helper function to crawl and analyze a single URL
+
             def crawl_and_analyze_url(url: str) -> List[Finding]:
                 
                 url_findings = []
@@ -2271,7 +2271,7 @@ class Orchestrator:
                         f"[DarkWeb] [job_id={job.id}] Crawled {url} in {url_crawl_time:.2f}s"
                     )
                     
-                    # Convert to Finding objects if keywords matched
+
                     if site.keywords_matched:
                         finding = Finding(
                             id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2287,7 +2287,7 @@ class Orchestrator:
                         )
                         url_findings.append(finding)
                     
-                    # Also create findings for high-risk entities
+
                     for entity in site.extracted_entities:
                         if entity.entity_type in ["email", "credit_card"]:
                             finding = Finding(
@@ -2313,7 +2313,7 @@ class Orchestrator:
                 
                 return url_findings
             
-            # Process URLs in parallel
+
             batch_progress_base = 30
             batch_progress_range = 60
             total_urls = len(urls_to_crawl)
@@ -2327,7 +2327,7 @@ class Orchestrator:
                     for url in urls_to_crawl
                 }
                 
-                # Process completed tasks as they finish
+
                 for future in as_completed(future_to_url, timeout=crawl_timeout):
                     url = future_to_url[future]
                     try:
@@ -2337,7 +2337,7 @@ class Orchestrator:
                             findings.extend(url_findings)
                             job.add_findings(url_findings)
                             
-                            # Send each finding via WebSocket immediately
+
                             for finding in url_findings:
                                 await send_finding(finding)
                             
@@ -2345,7 +2345,7 @@ class Orchestrator:
                                 f"[DarkWeb] [job_id={job.id}] Stored and sent {len(url_findings)} findings from {url}"
                             )
                         
-                        # Update progress
+
                         completed_count += 1
                         progress = batch_progress_base + int((completed_count / total_urls) * batch_progress_range)
                         job.progress = progress
@@ -2363,7 +2363,7 @@ class Orchestrator:
                 f"Total findings: {len(findings)}"
             )
             
-            # Update job metadata
+
             if job.metadata:
                 job.metadata['crawled_urls'] = urls_to_crawl.copy()
                 uncrawled = [url for url in job.metadata.get('discovered_urls', []) if url not in urls_to_crawl]
@@ -2372,7 +2372,7 @@ class Orchestrator:
             job.progress = 90
             await send_progress(90, "Crawl phase complete")
             
-            # If no findings but URLs were crawled, create info finding
+
             if not findings and urls:
                 finding = Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2421,11 +2421,11 @@ class Orchestrator:
         total_time = time.time() - start_time
         job.progress = 100
         
-        # Ensure DarkWatch instance is stored
+
         if 'dark_watch' in locals() and dark_watch:
             self._darkwatch_instances.put(job.id, dark_watch)
         
-        # Send completion message
+
         await self.send_websocket_message(job.id, {
             "type": "complete",
             "data": {
@@ -2511,22 +2511,22 @@ class Orchestrator:
             config = job.config or {}
             target = job.target
             
-            # Ensure target has protocol
+
             if not target.startswith(('http://', 'https://')):
                 target = f"https://{target}"
             
             logger.info(f"[Orchestrator] Starting investigation for {target}")
             
-            # Initialize services
+
             browser_service = get_browser_capture_service()
             domain_tree = DomainTree()
             visual_similarity = get_visual_similarity_service()
             
-            # Initialize browser if needed
+
             await browser_service.initialize()
             job.progress = 20
             
-            # Capture page with browser
+
             capture_options = {
                 'wait_until': 'networkidle',
                 'timeout': 30000,
@@ -2537,7 +2537,7 @@ class Orchestrator:
             capture_result = await browser_service.capture_page(target, capture_options)
             job.progress = 40
             
-            # Store capture data in job metadata for API access
+
             if not hasattr(job, 'metadata'):
                 job.metadata = {}
             job.metadata['capture'] = {
@@ -2549,7 +2549,7 @@ class Orchestrator:
                 'capture_time': capture_result.get('capture_time')
             }
             
-            # Process HAR with DomainTree
+
             if config.get('map_resources', True) and capture_result.get('har'):
                 logger.info(f"[Orchestrator] Building domain tree from HAR")
                 domain_result = await domain_tree.capture_url_async(
@@ -2558,7 +2558,7 @@ class Orchestrator:
                 )
                 job.progress = 60
                 
-                # Store domain tree graph in metadata for API access
+
                 domain_tree_graph = domain_tree.get_capture_graph(domain_result.capture_id)
                 if 'capture' in job.metadata:
                     job.metadata['capture']['domain_tree'] = domain_tree_graph
@@ -2572,7 +2572,7 @@ class Orchestrator:
                 
                 findings.extend(self._findings_from_domain_tree(domain_result, target))
             
-            # Visual similarity analysis (if enabled)
+
             if config.get('visual_similarity', False) and capture_result.get('screenshot'):
                 logger.info(f"[Orchestrator] Running visual similarity analysis")
                 screenshot_data = base64.b64decode(capture_result['screenshot'])
@@ -2602,21 +2602,21 @@ class Orchestrator:
                     ))
                 job.progress = 75
             
-            # Dark web cross-referencing (if enabled)
+
             if config.get('cross_reference_darkweb', False):
                 logger.info(f"[Orchestrator] Cross-referencing with dark web intelligence")
                 darkweb_findings = self._cross_reference_darkweb(target)
                 findings.extend(darkweb_findings)
                 job.progress = 85
             
-            # Reputation checking (if enabled)
+
             if config.get('check_reputation', True):
                 logger.info(f"[Orchestrator] Checking domain reputation")
                 reputation_findings = self._check_domain_reputation(target)
                 findings.extend(reputation_findings)
                 job.progress = 90
             
-            # Summary finding
+
             findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
                 capability=Capability.INVESTIGATION,
@@ -2642,7 +2642,7 @@ class Orchestrator:
             
         except Exception as e:
             logger.error(f"[Orchestrator] Investigation error: {e}", exc_info=True)
-            # Return error finding
+
             return [
                 Finding(
                     id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2661,7 +2661,7 @@ class Orchestrator:
     def _findings_from_domain_tree(self, domain_result, target: str) -> List[Finding]:
         findings = []
         
-        # Tracker detection
+
         if domain_result.trackers:
             tracker_count = sum(len(urls) for urls in domain_result.trackers.values())
             findings.append(Finding(
@@ -2685,7 +2685,7 @@ class Orchestrator:
                 risk_score=40.0
             ))
         
-        # Third-party domain analysis
+
         if domain_result.third_party_domains:
             findings.append(Finding(
                 id=f"find-{uuid.uuid4().hex[:8]}",
@@ -2708,7 +2708,7 @@ class Orchestrator:
                 risk_score=30.0 if len(domain_result.third_party_domains) < 10 else 50.0
             ))
         
-        # Risk assessment
+
         risk_score = domain_result.risk_assessment.get('score', 0)
         if risk_score > 50:
             findings.append(Finding(
@@ -2741,12 +2741,12 @@ class Orchestrator:
         findings = []
         
         try:
-            # Extract domain from target
+
             from urllib.parse import urlparse
             parsed = urlparse(target if target.startswith('http') else f'https://{target}')
             domain = parsed.netloc or target.split('/')[0]
             
-            # Search existing dark web findings for this domain
+
             darkweb_findings = [
                 f for f in self._all_findings
                 if f.capability == Capability.DARK_WEB_INTELLIGENCE
@@ -2787,15 +2787,15 @@ class Orchestrator:
             parsed = urlparse(target if target.startswith('http') else f'https://{target}')
             domain = parsed.netloc or target.split('/')[0]
             
-            # Basic reputation checks (can be enhanced with actual reputation APIs)
+
             suspicious_indicators = []
             
-            # Check for suspicious TLDs
+
             suspicious_tlds = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz']
             if any(domain.endswith(tld) for tld in suspicious_tlds):
                 suspicious_indicators.append("Suspicious TLD detected")
             
-            # Check for typosquatting patterns (simplified)
+
             common_domains = ['google', 'facebook', 'microsoft', 'apple', 'amazon']
             domain_lower = domain.lower()
             for common in common_domains:
@@ -2842,7 +2842,7 @@ class Orchestrator:
     def _update_job_status(self, job: Job, new_status: JobStatus):
         old_status = job.status
         
-        # Add execution log for status change
+
         status_messages = {
             JobStatus.PENDING: "Job created and queued",
             JobStatus.QUEUED: "Job queued for execution",
@@ -2869,13 +2869,13 @@ class Orchestrator:
                 "target": job.target
             })
         
-        # Remove from old status index (in-memory)
+
         old_status_jobs = self._jobs_by_status.get(old_status.value) or []
         if job.id in old_status_jobs:
             old_status_jobs.remove(job.id)
         self._jobs_by_status.put(old_status.value, old_status_jobs)
         
-        # Add to new status index (in-memory)
+
         new_status_jobs = self._jobs_by_status.get(new_status.value) or []
         new_status_jobs.append(job.id)
         self._jobs_by_status.put(new_status.value, new_status_jobs)
@@ -2890,16 +2890,16 @@ class Orchestrator:
             "timestamp": datetime.now().isoformat()
         }
         
-        # Store in-memory
+
         self._events.insert(0, event)
         
-        # Trim old events
+
         if len(self._events) > self._max_events:
             self._events = self._events[:self._max_events]
     
     def get_job(self, job_id: str) -> Optional[Job]:
         
-        # Check in-memory
+
         job = self._jobs.get(job_id)
         if job:
             return job
@@ -2913,11 +2913,11 @@ class Orchestrator:
         if instance:
             return instance
         
-        # If instance not found, check if job exists and is darkweb type
+
         job = self.get_job(job_id)
         if job and job.capability == Capability.DARK_WEB_INTELLIGENCE:
-            # Try to reconstruct from job findings (limited functionality)
-            # For full functionality, instance should be stored during execution
+
+
             logger.warning(f"[Orchestrator] DarkWatch instance not found for job {job_id}, cannot access advanced features")
         
         return None
@@ -2940,14 +2940,14 @@ class Orchestrator:
         for job_id in job_ids[:limit]:
             job = self._jobs.get(job_id)
             if job:
-                # Apply additional filters
+
                 if capability and job.capability != capability:
                     continue
                 if status and job.status != status:
                     continue
                 jobs.append(job)
         
-        # Sort by created_at descending
+
         jobs.sort(key=lambda j: j.created_at, reverse=True)
         
         return jobs[:limit]
@@ -2977,7 +2977,7 @@ class Orchestrator:
             if len(results) >= limit:
                 break
         
-        # Sort by risk_score descending
+
         results.sort(key=lambda f: f.risk_score, reverse=True)
         
         return results
@@ -2996,7 +2996,7 @@ class Orchestrator:
         
         started_at = datetime.now()
         
-        # Run essential capabilities
+
         capabilities = [
             Capability.EMAIL_SECURITY,
             Capability.EXPOSURE_DISCOVERY,
@@ -3011,7 +3011,7 @@ class Orchestrator:
         
         completed_at = datetime.now()
         
-        # Calculate summary
+
         total_findings = sum(j["findings_count"] for j in jobs)
         
         return {
@@ -3034,7 +3034,7 @@ class Orchestrator:
         return self._events[:limit]
 
 
-# Global orchestrator instance
+
 _orchestrator: Optional[Orchestrator] = None
 
 
