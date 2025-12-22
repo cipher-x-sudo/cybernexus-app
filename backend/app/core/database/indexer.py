@@ -23,10 +23,12 @@ class Indexer:
         self._reverse_index = HashMap()
     
     def create_index(self, name: str):
+        """Create a new secondary index with the given name."""
         if name not in self._secondary_indices:
             self._secondary_indices[name] = AVLTree()
     
     def drop_index(self, name: str) -> bool:
+        """Remove a secondary index by name."""
         if name in self._secondary_indices:
             del self._secondary_indices[name]
             return True
@@ -54,11 +56,13 @@ class Indexer:
                 if field in value and isinstance(value[field], str):
                     self._text_index.insert(value[field].lower(), key)  # DSA-USED: Trie
         
+        # Index secondary keys for fast lookups
         if secondary_keys:
             for index_name, index_value in secondary_keys.items():
                 if index_name in self._secondary_indices:
                     self._secondary_indices[index_name].insert(index_value, key)  # DSA-USED: AVLTree
                     
+                    # Update reverse index for O(1) lookups
                     existing = self._reverse_index.get(f"{index_name}:{index_value}", [])  # DSA-USED: HashMap
                     if key not in existing:
                         existing.append(key)
@@ -119,6 +123,7 @@ class Indexer:
         Returns:
             List of (key, value) tuples in the specified range
         """
+        # Route to appropriate index (primary or secondary)
         if index_name == 'primary':
             return self._primary_index.range_query(low, high)  # DSA-USED: AVLTree
         elif index_name in self._secondary_indices:
@@ -155,6 +160,7 @@ class Indexer:
 
 
 class TimeSeriesIndexer:
+    """Indexer for time-series data with chronological ordering."""
     def __init__(self):
         self._time_index = AVLTree()
         self._id_map = HashMap()
@@ -171,10 +177,12 @@ class TimeSeriesIndexer:
             timestamp: Timestamp for the item
             data: Item data to store
         """
+        # Convert timestamp to numeric key for AVLTree ordering
         ts_key = timestamp.timestamp()
         
         self._time_index.insert(ts_key, {"id": item_id, "timestamp": timestamp, "data": data})  # DSA-USED: AVLTree
         
+        # Store ID mapping for fast lookups
         self._id_map.put(item_id, ts_key)  # DSA-USED: HashMap
     
     def get(self, item_id: str) -> Optional[dict]:
@@ -212,8 +220,9 @@ class TimeSeriesIndexer:
         return [value for _, value in results]
     
     def latest(self, n: int = 10) -> List[dict]:
+        """Get the N most recent items (sorted by timestamp descending)."""
         all_items = list(self._time_index.inorder())
-        all_items.sort(key=lambda x: x[0], reverse=True)
+        all_items.sort(key=lambda x: x[0], reverse=True)  # Sort by timestamp descending
         return [value for _, value in all_items[:n]]
     
     def count(self) -> int:

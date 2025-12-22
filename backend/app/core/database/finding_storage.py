@@ -133,6 +133,7 @@ class DBFindingStorage:
         if not self.is_admin:
             query = query.where(Finding.user_id == self.user_id)
         
+        # Build dynamic query conditions
         conditions = []
         
         if capability:
@@ -144,6 +145,7 @@ class DBFindingStorage:
         if min_risk_score > 0:
             conditions.append(Finding.risk_score >= min_risk_score)
         
+        # Default to active findings if no status filter specified
         if status_filter:
             conditions.append(Finding.status == status_filter)
         else:
@@ -241,6 +243,7 @@ class DBFindingStorage:
         if not self.is_admin:
             query = query.where(Finding.user_id == self.user_id)
         
+        # Query JSONB field for job_id in evidence
         from sqlalchemy.dialects.postgresql import JSONB
         query = query.where(
             Finding.evidence['job_id'].astext == job_id
@@ -251,6 +254,7 @@ class DBFindingStorage:
         result = await self.db.execute(query)
         findings = result.scalars().all()
         
+        # Additional filtering for exact match (JSONB query may have false positives)
         filtered = []
         for f in findings:
             evidence = f.evidence or {}
@@ -340,6 +344,7 @@ class DBFindingStorage:
         result = await self.db.execute(query)
         findings = result.scalars().all()
         
+        # Aggregate counts by severity level
         counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         for finding in findings:
             severity = finding.severity.lower()
@@ -396,6 +401,7 @@ class DBFindingStorage:
         Returns:
             A FindingDataclass instance with data from the model
         """
+        # Convert enum strings to Capability enum, handle None values
         return FindingDataclass(
             id=finding.id,
             capability=Capability(finding.capability),

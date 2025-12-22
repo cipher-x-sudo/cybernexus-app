@@ -17,8 +17,10 @@ from loguru import logger
 from app.config import settings
 from app.core.database.models import Base
 
+# Thread-local storage for database engines (one per thread)
 _thread_local = threading.local()
 
+# Global engine and session maker references
 _main_engine: AsyncEngine | None = None
 _main_session_maker: async_sessionmaker[AsyncSession] | None = None
 _already_initialized_logged: bool = False
@@ -46,11 +48,13 @@ def get_database_url() -> str:
 
 
 def _get_thread_engine():
+    """Get or create thread-local database engine and session maker."""
     if not hasattr(_thread_local, 'engine'):
         db_url = get_database_url()
         thread_id = threading.get_ident()
         logger.debug(f"Creating database engine for thread {thread_id}")
         
+        # Create thread-local engine with connection pooling
         _thread_local.engine = create_async_engine(
             db_url,
             pool_size=settings.DATABASE_POOL_SIZE,
@@ -60,12 +64,13 @@ def _get_thread_engine():
             echo=settings.DEBUG,
         )
         
+        # Create session maker with optimized settings for async operations
         _thread_local.session_maker = async_sessionmaker(
             _thread_local.engine,
             class_=AsyncSession,
-            expire_on_commit=False,
-            autoflush=False,
-            autocommit=False,
+            expire_on_commit=False,  # Keep objects accessible after commit
+            autoflush=False,  # Manual flush control
+            autocommit=False,  # Explicit transaction control
         )
         logger.debug(f"Database engine created for thread {thread_id}")
     
@@ -73,17 +78,21 @@ def _get_thread_engine():
 
 
 def _get_async_session_maker():
+    """Get async session maker, initializing database if needed."""
     init_db()
     _, session_maker = _get_thread_engine()
     return session_maker
 
 
 class _SessionMakerAccessor:
+    """Accessor class for lazy database session creation."""
     def __call__(self):
+        """Create and return a new database session."""
         session_maker = _get_async_session_maker()
         return session_maker()
     
     def __bool__(self):
+        """Check if database is initialized."""
         try:
             session_maker = _get_async_session_maker()
             return session_maker is not None
@@ -126,6 +135,7 @@ async def close_db() -> None:
     
     if hasattr(_thread_local, 'engine'):
         thread_engine = _thread_local.engine
+        # Only dispose thread-local engines, not the main shared engine
         if thread_engine != _main_engine:
             await thread_engine.dispose()
             logger.debug(f"Closed database engine for thread {threading.get_ident()}")
@@ -155,9 +165,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with session_maker() as session:
         try:
             yield session
-            await session.commit()
+            await session.commit()  # Commit on successful completion
         except Exception:
-            await session.rollback()
+            await session.rollback()  # Rollback on error
             raise
         finally:
             await session.close()

@@ -47,6 +47,7 @@ class DBJobStorage:
         )
         existing = result.scalar_one_or_none()
         
+        # Extract execution logs from job (may be in execution_logs or metadata)
         execution_logs = []
         if hasattr(job, 'execution_logs') and job.execution_logs:
             execution_logs = job.execution_logs
@@ -266,6 +267,7 @@ class DBJobStorage:
         Returns:
             A JobDataclass instance with data from the model
         """
+        # Convert enum strings to enum types, handle None values and defaults
         return JobDataclass(
             id=job.id,
             capability=Capability(job.capability),
@@ -277,7 +279,7 @@ class DBJobStorage:
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,
-            findings=[],
+            findings=[],  # Findings loaded separately if needed
             error=job.error,
             metadata=job.meta_data or {},
             execution_logs=job.execution_logs or []

@@ -166,6 +166,7 @@ class DBNetworkLogStorage:
         if not self.is_admin and self.user_id:
             query = query.where(NetworkLog.user_id == self.user_id)
         
+        # Build dynamic query conditions
         conditions = []
         
         if start_time:
@@ -180,6 +181,7 @@ class DBNetworkLogStorage:
             conditions.append(NetworkLog.method == method.upper())
         if status is not None:
             conditions.append(NetworkLog.status == status)
+        # Filter by tunnel detection presence
         if has_tunnel is not None:
             if has_tunnel:
                 conditions.append(NetworkLog.tunnel_detection.isnot(None))
@@ -211,6 +213,7 @@ class DBNetworkLogStorage:
         Returns:
             List of log entry dictionaries matching the search query, ordered by timestamp
         """
+        # Search across multiple text fields using case-insensitive pattern matching
         query = select(NetworkLog).where(
             or_(
                 NetworkLog.path.ilike(f"%{q}%"),
@@ -360,9 +363,11 @@ class DBNetworkLogStorage:
         result = await self.db.execute(query)
         logs = result.scalars().all()
         
+        # Export in requested format
         if format == "json":
             return json.dumps([self._log_to_dict(log) for log in logs], indent=2, default=str)
         elif format == "csv":
+            # Generate CSV with selected fields
             output = io.StringIO()
             writer = csv.DictWriter(output, fieldnames=[
                 "id", "request_id", "timestamp", "ip", "method", "path", "status",
@@ -412,6 +417,7 @@ class DBNetworkLogStorage:
         result = await self.db.execute(query)
         logs = result.scalars().all()
         
+        # Filter detections by confidence threshold
         detections = []
         confidence_map = {"low": 0, "medium": 1, "high": 2, "confirmed": 3}
         min_conf_level = confidence_map.get(min_confidence, 1)
@@ -424,6 +430,7 @@ class DBNetworkLogStorage:
             conf = detection.get("confidence", "medium")
             conf_level = confidence_map.get(conf, 1)
             
+            # Only include detections meeting minimum confidence
             if conf_level >= min_conf_level:
                 detections.append({
                     "id": detection.get("detection_id", log.request_id),
@@ -452,6 +459,7 @@ class DBNetworkLogStorage:
         Returns:
             Number of log entries deleted
         """
+        # Calculate cutoff date based on TTL configuration
         cutoff_date = datetime.utcnow() - timedelta(days=self.ttl_days)
         
         query = delete(NetworkLog).where(NetworkLog.timestamp < cutoff_date)
@@ -478,6 +486,7 @@ class DBNetworkLogStorage:
         Returns:
             Dictionary containing log entry data
         """
+        # Extract common headers and calculate body sizes
         return {
             "id": log.id,
             "request_id": log.request_id,
@@ -497,6 +506,7 @@ class DBNetworkLogStorage:
             "response_body": log.response_body,
             "response_body_size": len(log.response_body) if log.response_body else 0,
             "response_body_truncated": False,
+            # Extract common headers for convenience
             "user_agent": log.request_headers.get("user-agent", "") if log.request_headers else "",
             "referer": log.request_headers.get("referer", "") if log.request_headers else "",
         }

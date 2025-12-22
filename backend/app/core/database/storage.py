@@ -46,6 +46,7 @@ class Storage:
         self._load_data()
     
     def _ensure_directories(self):
+        """Create required data directories if they don't exist."""
         dirs = [
             self.data_dir,
             self.data_dir / "entities",
@@ -57,6 +58,7 @@ class Storage:
             d.mkdir(parents=True, exist_ok=True)
     
     def _load_data(self):
+        """Load persisted data into memory structures."""
         self._load_data_from_files()
     
     def _load_data_from_files(self):
@@ -74,13 +76,14 @@ class Storage:
             except Exception:
                 pass
         
+        # Load entities from JSON files and rebuild indices
         entities_dir = self.data_dir / "entities"
         if entities_dir.exists():
             for entity_file in entities_dir.glob("*.json"):
                 try:
                     with open(entity_file, 'r') as f:
                         entity = json.load(f)
-                        self._index_entity(entity)
+                        self._index_entity(entity)  # Rebuild all indices
                 except Exception:
                     pass
     
@@ -139,6 +142,7 @@ class Storage:
         )  # DSA-USED: Graph
     
     def save_entity(self, entity: dict) -> str:
+        """Save entity to file and update all indices (thread-safe)."""
         with self._lock:
             entity_id = entity.get("id")
             if not entity_id:
@@ -146,11 +150,13 @@ class Storage:
             
             self._save_entity_to_file(entity_id, entity)
             
+            # Update all indexing structures
             self._index_entity(entity)
             
             return entity_id
     
     def _save_entity_to_file(self, entity_id: str, entity: dict):
+        """Persist entity to JSON file."""
         entity_file = self.data_dir / "entities" / f"{entity_id}.json"
         with open(entity_file, 'w') as f:
             json.dump(entity, f, default=str, indent=2)
@@ -195,6 +201,7 @@ class Storage:
         with self._lock:
             deleted = False
             
+            # Remove entity file
             entity_file = self.data_dir / "entities" / f"{entity_id}.json"
             if entity_file.exists():
                 try:
@@ -203,6 +210,7 @@ class Storage:
                 except Exception:
                     pass
             
+            # Remove from graph structure
             self._entity_graph.remove_node(entity_id)  # DSA-USED: Graph
             
             return deleted

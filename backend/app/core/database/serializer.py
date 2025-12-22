@@ -34,14 +34,15 @@ class Serializer:
             TypeError: If object contains non-serializable types
         """
         def default_serializer(o):
+            """Custom serializer for non-standard types."""
             if hasattr(o, 'to_dict'):
-                return o.to_dict()
+                return o.to_dict()  # Use object's serialization method
             elif isinstance(o, datetime):
-                return o.isoformat()
+                return o.isoformat()  # Convert datetime to ISO string
             elif isinstance(o, set):
-                return list(o)
+                return list(o)  # Convert set to list
             elif isinstance(o, bytes):
-                return o.decode('utf-8', errors='replace')
+                return o.decode('utf-8', errors='replace')  # Decode bytes to string
             raise TypeError(f"Object of type {type(o)} is not JSON serializable")
         
         if pretty:
@@ -79,10 +80,12 @@ class Serializer:
         json_str = Serializer.to_json(obj, pretty=not compress)
         
         if compress:
+            # Save as compressed gzip file
             path = path.with_suffix('.json.gz')
             with gzip.open(path, 'wt', encoding='utf-8') as f:
                 f.write(json_str)
         else:
+            # Save as plain JSON file
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(json_str)
     
@@ -101,6 +104,7 @@ class Serializer:
         """
         path = Path(path)
         
+        # Handle both compressed and uncompressed JSON files
         if path.suffix == '.gz':
             with gzip.open(path, 'rt', encoding='utf-8') as f:
                 return json.load(f)
@@ -154,10 +158,12 @@ class Serializer:
         data = pickle.dumps(obj)
         
         if compress:
+            # Save as compressed pickle file
             path = path.with_suffix('.pkl.gz')
             with gzip.open(path, 'wb') as f:
                 f.write(data)
         else:
+            # Save as plain pickle file
             with open(path, 'wb') as f:
                 f.write(data)
     
@@ -197,12 +203,13 @@ class Serializer:
         Returns:
             JSON string if format is 'json', pickle bytes if format is 'pickle'
         """
+        # Extract serializable data from DSA structure
         if hasattr(structure, 'to_dict'):
             data = structure.to_dict()
         elif hasattr(structure, 'to_list'):
             data = structure.to_list()
         else:
-            data = structure
+            data = structure  # Use structure directly if no conversion method
         
         if format == 'json':
             return Serializer.to_json(data)
@@ -224,16 +231,18 @@ class Serializer:
         Returns:
             Instance of dsa_class deserialized from data
         """
+        # Parse data based on format
         if format == 'json':
             parsed = Serializer.from_json(data) if isinstance(data, str) else data
         else:
             parsed = Serializer.from_pickle(data) if isinstance(data, bytes) else data
         
+        # Reconstruct DSA structure from parsed data
         if hasattr(dsa_class, 'from_dict'):
             return dsa_class.from_dict(parsed)
         elif hasattr(dsa_class, 'from_list'):
             return dsa_class.from_list(parsed)
         else:
-            return parsed
+            return parsed  # Return as-is if no reconstruction method
 
 

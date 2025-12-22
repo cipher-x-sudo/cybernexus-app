@@ -21,8 +21,10 @@ Base = declarative_base()
 
 
 class User(Base):
+    """User account model with authentication and profile data."""
     __tablename__ = "users"
     
+    # Primary key with UUID generation
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
@@ -34,12 +36,14 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
+    # Relationships with cascade delete for data cleanup
     entities = relationship("Entity", back_populates="user", cascade="all, delete-orphan")
     graph_nodes = relationship("GraphNode", back_populates="user", cascade="all, delete-orphan")
     graph_edges = relationship("GraphEdge", back_populates="user", foreign_keys="GraphEdge.user_id", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
     network_logs = relationship("NetworkLog", back_populates="user", cascade="all, delete-orphan")
     findings = relationship("Finding", back_populates="user", foreign_keys="Finding.user_id", cascade="all, delete-orphan")
+    # One-to-one relationship with company profile
     company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")
@@ -52,9 +56,11 @@ class User(Base):
 
 
 class CompanyProfile(Base):
+    """Company profile and configuration data for each user."""
     __tablename__ = "company_profiles"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # One-to-one relationship with user (unique constraint)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     name = Column(String(200), nullable=False)
     industry = Column(String(100), nullable=True)
@@ -64,6 +70,7 @@ class CompanyProfile(Base):
     email = Column(String(255), nullable=True)
     website = Column(String(500), nullable=True)
     primary_domain = Column(String(255), nullable=True)
+    # JSONB fields for flexible array storage
     additional_domains = Column(JSONB, default=list, nullable=True)
     ip_ranges = Column(JSONB, default=list, nullable=True)
     key_assets = Column(JSONB, default=list, nullable=True)
@@ -83,6 +90,7 @@ class CompanyProfile(Base):
 
 
 class Entity(Base):
+    """Security entities (IPs, domains, emails, etc.) discovered during scans."""
     __tablename__ = "entities"
     
     id = Column(String(255), primary_key=True)
@@ -103,10 +111,12 @@ class Entity(Base):
 
 
 class GraphNode(Base):
+    """Graph node representing entities in relationship graphs."""
     __tablename__ = "graph_nodes"
     
     id = Column(String(255), primary_key=True)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Optional link to entity for graph visualization
     entity_id = Column(String(255), ForeignKey("entities.id", ondelete="CASCADE"), nullable=True, index=True)
     label = Column(String(500), nullable=False)
     node_type = Column(String(50), nullable=False, index=True)
@@ -115,6 +125,7 @@ class GraphNode(Base):
     
     user = relationship("User", back_populates="graph_nodes")
     entity = relationship("Entity", back_populates="graph_nodes")
+    # Bidirectional edge relationships for graph traversal
     source_edges = relationship("GraphEdge", foreign_keys="GraphEdge.source_id", back_populates="source_node", cascade="all, delete-orphan")
     target_edges = relationship("GraphEdge", foreign_keys="GraphEdge.target_id", back_populates="target_node", cascade="all, delete-orphan")
     
@@ -125,6 +136,7 @@ class GraphNode(Base):
 
 
 class GraphEdge(Base):
+    """Graph edge representing relationships between nodes."""
     __tablename__ = "graph_edges"
     
     id = Column(String(255), primary_key=True)
@@ -132,6 +144,7 @@ class GraphEdge(Base):
     source_id = Column(String(255), ForeignKey("graph_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     target_id = Column(String(255), ForeignKey("graph_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     relation = Column(String(50), nullable=False, index=True)
+    # Edge weight for graph algorithms (shortest path, centrality, etc.)
     weight = Column(Float, default=1.0, nullable=False)
     meta_data = Column(JSONB, default=dict, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -148,6 +161,7 @@ class GraphEdge(Base):
 
 
 class UserActivityLog(Base):
+    """Audit log of user actions and API access."""
     __tablename__ = "user_activity_logs"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -169,9 +183,11 @@ class UserActivityLog(Base):
 
 
 class NetworkLog(Base):
+    """HTTP request/response logs with tunnel detection data."""
     __tablename__ = "network_logs"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Nullable for anonymous/unauthenticated requests
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     request_id = Column(String(255), unique=True, nullable=False, index=True)
     ip = Column(String(45), nullable=True, index=True)
@@ -180,6 +196,7 @@ class NetworkLog(Base):
     query = Column(Text, nullable=True)
     status = Column(Integer, nullable=False, index=True)
     response_time_ms = Column(Float, nullable=False)
+    # Tunnel detection results from security analysis
     tunnel_detection = Column(JSONB, nullable=True)
     request_headers = Column(JSONB, nullable=True)
     response_headers = Column(JSONB, nullable=True)
@@ -197,6 +214,7 @@ class NetworkLog(Base):
 
 
 class Finding(Base):
+    """Security findings discovered by various capabilities."""
     __tablename__ = "findings"
     
     id = Column(String(255), primary_key=True)
@@ -206,6 +224,7 @@ class Finding(Base):
     status = Column(String(20), nullable=False, default="active", index=True)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
+    # JSONB fields for flexible structured data
     evidence = Column(JSONB, default=dict, nullable=True)
     affected_assets = Column(JSONB, default=list, nullable=True)
     recommendations = Column(JSONB, default=list, nullable=True)
@@ -213,10 +232,12 @@ class Finding(Base):
     target = Column(String(500), nullable=True)
     discovered_at = Column(DateTime(timezone=True), nullable=False, index=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
+    # Foreign key with SET NULL to preserve audit trail if user is deleted
     resolved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     user = relationship("User", back_populates="findings", foreign_keys=[user_id])
+    # Separate relationship for user who resolved the finding
     resolver = relationship("User", foreign_keys=[resolved_by])
     
     __table_args__ = (
@@ -228,6 +249,7 @@ class Finding(Base):
 
 
 class PositiveIndicator(Base):
+    """Positive security indicators that award points to users."""
     __tablename__ = "positive_indicators"
     
     id = Column(String(255), primary_key=True)
@@ -248,6 +270,7 @@ class PositiveIndicator(Base):
 
 
 class Notification(Base):
+    """User notifications for findings, alerts, and system events."""
     __tablename__ = "notifications"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -257,6 +280,7 @@ class Notification(Base):
     title = Column(String(500), nullable=False)
     message = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False)
+    # Read status tracking for notification management
     read = Column(Boolean, default=False, nullable=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
     meta_data = Column(JSONB, default=dict, nullable=True)
@@ -273,6 +297,7 @@ class Notification(Base):
 
 
 class Job(Base):
+    """Background job execution records for security scans and tasks."""
     __tablename__ = "jobs"
     
     id = Column(String(255), primary_key=True)
@@ -281,10 +306,12 @@ class Job(Base):
     target = Column(String(500), nullable=False)
     status = Column(String(20), nullable=False, index=True)
     priority = Column(Integer, nullable=False, default=2)
+    # Progress percentage (0-100)
     progress = Column(Integer, nullable=False, default=0)
     config = Column(JSONB, default=dict, nullable=True)
     meta_data = Column(JSONB, default=dict, nullable=True)
     error = Column(Text, nullable=True)
+    # Array of log entries for job execution tracking
     execution_logs = Column(JSONB, default=list, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -301,19 +328,23 @@ class Job(Base):
 
 
 class ScheduledSearch(Base):
+    """Scheduled automated security searches with cron-based execution."""
     __tablename__ = "scheduled_searches"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
+    # Multiple capabilities can be run in a single scheduled search
     capabilities = Column(JSONB, default=list, nullable=False)
     target = Column(String(500), nullable=False)
     config = Column(JSONB, default=dict, nullable=True)
     schedule_type = Column(String(20), nullable=False, default="cron")
+    # Cron expression for scheduling (e.g., "0 0 * * *" for daily)
     cron_expression = Column(String(100), nullable=True)
     timezone = Column(String(50), default="UTC", nullable=False)
     enabled = Column(Boolean, default=True, nullable=False, index=True)
+    # Timestamps for schedule tracking
     last_run_at = Column(DateTime(timezone=True), nullable=True)
     next_run_at = Column(DateTime(timezone=True), nullable=True, index=True)
     run_count = Column(Integer, default=0, nullable=False)

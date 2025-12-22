@@ -29,6 +29,7 @@ class DBStorage:
         self.is_admin = is_admin
     
     def _get_user_filter(self):
+        """Get user filter for queries (admin bypasses filter)."""
         if self.is_admin:
             return None
         return Entity.user_id == self.user_id
@@ -60,14 +61,17 @@ class DBStorage:
         existing = result.scalar_one_or_none()
         
         if existing:
+            # Check ownership before updating
             if not self.is_admin and existing.user_id != owner_id:
                 raise PermissionError("Cannot update entity owned by another user")
             
+            # Update existing entity fields
             existing.type = entity.get("type", existing.type)
             existing.value = entity.get("value", existing.value)
             existing.severity = entity.get("severity", existing.severity)
             existing.meta_data = entity.get("metadata", existing.meta_data) or {}
         else:
+            # Create new entity
             db_entity = Entity(
                 id=entity_id,
                 user_id=owner_id,
@@ -142,7 +146,9 @@ class DBStorage:
         nodes = node_result.scalars().all()
         node_ids = [node.id for node in nodes]
         
+        # Delete associated graph edges and nodes
         if node_ids:
+            # Remove all edges connected to these nodes
             await self.db.execute(
                 delete(GraphEdge).where(
                     or_(
@@ -151,6 +157,7 @@ class DBStorage:
                     )
                 )
             )
+            # Remove graph nodes
             await self.db.execute(
                 delete(GraphNode).where(GraphNode.entity_id == entity_id)
             )
@@ -258,12 +265,14 @@ class DBStorage:
             weight: Edge weight
             metadata: Optional edge metadata
         """
+        # Get or create graph nodes for both entities
         source_node = await self._get_or_create_graph_node(source_id)
         target_node = await self._get_or_create_graph_node(target_id)
         
         if not source_node or not target_node:
             raise ValueError("Could not create graph nodes for entities")
         
+        # Generate unique edge ID
         edge_id = f"{source_node.id}-{target_node.id}-{relation}"
         result = await self.db.execute(
             select(GraphEdge).where(GraphEdge.id == edge_id)
@@ -311,6 +320,7 @@ class DBStorage:
         if node:
             return node
         
+        # Create new graph node for entity
         node_id = f"node-{entity_id}"
         node = GraphNode(
             id=node_id,
@@ -321,7 +331,7 @@ class DBStorage:
             data=entity
         )
         self.db.add(node)
-        await self.db.flush()
+        await self.db.flush()  # Flush to get node ID
         
         return node
     
@@ -347,6 +357,7 @@ class DBStorage:
         if not node:
             return []
         
+        # Find all edges connected to this node (bidirectional)
         query = select(GraphEdge).where(
             or_(
                 GraphEdge.source_id == node.id,
@@ -360,6 +371,7 @@ class DBStorage:
         result = await self.db.execute(query)
         edges = result.scalars().all()
         
+        # Collect neighbor node IDs from both source and target positions
         neighbor_node_ids = set()
         for edge in edges:
             if edge.source_id == node.id:
@@ -407,15 +419,18 @@ class DBStorage:
         if not source_node or not target_node:
             return None
         
+        # BFS algorithm for shortest path finding
         queue = [(source_node.id, [source_id])]
         visited = {source_node.id}
         
         while queue:
             current_node_id, path = queue.pop(0)
             
+            # Found target - return path
             if current_node_id == target_node.id:
                 return path
             
+            # Get all edges connected to current node
             edge_query = select(GraphEdge).where(
                 or_(
                     GraphEdge.source_id == current_node_id,
@@ -428,11 +443,13 @@ class DBStorage:
             result = await self.db.execute(edge_query)
             edges = result.scalars().all()
             
+            # Explore neighbors
             for edge in edges:
                 neighbor_id = edge.target_id if edge.source_id == current_node_id else edge.source_id
                 
                 if neighbor_id not in visited:
                     visited.add(neighbor_id)
+                    # Get entity ID for the neighbor node
                     node_result = await self.db.execute(
                         select(GraphNode.entity_id).where(GraphNode.id == neighbor_id)
                     )
@@ -465,9 +482,11 @@ class DBStorage:
         edge_result = await self.db.execute(edge_query)
         edges = edge_result.scalars().all()
         
+        # Build graph representation dictionaries
         graph_nodes = {}
         graph_edges = {}
         
+        # Convert nodes to dictionary format
         for node in nodes:
             graph_nodes[node.id] = {
                 "label": node.label,
@@ -476,6 +495,7 @@ class DBStorage:
                 "severity": node.data.get("severity", "info") if node.data else "info"
             }
         
+        # Convert edges to dictionary format
         for edge in edges:
             edge_key = edge.id
             graph_edges[edge_key] = {
