@@ -23,6 +23,21 @@ class DBJobStorage:
         self.is_admin = is_admin
     
     async def save_job(self, job: JobDataclass, user_id: Optional[str] = None) -> str:
+        """Save or update a job in the database.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            job: The job dataclass to save or update
+            user_id: Optional user ID to override the instance user_id
+        
+        Returns:
+            The ID of the saved job
+        
+        Raises:
+            ValueError: If user_id is not provided and instance user_id is None
+        """
         owner_id = user_id or self.user_id
         if not owner_id:
             raise ValueError("user_id must be provided")
@@ -73,6 +88,18 @@ class DBJobStorage:
         return job.id
     
     async def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
+        """Update a job with the provided fields.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            job_id: The unique identifier of the job to update
+            updates: Dictionary of fields to update (status, progress, error, etc.)
+        
+        Returns:
+            True if the job was updated, False if not found
+        """
         query = select(Job).where(Job.id == job_id)
         
         if not self.is_admin:
@@ -105,6 +132,17 @@ class DBJobStorage:
         return True
     
     async def get_job(self, job_id: str) -> Optional[JobDataclass]:
+        """Retrieve a job by its ID.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            job_id: The unique identifier of the job
+        
+        Returns:
+            The job dataclass if found, None otherwise
+        """
         query = select(Job).where(Job.id == job_id)
         
         if not self.is_admin:
@@ -127,6 +165,22 @@ class DBJobStorage:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ) -> List[JobDataclass]:
+        """List jobs with optional filters.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            capability: Optional capability filter
+            status: Optional job status filter
+            limit: Maximum number of jobs to return (default: 50)
+            offset: Number of jobs to skip for pagination (default: 0)
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+        
+        Returns:
+            List of job dataclasses matching the filters, ordered by creation time
+        """
         query = select(Job)
         
         if not self.is_admin:
@@ -162,6 +216,20 @@ class DBJobStorage:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ) -> int:
+        """Count jobs matching the provided filters.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            capability: Optional capability filter
+            status: Optional job status filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+        
+        Returns:
+            The count of jobs matching the filters
+        """
         query = select(func.count(Job.id))
         
         if not self.is_admin:
@@ -185,6 +253,19 @@ class DBJobStorage:
         return result.scalar() or 0
     
     def _job_to_dataclass(self, job: Job) -> JobDataclass:
+        """Convert a database Job model to a JobDataclass.
+        
+        Internal helper method to convert SQLAlchemy model to dataclass.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            job: The SQLAlchemy Job model instance
+        
+        Returns:
+            A JobDataclass instance with data from the model
+        """
         return JobDataclass(
             id=job.id,
             capability=Capability(job.capability),

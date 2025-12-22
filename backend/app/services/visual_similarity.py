@@ -41,9 +41,29 @@ class VisualSimilarityService:
         self._known_screenshots: Dict[str, bytes] = {}
     
     def add_reference_image(self, identifier: str, image_data: bytes):
+        """Add a reference image for comparison.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            identifier: Unique identifier for the reference image
+            image_data: Raw image bytes
+        """
         self._known_screenshots[identifier] = image_data
     
     def calculate_perceptual_hash(self, image_data: bytes) -> Optional[str]:
+        """Calculate perceptual hash for an image.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            image_data: Raw image bytes
+        
+        Returns:
+            Perceptual hash string if successful, None if dependencies are missing or on error
+        """
         if not HAS_DEPS:
             return None
         
@@ -60,6 +80,18 @@ class VisualSimilarityService:
         image1_data: bytes,
         image2_data: bytes
     ) -> Optional[float]:
+        """Calculate Structural Similarity Index (SSIM) between two images.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            image1_data: Raw bytes of the first image
+            image2_data: Raw bytes of the second image
+        
+        Returns:
+            SSIM score between 0 and 1 if successful, None if dependencies are missing or on error
+        """
         if not HAS_DEPS or not HAS_SSIM:
             return None
         
@@ -87,6 +119,18 @@ class VisualSimilarityService:
         image1_data: bytes,
         image2_data: bytes
     ) -> Dict[str, Any]:
+        """Compare two images using perceptual hash and SSIM.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            image1_data: Raw bytes of the first image
+            image2_data: Raw bytes of the second image
+        
+        Returns:
+            Dictionary containing similarity scores and comparison results
+        """
         result = {
             'perceptual_hash_similarity': None,
             'ssim_score': None,
@@ -134,6 +178,18 @@ class VisualSimilarityService:
         image_data: bytes,
         threshold: float = 70.0
     ) -> List[Dict[str, Any]]:
+        """Compare an image against all reference images.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            image_data: Raw bytes of the image to compare
+            threshold: Minimum similarity score to consider a match (default: 70.0)
+        
+        Returns:
+            List of match dictionaries sorted by similarity (highest first)
+        """
         matches = []
         
         for identifier, ref_image_data in self._known_screenshots.items():
@@ -152,6 +208,17 @@ class VisualSimilarityService:
         return matches
     
     def decode_base64_image(self, base64_string: str) -> Optional[bytes]:
+        """Decode a base64-encoded image string to bytes.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            base64_string: Base64-encoded image string (may include data URI prefix)
+        
+        Returns:
+            Decoded image bytes if successful, None on error
+        """
         try:
             if ',' in base64_string:
                 base64_string = base64_string.split(',')[1]

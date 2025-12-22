@@ -28,6 +28,13 @@ class SchedulerService:
         self._lock = asyncio.Lock()
     
     async def initialize(self):
+        """Initialize the scheduler service and load scheduled searches.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Starts the APScheduler and loads all enabled scheduled searches from the database.
+        """
         async with self._lock:
             if self._initialized:
                 logger.warning("Scheduler already initialized")
@@ -53,6 +60,13 @@ class SchedulerService:
             logger.info("Scheduler service initialized successfully")
     
     async def shutdown(self):
+        """Shutdown the scheduler service.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Stops the scheduler and cleans up resources.
+        """
         async with self._lock:
             if not self._initialized:
                 return
@@ -66,6 +80,13 @@ class SchedulerService:
             self._initialized = False
     
     async def _load_scheduled_searches(self):
+        """Load enabled scheduled searches from the database and add them to the scheduler.
+        
+        Internal helper method that queries the database and schedules jobs.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        """
         try:
             async with _async_session_maker() as session:
                 result = await session.execute(
@@ -89,6 +110,20 @@ class SchedulerService:
             logger.error(f"Error loading scheduled searches: {e}", exc_info=True)
     
     async def _add_scheduled_job(self, scheduled_search: ScheduledSearch, session: Optional[AsyncSession] = None):
+        """Add a scheduled search to the scheduler.
+        
+        Internal helper method that creates a cron job from a ScheduledSearch model.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search: The ScheduledSearch model instance to schedule
+            session: Optional database session for updating next_run_at
+        
+        Raises:
+            RuntimeError: If scheduler is not initialized
+        """
         if not self.scheduler:
             raise RuntimeError("Scheduler not initialized")
         
@@ -154,6 +189,16 @@ class SchedulerService:
             logger.error(f"Error adding scheduled job for {scheduled_search.id}: {e}", exc_info=True)
     
     async def _execute_scheduled_search(self, scheduled_search_id: str):
+        """Execute a scheduled search by creating jobs for its capabilities.
+        
+        Internal helper method that runs when a scheduled search is triggered.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search_id: The ID of the scheduled search to execute
+        """
         try:
             async with _async_session_maker() as session:
                 scheduled_search = await session.get(ScheduledSearch, scheduled_search_id)
@@ -243,6 +288,14 @@ class SchedulerService:
             )
     
     async def add_scheduled_search(self, scheduled_search: ScheduledSearch):
+        """Add a new scheduled search to the database and scheduler.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search: The ScheduledSearch model instance to add
+        """
         if not self._initialized:
             await self.initialize()
         
@@ -254,6 +307,14 @@ class SchedulerService:
             await self._add_scheduled_job(scheduled_search, session)
     
     async def update_scheduled_search(self, scheduled_search: ScheduledSearch):
+        """Update an existing scheduled search in the database and scheduler.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search: The ScheduledSearch model instance to update
+        """
         if not self._initialized:
             await self.initialize()
         
@@ -273,6 +334,14 @@ class SchedulerService:
                 await self._add_scheduled_job(scheduled_search, session)
     
     async def remove_scheduled_search(self, scheduled_search_id: str):
+        """Remove a scheduled search from the scheduler.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search_id: The ID of the scheduled search to remove
+        """
         job_id = f"scheduled_search_{scheduled_search_id}"
         if self.scheduler:
             try:
@@ -282,6 +351,14 @@ class SchedulerService:
                 logger.warning(f"Error removing scheduled job {job_id}: {e}")
     
     async def trigger_scheduled_search(self, scheduled_search_id: str):
+        """Manually trigger execution of a scheduled search.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            scheduled_search_id: The ID of the scheduled search to trigger
+        """
         await self._execute_scheduled_search(scheduled_search_id)
 
 

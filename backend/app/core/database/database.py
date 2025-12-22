@@ -27,6 +27,14 @@ __all__ = ["get_db", "init_db", "close_db", "create_tables", "drop_tables", "_as
 
 
 def get_database_url() -> str:
+    """Get the database URL with async driver prefix.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Returns:
+        Database URL with postgresql+asyncpg:// prefix
+    """
     db_url = settings.DATABASE_URL
     
     if db_url.startswith("postgresql://"):
@@ -86,6 +94,13 @@ _async_session_maker = _SessionMakerAccessor()
 
 
 def init_db() -> None:
+    """Initialize the database connection pool.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Creates the main database engine and session maker if not already initialized.
+    """
     global _main_engine, _main_session_maker, _already_initialized_logged
     
     engine, session_maker = _get_thread_engine()
@@ -100,6 +115,13 @@ def init_db() -> None:
 
 
 async def close_db() -> None:
+    """Close database connections for the current thread.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Disposes of thread-local database engine if it differs from the main engine.
+    """
     global _main_engine, _main_session_maker
     
     if hasattr(_thread_local, 'engine'):
@@ -113,6 +135,17 @@ async def close_db() -> None:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Get a database session for dependency injection.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Yields:
+        AsyncSession: Database session that commits on success or rolls back on error
+    
+    Raises:
+        RuntimeError: If database is not initialized
+    """
     init_db()
     _, session_maker = _get_thread_engine()
     
@@ -131,6 +164,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def create_tables() -> None:
+    """Create all database tables defined in the models.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Raises:
+        RuntimeError: If database is not initialized
+    """
     init_db()
     engine, _ = _get_thread_engine()
     
@@ -144,6 +185,14 @@ async def create_tables() -> None:
 
 
 async def drop_tables() -> None:
+    """Drop all database tables.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Raises:
+        RuntimeError: If database is not initialized
+    """
     init_db()
     engine, _ = _get_thread_engine()
     

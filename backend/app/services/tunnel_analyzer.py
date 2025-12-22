@@ -20,6 +20,17 @@ class TunnelAnalyzer:
         self.confidence_threshold = settings.NETWORK_TUNNEL_CONFIDENCE_THRESHOLD.lower()
     
     async def analyze_request(self, log_entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Analyze a network request for tunnel detection.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            log_entry: Dictionary containing network log entry data
+        
+        Returns:
+            Dictionary containing tunnel detection information if detected above threshold, None otherwise
+        """
         if not settings.NETWORK_ENABLE_TUNNEL_DETECTION:
             return None
         
@@ -97,7 +108,14 @@ class TunnelAnalyzer:
             return None
     
     def get_detector_stats(self) -> Dict[str, Any]:
+        """Get statistics from the tunnel detector.
         
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Dictionary containing detector statistics (requests analyzed, tunnels detected, etc.)
+        """
         try:
             return {
                 "requests_analyzed": self.detector.stats.get("requests_analyzed", 0),

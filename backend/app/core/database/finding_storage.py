@@ -23,6 +23,21 @@ class DBFindingStorage:
         self.is_admin = is_admin
     
     async def save_finding(self, finding: FindingDataclass, user_id: Optional[str] = None) -> str:
+        """Save or update a finding in the database.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding: The finding dataclass to save or update
+            user_id: Optional user ID to override the instance user_id
+        
+        Returns:
+            The ID of the saved finding
+        
+        Raises:
+            ValueError: If user_id is not provided and instance user_id is None
+        """
         owner_id = user_id or self.user_id
         if not owner_id:
             raise ValueError("user_id must be provided")
@@ -64,6 +79,17 @@ class DBFindingStorage:
         return finding.id
     
     async def get_finding(self, finding_id: str) -> Optional[FindingDataclass]:
+        """Retrieve a finding by its ID.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding_id: The unique identifier of the finding
+        
+        Returns:
+            The finding dataclass if found, None otherwise
+        """
         query = select(Finding).where(Finding.id == finding_id)
         
         if not self.is_admin:
@@ -86,6 +112,22 @@ class DBFindingStorage:
         limit: int = 100,
         status_filter: Optional[str] = None
     ) -> List[FindingDataclass]:
+        """Retrieve findings with optional filters.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            capability: Optional capability filter
+            severity: Optional severity filter
+            target: Optional target filter
+            min_risk_score: Minimum risk score threshold (default: 0.0)
+            limit: Maximum number of findings to return (default: 100)
+            status_filter: Optional status filter (default: active or None)
+        
+        Returns:
+            List of finding dataclasses matching the filters, ordered by risk score and discovery time
+        """
         query = select(Finding)
         
         if not self.is_admin:
@@ -125,6 +167,17 @@ class DBFindingStorage:
         return [self._finding_to_dataclass(f) for f in findings]
     
     async def get_critical_findings(self, limit: int = 10) -> List[FindingDataclass]:
+        """Retrieve critical and high severity findings.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            limit: Maximum number of findings to return (default: 10)
+        
+        Returns:
+            List of critical and high severity findings, ordered by risk score and discovery time
+        """
         query = select(Finding).where(
             Finding.severity.in_(["critical", "high"])
         )
@@ -148,6 +201,17 @@ class DBFindingStorage:
         return [self._finding_to_dataclass(f) for f in findings]
     
     async def get_findings_for_target(self, target: str) -> List[FindingDataclass]:
+        """Retrieve all findings for a specific target.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            target: The target identifier to filter by
+        
+        Returns:
+            List of findings for the specified target, ordered by risk score and discovery time
+        """
         query = select(Finding).where(Finding.target == target)
         
         if not self.is_admin:
@@ -161,6 +225,17 @@ class DBFindingStorage:
         return [self._finding_to_dataclass(f) for f in findings]
     
     async def get_findings_for_job(self, job_id: str) -> List[FindingDataclass]:
+        """Retrieve all findings associated with a specific job.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            job_id: The job identifier to filter by
+        
+        Returns:
+            List of findings associated with the job, ordered by discovery time
+        """
         query = select(Finding)
         
         if not self.is_admin:
@@ -185,6 +260,17 @@ class DBFindingStorage:
         return [self._finding_to_dataclass(f) for f in filtered]
     
     async def delete_finding(self, finding_id: str) -> bool:
+        """Delete a finding by its ID.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding_id: The unique identifier of the finding to delete
+        
+        Returns:
+            True if the finding was deleted, False if not found
+        """
         query = select(Finding).where(Finding.id == finding_id)
         
         if not self.is_admin:
@@ -206,6 +292,19 @@ class DBFindingStorage:
         return True
     
     async def mark_finding_resolved(self, finding_id: str, user_id: str, status: str = "resolved") -> bool:
+        """Mark a finding as resolved.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding_id: The unique identifier of the finding
+            user_id: The ID of the user resolving the finding
+            status: The resolution status (default: "resolved")
+        
+        Returns:
+            True if the finding was updated, False if not found
+        """
         query = select(Finding).where(Finding.id == finding_id)
         
         if not self.is_admin:
@@ -225,6 +324,14 @@ class DBFindingStorage:
         return True
     
     async def get_resolved_findings(self) -> Dict[str, int]:
+        """Get counts of resolved findings grouped by severity.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Dictionary mapping severity levels to counts of resolved findings
+        """
         query = select(Finding).where(Finding.status.in_(["resolved", "false_positive", "accepted_risk"]))
         
         if not self.is_admin:
@@ -242,6 +349,17 @@ class DBFindingStorage:
         return counts
     
     async def get_positive_indicators(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Retrieve positive security indicators.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            limit: Maximum number of indicators to return (default: 100)
+        
+        Returns:
+            List of positive indicator dictionaries, ordered by creation time
+        """
         query = select(PositiveIndicator)
         
         if not self.is_admin:
@@ -265,6 +383,19 @@ class DBFindingStorage:
         } for ind in indicators]
     
     def _finding_to_dataclass(self, finding: Finding) -> FindingDataclass:
+        """Convert a database Finding model to a FindingDataclass.
+        
+        Internal helper method to convert SQLAlchemy model to dataclass.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding: The SQLAlchemy Finding model instance
+        
+        Returns:
+            A FindingDataclass instance with data from the model
+        """
         return FindingDataclass(
             id=finding.id,
             capability=Capability(finding.capability),

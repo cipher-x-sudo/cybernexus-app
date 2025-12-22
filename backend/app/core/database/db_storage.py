@@ -1,10 +1,11 @@
 """Database storage layer with graph support.
 
 This module provides database-backed storage for entities with graph-based
-relationship management using PostgreSQL and custom graph structures.
+relationship management using PostgreSQL. Note: While Graph is imported from
+app.core.dsa, this module actually uses SQLAlchemy ORM models (GraphNode, GraphEdge)
+for graph operations, not the custom Graph DSA structure.
 
-This module uses the following DSA concepts from app.core.dsa:
-- Graph: Entity relationship mapping and graph operations for correlation analysis
+This module does not use custom DSA concepts from app.core.dsa in its functions.
 """
 
 from typing import Any, Dict, List, Optional
@@ -33,6 +34,18 @@ class DBStorage:
         return Entity.user_id == self.user_id
     
     async def save_entity(self, entity: dict, user_id: Optional[str] = None) -> str:
+        """Save an entity to the database.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy Entity model, not custom DSA structures
+        
+        Args:
+            entity: Entity dictionary to save
+            user_id: Optional user identifier (uses instance user_id if not provided)
+        
+        Returns:
+            Entity identifier
+        """
         entity_id = entity.get("id")
         if not entity_id:
             raise ValueError("Entity must have an 'id' field")
@@ -69,6 +82,17 @@ class DBStorage:
         return entity_id
     
     async def get_entity(self, entity_id: str) -> Optional[dict]:
+        """Retrieve an entity by ID.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy Entity model, not custom DSA structures
+        
+        Args:
+            entity_id: Entity identifier
+        
+        Returns:
+            Entity dictionary if found, None otherwise
+        """
         query = select(Entity).where(Entity.id == entity_id)
         
         if not self.is_admin:
@@ -90,6 +114,17 @@ class DBStorage:
         }
     
     async def delete_entity(self, entity_id: str) -> bool:
+        """Delete an entity and its associated graph nodes/edges.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode/GraphEdge models, not custom Graph DSA
+        
+        Args:
+            entity_id: Entity identifier to delete
+        
+        Returns:
+            True if entity was deleted, False if not found
+        """
         query = select(Entity).where(Entity.id == entity_id)
         
         if not self.is_admin:
@@ -128,6 +163,18 @@ class DBStorage:
         return True
     
     async def search_by_prefix(self, prefix: str, limit: int = 100) -> List[str]:
+        """Search entities by value prefix.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy ILIKE queries, not custom Trie DSA
+        
+        Args:
+            prefix: Prefix string to search for
+            limit: Maximum number of results
+        
+        Returns:
+            List of entity IDs matching the prefix
+        """
         query = select(Entity.id).where(Entity.value.ilike(f"{prefix}%"))
         
         if not self.is_admin:
@@ -139,6 +186,17 @@ class DBStorage:
         return [row[0] for row in result.fetchall()]
     
     async def get_by_type(self, entity_type: str) -> List[dict]:
+        """Get all entities of a specific type.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy queries, not custom DSA structures
+        
+        Args:
+            entity_type: Type to filter by
+        
+        Returns:
+            List of entity dictionaries
+        """
         query = select(Entity).where(Entity.type == entity_type)
         
         if not self.is_admin:
@@ -160,6 +218,17 @@ class DBStorage:
         ]
     
     async def exists(self, value: str) -> bool:
+        """Check if an entity with the given value exists.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy count queries, not custom DSA structures
+        
+        Args:
+            value: Entity value to check
+        
+        Returns:
+            True if entity exists, False otherwise
+        """
         query = select(func.count(Entity.id)).where(Entity.value == value)
         
         if not self.is_admin:
@@ -177,6 +246,18 @@ class DBStorage:
         weight: float = 1.0,
         metadata: dict = None
     ):
+        """Add a relationship edge between two entities.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode/GraphEdge models, not custom Graph DSA
+        
+        Args:
+            source_id: Source entity identifier
+            target_id: Target entity identifier
+            relation: Relationship type
+            weight: Edge weight
+            metadata: Optional edge metadata
+        """
         source_node = await self._get_or_create_graph_node(source_id)
         target_node = await self._get_or_create_graph_node(target_id)
         
@@ -207,6 +288,17 @@ class DBStorage:
         await self.db.commit()
     
     async def _get_or_create_graph_node(self, entity_id: str) -> Optional[GraphNode]:
+        """Get or create a GraphNode for an entity.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode model, not custom Graph DSA
+        
+        Args:
+            entity_id: Entity identifier
+        
+        Returns:
+            GraphNode instance if entity exists, None otherwise
+        """
         entity = await self.get_entity(entity_id)
         if not entity:
             return None
@@ -234,6 +326,19 @@ class DBStorage:
         return node
     
     async def get_neighbors(self, entity_id: str, depth: int = 1) -> List[str]:
+        """Get neighboring entities using BFS on database graph.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode/GraphEdge models with BFS algorithm,
+                not custom Graph DSA structure
+        
+        Args:
+            entity_id: Entity identifier
+            depth: Maximum depth to traverse (currently only depth=1 is implemented)
+        
+        Returns:
+            List of neighboring entity IDs
+        """
         result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == entity_id)
         )
@@ -276,6 +381,19 @@ class DBStorage:
         return []
     
     async def find_path(self, source_id: str, target_id: str) -> Optional[List[str]]:
+        """Find shortest path between two entities using BFS.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode/GraphEdge models with BFS algorithm,
+                not custom Graph DSA structure
+        
+        Args:
+            source_id: Starting entity identifier
+            target_id: Target entity identifier
+        
+        Returns:
+            List of entity IDs representing the path, or None if no path exists
+        """
         source_result = await self.db.execute(
             select(GraphNode).where(GraphNode.entity_id == source_id)
         )
@@ -325,6 +443,14 @@ class DBStorage:
         return None
     
     async def get_graph_data(self) -> dict:
+        """Get serialized graph representation from database.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy GraphNode/GraphEdge models, not custom Graph DSA
+        
+        Returns:
+            Dictionary with nodes and edges from the database graph
+        """
         node_query = select(GraphNode)
         if not self.is_admin:
             node_query = node_query.where(GraphNode.user_id == self.user_id)
@@ -366,6 +492,14 @@ class DBStorage:
         }
     
     async def stats(self) -> dict:
+        """Get statistics about stored entities and graph structure.
+        
+        DSA-USED:
+        - None: This function uses SQLAlchemy count queries, not custom DSA structures
+        
+        Returns:
+            Dictionary with entity, node, and edge counts
+        """
         entity_query = select(func.count(Entity.id))
         if not self.is_admin:
             entity_query = entity_query.where(Entity.user_id == self.user_id)

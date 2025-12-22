@@ -30,6 +30,19 @@ class ReportGenerator:
             self._env = None
     
     def generate_executive_summary(self, data: Dict[str, Any], format: str = "pdf", report_id: Optional[str] = None) -> Dict[str, Any]:
+        """Generate an executive summary report in PDF or HTML format.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            data: Dictionary containing report data (threats, stats, recommendations)
+            format: Output format, either "pdf" or "html" (default: "pdf")
+            report_id: Optional report ID, auto-generated if not provided
+        
+        Returns:
+            Dictionary containing report metadata (report_id, type, format, path, generated_at)
+        """
         if not report_id:
             report_id = f"RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
@@ -60,14 +73,36 @@ class ReportGenerator:
             }
     
     def generate_pdf_bytes(self, data: Dict[str, Any]) -> bytes:
+        """Generate PDF report as bytes without saving to disk.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            data: Dictionary containing report data
+        
+        Returns:
+            PDF file contents as bytes
+        """
         html_content = self._render_executive_summary(data)
         pdf_bytes = BytesIO()
         HTML(string=html_content).write_pdf(pdf_bytes)
         return pdf_bytes.getvalue()
     
     def _render_executive_summary(self, data: Dict[str, Any]) -> str:
+        """Render executive summary as HTML string.
         
-
+        Internal helper method that generates HTML from report data.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            data: Dictionary containing report data
+        
+        Returns:
+            HTML string for the executive summary report
+        """
         return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -347,7 +382,17 @@ class ReportGenerator:
         """
     
     def generate_threat_report(self, threats: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate a threat report from a list of threats.
         
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            threats: List of threat dictionaries
+        
+        Returns:
+            Dictionary containing report metadata (same format as generate_executive_summary)
+        """
         report_id = f"THR-RPT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
 
@@ -362,7 +407,19 @@ class ReportGenerator:
         return self.generate_executive_summary(data)
     
     def _generate_recommendations(self, threats: List[Dict[str, Any]]) -> List[str]:
+        """Generate security recommendations based on threats.
         
+        Internal helper method that analyzes threats and suggests actions.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            threats: List of threat dictionaries
+        
+        Returns:
+            List of recommendation strings
+        """
         recommendations = []
         
 
@@ -386,7 +443,14 @@ class ReportGenerator:
         return recommendations
     
     def list_reports(self) -> List[Dict[str, Any]]:
+        """List all generated reports in the output directory.
         
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            List of report dictionaries with metadata (report_id, format, path, size, created)
+        """
         reports = []
         
 

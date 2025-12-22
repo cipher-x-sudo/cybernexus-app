@@ -1,12 +1,13 @@
 """Threat prediction and pattern analysis engine.
 
 This module provides password mutation prediction, domain typosquat generation,
-and threat evolution analysis using pattern matching and graph-based algorithms.
+and threat evolution analysis using pattern matching algorithms.
 
-This module uses the following DSA concepts from app.core.dsa:
-- Trie: Password and domain pattern storage for efficient prefix matching
-- HashMap: Known password storage and pattern statistics for O(1) lookups
-- Graph: Threat relationship mapping for evolution prediction
+Note: While Trie, HashMap, and Graph are imported and initialized in __init__,
+they are not actually used in any functions. All functions use standard Python
+data structures (sets, lists, dicts, Counter) instead.
+
+This module does not use custom DSA concepts from app.core.dsa in its functions.
 """
 
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -26,6 +27,14 @@ class Predictor:
         self._pattern_stats = HashMap()
     
     def _init_mutation_rules(self) -> List[Dict[str, Any]]:
+        """Initialize password mutation rules.
+        
+        DSA-USED:
+        - None: This function returns a list of dictionaries, not using custom DSA structures
+        
+        Returns:
+            List of mutation rule dictionaries
+        """
         return [
             {"name": "add_number", "transform": lambda s: [s + str(i) for i in range(100)]},
             {"name": "add_year", "transform": lambda s: [s + str(y) for y in range(2020, 2026)]},
@@ -43,6 +52,18 @@ class Predictor:
         ]
     
     def predict_password_mutations(self, password: str, max_results: int = 50) -> List[str]:
+        """Predict possible password mutations based on common patterns.
+        
+        DSA-USED:
+        - None: This function uses Python set and list, not the initialized Trie/HashMap DSA structures
+        
+        Args:
+            password: Base password to mutate
+            max_results: Maximum number of mutations to return
+        
+        Returns:
+            List of predicted password mutations
+        """
         mutations = set()
         mutations.add(password)
         
@@ -64,6 +85,17 @@ class Predictor:
         return list(mutations)[:max_results]
     
     def analyze_password_pattern(self, password: str) -> Dict[str, Any]:
+        """Analyze password patterns and calculate strength.
+        
+        DSA-USED:
+        - None: This function uses Python dict and regex, not the initialized Trie/HashMap DSA structures
+        
+        Args:
+            password: Password to analyze
+        
+        Returns:
+            Dictionary with pattern analysis and strength metrics
+        """
         analysis = {
             "length": len(password),
             "has_uppercase": bool(re.search(r'[A-Z]', password)),
@@ -107,6 +139,18 @@ class Predictor:
         return analysis
     
     def generate_typosquats(self, domain: str, max_results: int = 50) -> List[Dict[str, str]]:
+        """Generate typosquat domain variations.
+        
+        DSA-USED:
+        - None: This function uses Python list and set, not the initialized Trie/Graph DSA structures
+        
+        Args:
+            domain: Domain name to generate typosquats for
+            max_results: Maximum number of typosquats to return
+        
+        Returns:
+            List of typosquat dictionaries with domain and type
+        """
         typosquats = []
         
         parts = domain.rsplit('.', 1)
@@ -174,6 +218,17 @@ class Predictor:
         return unique[:max_results]
     
     def predict_threat_evolution(self, threat_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Predict threat evolution trends from historical data.
+        
+        DSA-USED:
+        - None: This function uses Python Counter and list, not the initialized Graph/HashMap DSA structures
+        
+        Args:
+            threat_history: List of historical threat dictionaries
+        
+        Returns:
+            Dictionary with evolution predictions and trend analysis
+        """
         if not threat_history:
             return {"prediction": "insufficient_data"}
         

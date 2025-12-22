@@ -28,6 +28,21 @@ class DBNetworkLogStorage:
         self.ttl_days = settings.NETWORK_LOG_TTL_DAYS
     
     async def save_log(self, log_entry: Dict[str, Any], user_id: Optional[str] = None) -> str:
+        """Save or update a network log entry in the database.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            log_entry: Dictionary containing log entry data (id, ip, method, path, etc.)
+            user_id: Optional user ID to override the instance user_id
+        
+        Returns:
+            The request ID of the saved log entry
+        
+        Raises:
+            ValueError: If log entry does not have an 'id' field
+        """
         request_id = log_entry.get("id")
         if not request_id:
             raise ValueError("Log entry must have an 'id' field")
@@ -91,6 +106,17 @@ class DBNetworkLogStorage:
         return request_id
     
     async def get_log(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a network log entry by request ID.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            request_id: The unique request identifier
+        
+        Returns:
+            Dictionary containing log entry data if found, None otherwise
+        """
         query = select(NetworkLog).where(NetworkLog.request_id == request_id)
         
         if not self.is_admin and self.user_id:
@@ -116,6 +142,25 @@ class DBNetworkLogStorage:
         status: Optional[int] = None,
         has_tunnel: Optional[bool] = None
     ) -> List[Dict[str, Any]]:
+        """Retrieve network logs with optional filters.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            limit: Maximum number of logs to return (default: 100)
+            offset: Number of logs to skip for pagination (default: 0)
+            start_time: Optional start time filter
+            end_time: Optional end time filter
+            ip: Optional IP address filter
+            endpoint: Optional endpoint path filter
+            method: Optional HTTP method filter
+            status: Optional HTTP status code filter
+            has_tunnel: Optional filter for tunnel detections
+        
+        Returns:
+            List of log entry dictionaries matching the filters, ordered by timestamp
+        """
         query = select(NetworkLog)
         
         if not self.is_admin and self.user_id:
@@ -154,6 +199,18 @@ class DBNetworkLogStorage:
         return [self._log_to_dict(log) for log in logs]
     
     async def search_logs(self, q: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Search network logs by query string.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            q: Search query string to match against path, query, request body, and response body
+            limit: Maximum number of logs to return (default: 100)
+        
+        Returns:
+            List of log entry dictionaries matching the search query, ordered by timestamp
+        """
         query = select(NetworkLog).where(
             or_(
                 NetworkLog.path.ilike(f"%{q}%"),
@@ -178,6 +235,18 @@ class DBNetworkLogStorage:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
+        """Get aggregated statistics for network logs.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            start_time: Optional start time filter
+            end_time: Optional end time filter
+        
+        Returns:
+            Dictionary containing statistics (total requests, avg response time, unique IPs, etc.)
+        """
         query = select(
             func.count(NetworkLog.id).label("total_requests"),
             func.avg(NetworkLog.response_time_ms).label("avg_response_time"),
@@ -245,6 +314,23 @@ class DBNetworkLogStorage:
         end_time: Optional[datetime] = None,
             filters: Optional[Dict[str, Any]] = None
     ) -> str:
+        """Export network logs in the specified format.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            format: Export format, either "json" or "csv" (default: "json")
+            start_time: Optional start time filter
+            end_time: Optional end time filter
+            filters: Optional dictionary of additional filters (ip, endpoint, method, status)
+        
+        Returns:
+            String containing the exported logs in the specified format
+        
+        Raises:
+            ValueError: If format is not "json" or "csv"
+        """
         query = select(NetworkLog)
         
         if not self.is_admin and self.user_id:
@@ -304,6 +390,18 @@ class DBNetworkLogStorage:
         limit: int = 100,
         min_confidence: str = "medium"
     ) -> List[Dict[str, Any]]:
+        """Retrieve tunnel detection entries above the confidence threshold.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            limit: Maximum number of detections to return (default: 100)
+            min_confidence: Minimum confidence level (low, medium, high, confirmed) (default: "medium")
+        
+        Returns:
+            List of tunnel detection dictionaries, ordered by timestamp
+        """
         query = select(NetworkLog).where(NetworkLog.tunnel_detection.isnot(None))
         
         if not self.is_admin and self.user_id:
@@ -346,6 +444,14 @@ class DBNetworkLogStorage:
         return detections
     
     async def cleanup_old_logs(self) -> int:
+        """Delete network logs older than the configured TTL.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Number of log entries deleted
+        """
         cutoff_date = datetime.utcnow() - timedelta(days=self.ttl_days)
         
         query = delete(NetworkLog).where(NetworkLog.timestamp < cutoff_date)
@@ -359,6 +465,19 @@ class DBNetworkLogStorage:
         return result.rowcount or 0
     
     def _log_to_dict(self, log: NetworkLog) -> Dict[str, Any]:
+        """Convert a database NetworkLog model to a dictionary.
+        
+        Internal helper method to convert SQLAlchemy model to dictionary.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            log: The SQLAlchemy NetworkLog model instance
+        
+        Returns:
+            Dictionary containing log entry data
+        """
         return {
             "id": log.id,
             "request_id": log.request_id,

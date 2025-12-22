@@ -25,6 +25,18 @@ class RateLimiter:
         self.window_seconds = 60
     
     async def check_rate_limit(self, ip: str, endpoint: str) -> Dict[str, Any]:
+        """Check if a request from an IP to an endpoint is within rate limits.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address making the request
+            endpoint: The endpoint path being accessed
+        
+        Returns:
+            Dictionary with 'allowed' boolean and rate limit information
+        """
         try:
             ip_result = await self._check_ip_limit(ip)
             if not ip_result["allowed"]:
@@ -44,6 +56,19 @@ class RateLimiter:
             return {"allowed": True}
     
     async def _check_ip_limit(self, ip: str) -> Dict[str, Any]:
+        """Check if an IP address is within its rate limit.
+        
+        Internal helper method for IP-based rate limiting.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address to check
+        
+        Returns:
+            Dictionary with 'allowed' boolean and current/limit counts
+        """
         key = f"network:ratelimit:ip:{ip}"
         current = await self._get_sliding_window_count(key)
         
@@ -66,6 +91,20 @@ class RateLimiter:
         }
     
     async def _check_endpoint_limit(self, ip: str, endpoint: str) -> Dict[str, Any]:
+        """Check if an IP-endpoint combination is within its rate limit.
+        
+        Internal helper method for endpoint-based rate limiting.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address making the request
+            endpoint: The endpoint path being accessed
+        
+        Returns:
+            Dictionary with 'allowed' boolean and current/limit counts
+        """
         key = f"network:ratelimit:endpoint:{ip}:{endpoint}"
         current = await self._get_sliding_window_count(key)
         
@@ -88,6 +127,19 @@ class RateLimiter:
         }
     
     async def _get_sliding_window_count(self, key: str) -> int:
+        """Get the count of requests in the current sliding window.
+        
+        Internal helper method that filters out timestamps outside the window.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            key: The rate limit key (IP or endpoint-based)
+        
+        Returns:
+            Number of requests in the current sliding window
+        """
         try:
             now = time.time()
             window_start = now - self.window_seconds
@@ -105,6 +157,16 @@ class RateLimiter:
             return 0
     
     async def _increment_sliding_window(self, key: str):
+        """Increment the sliding window counter for a rate limit key.
+        
+        Internal helper method that adds current timestamp to the window.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            key: The rate limit key (IP or endpoint-based)
+        """
         try:
             now = time.time()
             if key.startswith("network:ratelimit:ip:"):
@@ -115,6 +177,18 @@ class RateLimiter:
             logger.error(f"Error incrementing sliding window: {e}")
     
     async def get_rate_limit_status(self, ip: str, endpoint: Optional[str] = None) -> Dict[str, Any]:
+        """Get current rate limit status for an IP and optionally an endpoint.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address to check
+            endpoint: Optional endpoint path to check
+        
+        Returns:
+            Dictionary containing current counts, limits, and remaining requests
+        """
         ip_key = f"network:ratelimit:ip:{ip}"
         ip_count = await self._get_sliding_window_count(ip_key)
         

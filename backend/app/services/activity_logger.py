@@ -25,6 +25,24 @@ async def log_activity(
     user_agent: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> UserActivityLog:
+    """Log a user activity to the database.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Args:
+        db: Database session
+        user_id: ID of the user performing the action
+        action: Action being performed (e.g., 'create', 'update', 'delete')
+        resource_type: Optional type of resource being acted upon
+        resource_id: Optional ID of the resource being acted upon
+        ip_address: Optional IP address of the user
+        user_agent: Optional user agent string
+        metadata: Optional dictionary of additional metadata
+    
+    Returns:
+        The created UserActivityLog instance
+    """
     log_entry = UserActivityLog(
         id=str(uuid.uuid4()),
         user_id=user_id,
@@ -51,6 +69,22 @@ async def get_user_activities(
     action: Optional[str] = None,
     resource_type: Optional[str] = None
 ) -> list[UserActivityLog]:
+    """Retrieve user activity logs with optional filters.
+    
+    DSA-USED:
+    - None: This function does not use custom DSA structures from app.core.dsa.
+    
+    Args:
+        db: Database session
+        user_id: ID of the user to get activities for
+        limit: Maximum number of activities to return (default: 100)
+        offset: Number of activities to skip for pagination (default: 0)
+        action: Optional action filter
+        resource_type: Optional resource type filter
+    
+    Returns:
+        List of UserActivityLog instances matching the filters, ordered by timestamp
+    """
     query = select(UserActivityLog).where(UserActivityLog.user_id == user_id)
     
     if action:

@@ -40,6 +40,17 @@ class PositiveScorer:
         logger.info("Positive Scorer initialized")
     
     def detect_strong_email_config(self, email_results: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Detect if email security configuration is strong (SPF, DKIM, DMARC all pass).
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            email_results: Dictionary containing email security test results
+        
+        Returns:
+            Positive indicator dictionary if configuration is strong, None otherwise
+        """
         spf_ok = email_results.get("spf", {}).get("status") == "pass" or email_results.get("spf_valid", False)
         dkim_ok = email_results.get("dkim", {}).get("status") == "pass" or email_results.get("dkim_valid", False)
         dmarc_ok = email_results.get("dmarc", {}).get("status") == "pass" or email_results.get("dmarc_valid", False)
@@ -61,6 +72,18 @@ class PositiveScorer:
         return None
     
     def detect_no_vulnerabilities(self, capability: "Capability", findings: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Detect if no vulnerabilities were found for a capability.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            capability: The capability that was scanned
+            findings: List of findings from the scan
+        
+        Returns:
+            Positive indicator dictionary if no vulnerabilities found, None otherwise
+        """
         if len(findings) == 0:
             category = self.CAPABILITY_TO_CATEGORY.get(capability.value, "exposure")
             return {
@@ -78,6 +101,18 @@ class PositiveScorer:
         return None
     
     def calculate_improvement_trend(self, current_score: float, previous_score: Optional[float]) -> Optional[Dict[str, Any]]:
+        """Calculate improvement trend based on score changes.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            current_score: The current security score
+            previous_score: The previous security score for comparison
+        
+        Returns:
+            Positive indicator dictionary if score improved, None otherwise
+        """
         if previous_score is None or previous_score <= 0:
             return None
         
@@ -107,6 +142,17 @@ class PositiveScorer:
         return None
     
     def create_remediated_indicator(self, finding: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a positive indicator for a remediated finding.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            finding: Dictionary containing finding information
+        
+        Returns:
+            Positive indicator dictionary with points awarded based on severity
+        """
         severity = finding.get("severity", "").lower()
         points_key = f"remediated_{severity}"
         points = self.POSITIVE_POINTS.get(points_key, 0)
@@ -132,6 +178,19 @@ class PositiveScorer:
     
     def analyze_scan_results(self, capability: "Capability", findings: List[Dict[str, Any]], 
                             scan_results: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Analyze scan results and generate positive indicators.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            capability: The capability that was scanned
+            findings: List of findings from the scan
+            scan_results: Optional additional scan result data (used for email security)
+        
+        Returns:
+            List of positive indicator dictionaries
+        """
         indicators = []
         
         no_vuln_indicator = self.detect_no_vulnerabilities(capability, findings)

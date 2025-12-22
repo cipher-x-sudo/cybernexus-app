@@ -21,6 +21,18 @@ class BypassTester:
         domain: str,
         email_config: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """Analyze email security configuration for bypass vulnerabilities.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            domain: The domain being analyzed
+            email_config: Dictionary containing SPF, DKIM, and DMARC configuration
+        
+        Returns:
+            Dictionary containing vulnerabilities, risk level, and bypass scenarios
+        """
         logger.info(f"Analyzing bypass vulnerabilities for {domain}")
         
         results = {
@@ -61,6 +73,19 @@ class BypassTester:
         return results
     
     def _analyze_spf_bypasses(self, spf_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze SPF configuration for bypass vulnerabilities.
+        
+        Internal helper method that checks SPF records for common bypass issues.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            spf_config: Dictionary containing SPF configuration data
+        
+        Returns:
+            List of vulnerability dictionaries with severity, type, and recommendations
+        """
         vulnerabilities = []
         
         if not spf_config.get("exists"):
@@ -123,6 +148,19 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_dkim_bypasses(self, dkim_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze DKIM configuration for bypass vulnerabilities.
+        
+        Internal helper method that checks DKIM records for common bypass issues.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            dkim_config: Dictionary containing DKIM configuration data
+        
+        Returns:
+            List of vulnerability dictionaries with severity, type, and recommendations
+        """
         vulnerabilities = []
         
         if not dkim_config.get("selectors_found"):
@@ -152,6 +190,19 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_dmarc_bypasses(self, dmarc_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze DMARC configuration for bypass vulnerabilities.
+        
+        Internal helper method that checks DMARC records for common bypass issues.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            dmarc_config: Dictionary containing DMARC configuration data
+        
+        Returns:
+            List of vulnerability dictionaries with severity, type, and recommendations
+        """
         vulnerabilities = []
         
         if not dmarc_config.get("exists"):
@@ -204,6 +255,19 @@ class BypassTester:
         return vulnerabilities
     
     def _analyze_composition_attacks(self, email_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze email configuration for composition attack vulnerabilities.
+        
+        Internal helper method that checks for gaps between SPF, DKIM, and DMARC.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            email_config: Dictionary containing SPF, DKIM, and DMARC configuration
+        
+        Returns:
+            List of vulnerability dictionaries with severity, type, and recommendations
+        """
         vulnerabilities = []
         
         spf = email_config.get("spf", {})
@@ -236,6 +300,19 @@ class BypassTester:
         return vulnerabilities
     
     def _generate_bypass_scenarios(self, vulnerabilities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Generate bypass scenarios from identified vulnerabilities.
+        
+        Internal helper method that formats vulnerabilities into attack scenarios.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            vulnerabilities: List of vulnerability dictionaries
+        
+        Returns:
+            List of bypass scenario dictionaries with attack vectors and mitigations
+        """
         scenarios = []
         
         for vuln in vulnerabilities:

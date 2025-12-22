@@ -29,6 +29,16 @@ class BrowserCaptureService:
         pass
     
     def _get_thread_local_storage(self):
+        """Get thread-local storage for browser instances.
+        
+        Internal helper method to manage browser instances per thread.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Thread-local storage object containing browser and playwright instances
+        """
         if not hasattr(_thread_local, 'browser'):
             _thread_local.browser = None
             _thread_local.playwright = None
@@ -36,6 +46,13 @@ class BrowserCaptureService:
         return _thread_local
     
     async def initialize(self):
+        """Initialize the browser instance for the current thread.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Creates a new Playwright browser instance if one doesn't exist or is disconnected.
+        """
         storage = self._get_thread_local_storage()
         
         if storage.initialized:
@@ -69,6 +86,13 @@ class BrowserCaptureService:
             raise
     
     async def close(self):
+        """Close the browser instance for the current thread.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Closes the browser and stops Playwright, cleaning up thread-local resources.
+        """
         storage = self._get_thread_local_storage()
         
         try:
@@ -92,6 +116,16 @@ class BrowserCaptureService:
             logger.error(f"[BrowserCapture] Error during cleanup: {e}")
     
     def _get_browser(self) -> Optional[Browser]:
+        """Get the browser instance for the current thread.
+        
+        Internal helper method to retrieve the browser instance.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Browser instance if available, None otherwise
+        """
         storage = self._get_thread_local_storage()
         return storage.browser
     
@@ -100,6 +134,21 @@ class BrowserCaptureService:
         url: str,
         options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        """Capture a web page including screenshot and HAR data.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            url: The URL of the page to capture
+            options: Optional dictionary with capture options (wait_until, timeout, viewport, etc.)
+        
+        Returns:
+            Dictionary containing screenshot (base64), HAR data, final URL, title, and metadata
+        
+        Raises:
+            RuntimeError: If browser is not initialized
+        """
         storage = self._get_thread_local_storage()
         if not storage.initialized:
             await self.initialize()
@@ -213,6 +262,23 @@ class BrowserCaptureService:
         har_entries: List[Dict],
         redirect_chain: List[str]
     ) -> Dict[str, Any]:
+        """Build a HAR (HTTP Archive) structure from captured requests/responses.
+        
+        Internal helper method to format network data into HAR format.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            initial_url: The initial URL that was navigated to
+            final_url: The final URL after redirects
+            page: The Playwright Page object
+            har_entries: List of captured request/response entries
+            redirect_chain: List of URLs in the redirect chain
+        
+        Returns:
+            Dictionary containing HAR-formatted network data
+        """
         har = {
             'version': '1.2',
             'creator': {
@@ -306,7 +372,18 @@ class BrowserCaptureService:
         urls: List[str],
         options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Dict[str, Any]]:
+        """Capture multiple web pages concurrently.
         
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            urls: List of URLs to capture
+            options: Optional dictionary with capture options
+        
+        Returns:
+            Dictionary mapping URLs to their capture results (or error dictionaries)
+        """
         storage = self._get_thread_local_storage()
         if not storage.initialized:
             await self.initialize()

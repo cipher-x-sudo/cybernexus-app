@@ -23,6 +23,19 @@ class BlockManager:
         self._pattern_blocks: Dict[str, Dict[str, Any]] = {}
     
     async def block_ip(self, ip: str, reason: str = "", created_by: str = "") -> bool:
+        """Block an IP address from accessing the system.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address to block
+            reason: Optional reason for blocking
+            created_by: Optional identifier of who created the block
+        
+        Returns:
+            True if the IP was successfully blocked
+        """
         try:
             block_data = {
                 "ip": ip,
@@ -40,6 +53,17 @@ class BlockManager:
             return False
     
     async def unblock_ip(self, ip: str) -> bool:
+        """Unblock a previously blocked IP address.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address to unblock
+        
+        Returns:
+            True if the IP was unblocked, False if it wasn't blocked
+        """
         try:
             if ip in self._ip_blocks:
                 del self._ip_blocks[ip]
@@ -51,6 +75,17 @@ class BlockManager:
             return False
     
     async def is_ip_blocked(self, ip: str) -> bool:
+        """Check if an IP address is currently blocked.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            ip: The IP address to check
+        
+        Returns:
+            True if the IP is blocked, False otherwise
+        """
         try:
             return ip in self._ip_blocks
         except Exception as e:
@@ -58,6 +93,14 @@ class BlockManager:
             return False
     
     async def get_blocked_ips(self) -> List[Dict[str, Any]]:
+        """Get all blocked IP addresses.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            List of dictionaries containing blocked IP information
+        """
         try:
             return list(self._ip_blocks.values())
         except Exception as e:
@@ -71,6 +114,20 @@ class BlockManager:
         reason: str = "",
         created_by: str = ""
     ) -> bool:
+        """Block an endpoint pattern from being accessed.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            pattern: Endpoint pattern to block (supports * and ? wildcards)
+            method: HTTP method to block (default: "ALL" for all methods)
+            reason: Optional reason for blocking
+            created_by: Optional identifier of who created the block
+        
+        Returns:
+            True if the endpoint was successfully blocked
+        """
         try:
             block_data = {
                 "pattern": pattern,
@@ -90,6 +147,17 @@ class BlockManager:
             return False
     
     async def unblock_endpoint(self, pattern: str) -> bool:
+        """Unblock a previously blocked endpoint pattern.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            pattern: The endpoint pattern to unblock
+        
+        Returns:
+            True if the endpoint was unblocked, False if it wasn't blocked
+        """
         try:
             pattern_key = pattern.replace("/", "_").replace("*", "star")
             if pattern_key in self._endpoint_blocks:
@@ -102,6 +170,18 @@ class BlockManager:
             return False
     
     async def is_endpoint_blocked(self, path: str, method: str) -> bool:
+        """Check if an endpoint path and method combination is blocked.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            path: The endpoint path to check
+            method: The HTTP method to check
+        
+        Returns:
+            True if the endpoint is blocked, False otherwise
+        """
         try:
             for block_data in self._endpoint_blocks.values():
                 block_pattern = block_data.get("pattern", "")
@@ -119,6 +199,14 @@ class BlockManager:
             return False
     
     async def get_blocked_endpoints(self) -> List[Dict[str, Any]]:
+        """Get all blocked endpoint patterns.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            List of dictionaries containing blocked endpoint information
+        """
         try:
             return list(self._endpoint_blocks.values())
         except Exception as e:
@@ -132,6 +220,20 @@ class BlockManager:
         reason: str = "",
         created_by: str = ""
     ) -> str:
+        """Block a request pattern (user agent, header, path, or query).
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            pattern_type: Type of pattern ('user_agent', 'header', 'path', 'query')
+            pattern: The pattern string to match against
+            reason: Optional reason for blocking
+            created_by: Optional identifier of who created the block
+        
+        Returns:
+            Block ID string if successful, empty string on failure
+        """
         try:
             import uuid
             block_id = str(uuid.uuid4())
@@ -154,6 +256,17 @@ class BlockManager:
             return ""
     
     async def unblock_pattern(self, block_id: str) -> bool:
+        """Unblock a previously blocked pattern by its block ID.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            block_id: The unique identifier of the block to remove
+        
+        Returns:
+            True if the pattern was unblocked, False if it wasn't blocked
+        """
         try:
             if block_id in self._pattern_blocks:
                 del self._pattern_blocks[block_id]
@@ -165,6 +278,17 @@ class BlockManager:
             return False
     
     async def is_pattern_blocked(self, request) -> bool:
+        """Check if a request matches any blocked pattern.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            request: The request object to check against blocked patterns
+        
+        Returns:
+            True if the request matches a blocked pattern, False otherwise
+        """
         try:
             for block_data in self._pattern_blocks.values():
                 pattern_type = block_data.get("type", "")
@@ -179,6 +303,14 @@ class BlockManager:
             return False
     
     async def get_blocked_patterns(self) -> List[Dict[str, Any]]:
+        """Get all blocked patterns.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            List of dictionaries containing blocked pattern information
+        """
         try:
             return list(self._pattern_blocks.values())
         except Exception as e:
@@ -186,6 +318,20 @@ class BlockManager:
             return []
     
     def _match_pattern(self, path: str, pattern: str) -> bool:
+        """Match a path against a pattern with wildcards.
+        
+        Internal helper method that converts wildcard pattern to regex.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            path: The path string to match
+            pattern: The pattern with * and ? wildcards
+        
+        Returns:
+            True if the path matches the pattern, False otherwise
+        """
         regex_pattern = pattern.replace("*", ".*").replace("?", ".")
         try:
             return bool(re.match(f"^{regex_pattern}$", path))
@@ -193,6 +339,21 @@ class BlockManager:
             return False
     
     def _check_pattern_match(self, request, pattern_type: str, pattern_str: str) -> bool:
+        """Check if a request matches a specific pattern type and string.
+        
+        Internal helper method for pattern matching based on type.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Args:
+            request: The request object to check
+            pattern_type: Type of pattern ('user_agent', 'header', 'path', 'query')
+            pattern_str: The pattern string to match against
+        
+        Returns:
+            True if the request matches the pattern, False otherwise
+        """
         if pattern_type == "user_agent":
             user_agent = request.headers.get("user-agent", "")
             return self._match_pattern(user_agent.lower(), pattern_str.lower())
@@ -213,6 +374,14 @@ class BlockManager:
         return False
     
     async def get_all_blocks(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all blocks grouped by type.
+        
+        DSA-USED:
+        - None: This function does not use custom DSA structures from app.core.dsa.
+        
+        Returns:
+            Dictionary with keys 'ips', 'endpoints', and 'patterns', each containing lists of block information
+        """
         return {
             "ips": await self.get_blocked_ips(),
             "endpoints": await self.get_blocked_endpoints(),
