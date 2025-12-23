@@ -1,4 +1,3 @@
-
 \documentclass[11pt,a4paper]{report}
 
 % Required packages - load in correct order
@@ -322,60 +321,40 @@
 \setlength{\belowrulesep}{0pt}
 \setlength{\extrarowheight}{3pt}
 
-% CyberNexus Table of Contents styling (Beautiful Enhanced Design)
-% Chapter styling - Large, bold, amber orange (most prominent)
+% CyberNexus Table of Contents styling (Amber Orange theme - Beautiful)
 \renewcommand{\cftchapfont}{\bfseries\Large\color{primaryamber!95!black}}
-\renewcommand{\cftchappagefont}{\bfseries\Large\color{primaryamber!95!black}}
-\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftchapdotsep}{\cftdotsep}
-\renewcommand{\cftchapafterpnum}{\hspace{0.8em}}
-
-% Section styling - Medium, bold, cyber blue (secondary level)
 \renewcommand{\cftsecfont}{\normalsize\bfseries\color{cyberblue!90!black}}
-\renewcommand{\cftsecpagefont}{\normalsize\bfseries\color{cyberblue!90!black}}
+\renewcommand{\cftsubsecfont}{\small\color{black!70}}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftsecdotsep}{\cftdotsep}
-\renewcommand{\cftsecafterpnum}{\hspace{0.5em}}
-
-% Subsection styling - Small, regular weight, blue-gray (tertiary level)
-\renewcommand{\cftsubsecfont}{\small\color{cyberblue!75!black}}
-\renewcommand{\cftsubsecpagefont}{\small\color{cyberblue!75!black}}
 \renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftsubsecdotsep}{\cftdotsep}
-\renewcommand{\cftsubsecafterpnum}{\hspace{0.3em}}
+\renewcommand{\cftchappagefont}{\bfseries\color{primaryamber!95!black}}
+\renewcommand{\cftsecpagefont}{\bfseries\color{cyberblue!90!black}}
+\renewcommand{\cftsubsecpagefont}{\color{black!70}}
 
-% Subsubsection styling - Very small, muted gray (quaternary level)
-\renewcommand{\cftsubsubsecfont}{\footnotesize\color{black!65}}
-\renewcommand{\cftsubsubsecpagefont}{\footnotesize\color{black!65}}
-\renewcommand{\cftsubsubsecleader}{\cftdotfill{\cftdotsep}}
+% Enhanced spacing and indentation for better readability
+\setlength{\cftbeforechapskip}{1.3em}
+\setlength{\cftafterchapskip}{0.5em}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{1.2em}
+\setlength{\cftchapnumwidth}{4em}
+\setlength{\cftsecnumwidth}{2.8em}
+\setlength{\cftsubsecnumwidth}{3.2em}
+\setlength{\cftsecindent}{3.2em}
+\setlength{\cftsubsecindent}{6em}
+\setlength{\cftsubsubsecindent}{9em}
 
-% Enhanced spacing and indentation for clear hierarchy
-\setlength{\cftbeforechapskip}{1.8em}
-\setlength{\cftafterchapskip}{1em}
-\setlength{\cftbeforesecskip}{0.7em}
-\setlength{\cftaftersecskip}{0.5em}
-\setlength{\cftbeforesubsecskip}{0.4em}
-\setlength{\cftaftersubsecskip}{0.3em}
-
-% Width settings for proper alignment
-\setlength{\cftchapnumwidth}{4.5em}
-\setlength{\cftsecnumwidth}{3.5em}
-\setlength{\cftsubsecnumwidth}{4.5em}
-\setlength{\cftsubsubsecnumwidth}{5.5em}
-
-% Indentation for clear visual hierarchy
-\setlength{\cftsecindent}{3.5em}
-\setlength{\cftsubsecindent}{6.5em}
-\setlength{\cftsubsubsecindent}{9.5em}
-
-% Enhanced dot leaders with amber color for visual appeal
+% Enhanced dot leaders with better spacing and amber color
 \renewcommand{\cftdotsep}{3}
-\renewcommand{\cftdot}{\textcolor{primaryamber!50}{$\cdot$}}
+\renewcommand{\cftdot}{\textcolor{primaryamber!60}{$\cdot$}}
 
-% Visual separation between entries
-\renewcommand{\cftchapaftersnum}{\hspace{0.8em}}
-\renewcommand{\cftsecaftersnum}{\hspace{0.5em}}
-\renewcommand{\cftsubsecaftersnum}{\hspace{0.3em}}
+% Add visual separation between chapters
+\renewcommand{\cftchapaftersnum}{\hspace{0.5em}}
+\renewcommand{\cftsecaftersnum}{\hspace{0.3em}}
+
+% Add visual separation between chapters
+\renewcommand{\cftchapaftersnum}{\hspace{0.5em}}
+\renewcommand{\cftsecaftersnum}{\hspace{0.3em}}
 
 \begin{document}
 
@@ -476,38 +455,48 @@
 \end{tcolorbox}
 \vspace{1em}
 
-% CyberNexus Table of Contents (Beautiful Enhanced Design)
+% CyberNexus Table of Contents (Amber Orange Theme - Beautiful Design)
 \newpage
 \thispagestyle{plain}
-\vspace*{-1.2cm}
 
-% Beautiful TOC Header
+% Beautiful TOC Header with box
+\vspace*{-1cm}
+\begin{tcolorbox}[
+    colback=primaryamber!8,
+    colframe=primaryamber!90,
+    boxrule=2pt,
+    arc=4pt,
+    left=1.5cm,
+    right=1.5cm,
+    top=0.8cm,
+    bottom=0.8cm,
+    enhanced,
+    drop shadow={0.8mm}{0.8mm}{0mm}{black!15}
+]
 \begin{center}
-    \vspace{0.5cm}
     {\Huge\bfseries\color{primaryamber!95!black} Table of Contents\par}
-    \vspace{0.5cm}
-    \textcolor{primaryamber!70}{\rule{0.7\textwidth}{3pt}}
-    \vspace{1.5cm}
+    \vspace{0.4cm}
+    \textcolor{primaryamber!70}{\rule{0.6\textwidth}{2.5pt}}
 \end{center}
+\end{tcolorbox}
 
-% Enhanced TOC with better formatting and colors
+\vspace{0.8cm}
+
+% Enhanced TOC with better formatting
 \begingroup
-\setlength{\parskip}{0pt}
+\setlength{\parskip}{0.3em}
 \setlength{\parindent}{0pt}
-% Add subtle background for better readability
-\colorbox{primaryamber!3}{
-    \parbox{\textwidth}{
-        \vspace{0.3cm}
-        \tableofcontents
-        \vspace{0.3cm}
-    }
-}
+\renewcommand{\baselinestretch}{1.1}
+\tableofcontents
 \endgroup
 
 \vspace{0.8cm}
+
+% Beautiful TOC Footer
 \begin{center}
-    \textcolor{primaryamber!70}{\rule{0.7\textwidth}{3pt}}
+    \textcolor{primaryamber!70}{\rule{0.6\textwidth}{2.5pt}}
 \end{center}
+
 \thispagestyle{plain}
 \newpage
 \setcounter{page}{1}
