@@ -16,6 +16,7 @@
 \usepackage{microtype}
 \usepackage{parskip}
 \usepackage{tocloft}
+\usepackage{etoolbox}
 \usepackage{eso-pic}
 \usepackage{listings}
 \usepackage{array}
@@ -23,7 +24,7 @@
 \usepackage{longtable}
 \usepackage{afterpage}
 \usepackage{tcolorbox}
-\tcbuselibrary{breakable}
+\tcbuselibrary{breakable,skins}
 % Note: For custom fonts (Inter, JetBrains Mono), use XeLaTeX or LuaLaTeX
 % For pdfLaTeX, we'll use similar system fonts
 \usepackage{hyperref}
@@ -75,10 +76,15 @@
 \definecolor{codegreen}{RGB}{16,185,129}        % Success green
 \definecolor{codered}{RGB}{239,68,68}           % Critical red
 
+% TOC-specific colors (explicitly defined for better compatibility)
+\definecolor{tocchapter}{RGB}{233,150,11}       % primaryamber!95!black
+\definecolor{tocsection}{RGB}{6,164,191}        % cybercyan!90!black  
+\definecolor{tocsubsection}{RGB}{118,78,209}    % cyberpurple!85!black
+
 % Page geometry with better margins (CyberNexus style)
 \geometry{
-    left=1.2in,
-    right=1.2in,
+    left=1in,
+    right=1in,
     top=1in,
     bottom=1in,
     headheight=14pt,
@@ -322,19 +328,22 @@
 \setlength{\extrarowheight}{3pt}
 
 % CyberNexus Table of Contents styling (Amber Orange theme - Beautiful)
-\renewcommand{\cftchapfont}{\bfseries\Large\color{primaryamber!95!black}}
-\renewcommand{\cftsecfont}{\normalsize\bfseries\color{cyberblue!90!black}}
-\renewcommand{\cftsubsecfont}{\small\color{black!70}}
+\renewcommand{\cftchapfont}{\bfseries\Large\color{tocchapter}}
+\renewcommand{\cftsecfont}{\normalsize\bfseries}
+\renewcommand{\cftsubsecfont}{\small}
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftchappagefont}{\bfseries\color{primaryamber!95!black}}
-\renewcommand{\cftsecpagefont}{\bfseries\color{cyberblue!90!black}}
-\renewcommand{\cftsubsecpagefont}{\color{black!70}}
+\renewcommand{\cftchappagefont}{\bfseries\color{tocchapter}}
+\renewcommand{\cftsecpagefont}{\bfseries\color{tocsection}}
+\renewcommand{\cftsubsecpagefont}{\color{tocsubsection}}
+
+% Apply colors to section and subsection text
+\renewcommand{\cftsecfont}{\normalsize\bfseries\color{tocsection}}
+\renewcommand{\cftsubsecfont}{\small\color{tocsubsection}}
 
 % Enhanced spacing and indentation for better readability
 \setlength{\cftbeforechapskip}{1.3em}
-\setlength{\cftafterchapskip}{0.5em}
 \setlength{\cftbeforetoctitleskip}{0pt}
 \setlength{\cftaftertoctitleskip}{1.2em}
 \setlength{\cftchapnumwidth}{4em}
@@ -347,6 +356,30 @@
 % Enhanced dot leaders with better spacing and amber color
 \renewcommand{\cftdotsep}{3}
 \renewcommand{\cftdot}{\textcolor{primaryamber!60}{$\cdot$}}
+
+% Patch to apply colors to section and subsection text entries
+\makeatletter
+% Patch \contentsline to add colors for sections and subsections
+\let\old@contentsline\contentsline
+\renewcommand{\contentsline}[4]{%
+  \ifx\@empty#4\@empty
+    \old@contentsline{#1}{#2}{#3}{#4}%
+  \else
+    \def\temp@a{section}%
+    \def\temp@b{#1}%
+    \ifx\temp@a\temp@b
+      \old@contentsline{#1}{\textcolor{tocsection}{#2}}{#3}{#4}%
+    \else
+      \def\temp@a{subsection}%
+      \ifx\temp@a\temp@b
+        \old@contentsline{#1}{\textcolor{tocsubsection}{#2}}{#3}{#4}%
+      \else
+        \old@contentsline{#1}{#2}{#3}{#4}%
+      \fi
+    \fi
+  \fi
+}
+\makeatother
 
 % Add visual separation between chapters
 \renewcommand{\cftchapaftersnum}{\hspace{0.5em}}
@@ -380,32 +413,44 @@
     
     \vspace{1cm}
     
-    % Subtitle
-    {\large\color{black!75} A Research Report on\par}
-    \vspace{0.3cm}
-    {\Large\bfseries\color{primaryamber!95!black} Custom Data Structure Implementation\par}
-    \vspace{0.1cm}
-    {\large\color{black!75} for High-Performance Security Operations\par}
+    % Title
+    {\Large\bfseries\color{primaryamber!95!black} Semester Term Project Report: Custom DSA Implementation\par}
     
-    \vspace{1.2cm}
+    \vspace{1cm}
+    
+    % Team Members Section
+    {\large\color{black!75} Team Members:\par}
+    \vspace{0.4cm}
+    \begin{minipage}{0.6\textwidth}
+        \centering
+        \begin{tabular}{@{}l@{\hspace{1.5cm}}l@{}}
+            \textcolor{black!85}{\textbf{Muhammad Huzaifa}} & \textcolor{black!70}{ID: 241110} \\
+            \textcolor{black!85}{\textbf{Muhammad Abdullah}} & \textcolor{black!70}{ID: 242313} \\
+            \textcolor{black!85}{\textbf{Muhammad Ozair}} & \textcolor{black!70}{ID: 242335} \\
+        \end{tabular}
+    \end{minipage}
+    
+    \vspace{0.8cm}
     
     % Information box (Compact to fit on one page)
     \begin{tcolorbox}[
         colback=primaryamber!10,
-        colframe=primaryamber!95,
+        colframe=primaryamber,
         boxrule=2.5pt,
         arc=6pt,
         width=0.75\textwidth,
         center,
-        fonttitle=\bfseries\large\color{primaryamber!95!black},
         enhanced,
         drop shadow={1mm}{1mm}{0mm}{black!20}
     ]
-        \tcbtitle{Project Information}
+        \begin{center}
+            {\bfseries\large\color{primaryamber!95!black} Project Information}
+        \end{center}
         \vspace{0.4cm}
         \begin{tabular}{@{}p{3cm}@{\hspace{1.2cm}}p{5cm}@{}}
             \textcolor{black!75}{\textbf{Course:}} & \textcolor{black!95}{\textbf{Data Structures and Algorithms}} \\[0.4cm]
             \textcolor{black!75}{\textbf{Duration:}} & \textcolor{black!95}{\textbf{6 Weeks}} \\[0.4cm]
+            \textcolor{black!75}{\textbf{Submitted to:}} & \textcolor{black!95}{\textbf{Mr. Bilal Saleem Malik}} \\[0.4cm]
             \textcolor{black!75}{\textbf{Status:}} & \textcolor{success!90!black}{\textbf{Completed}} \\[0.4cm]
             \textcolor{black!75}{\textbf{Date:}} & \textcolor{black!95}{\textbf{November 25, 2025}} \\
         \end{tabular}
@@ -441,7 +486,7 @@
 ]
 \noindent\textbf{\Large\color{primaryamber} Abstract}\\[0.6cm]
 
-\noindent\color{black!90} This research report presents the design, implementation, and evaluation of \highlight{CyberNexus}, an enterprise-grade Threat Intelligence and Exposure Management platform. The system addresses the critical challenge of fragmented cybersecurity tools by providing a unified platform that integrates reconnaissance, threat detection, credential monitoring, dark web surveillance, and security training capabilities. 
+\noindent\color{black!90} This semester term project report presents the design, implementation, and evaluation of \highlight{CyberNexus}, an enterprise-grade Threat Intelligence and Exposure Management platform. The system addresses the critical challenge of fragmented cybersecurity tools by providing a unified platform that integrates reconnaissance, threat detection, credential monitoring, dark web surveillance, and security training capabilities. 
 
 \vspace{0.8em}
 \noindent\color{black!90} The core innovation of this project lies in the implementation of custom Data Structures and Algorithms (DSA) from scratch, including Graph, AVL Tree, HashMap, Heap, Trie, Bloom Filter, B-Tree, Linked List, Circular Buffer, and Skip List. These custom implementations enable high-performance in-memory operations for real-time threat correlation, pattern matching, and relationship mapping. The system employs a hybrid architecture combining PostgreSQL for persistent storage, Redis for caching, and custom DSA implementations for algorithmic operations.
@@ -1832,7 +1877,8 @@ example.com
 
 \section{6-Week Gantt Chart}
 
-\begin{longtable}{@{}p{2cm}p{3cm}p{4cm}p{2cm}p{2cm}p{2cm}p{3cm}@{}}
+\footnotesize
+\begin{longtable}{@{}p{1.4cm}p{2cm}p{3.2cm}p{1.2cm}p{1.2cm}p{1.2cm}p{2cm}@{}}
 \toprule
 \textbf{Week} & \textbf{Phase} & \textbf{Tasks} & \textbf{Status} & \textbf{Start Date} & \textbf{End Date} & \textbf{Deliverables} \\
 \midrule
@@ -1940,6 +1986,7 @@ example.com
 \bottomrule
 \caption{6-Week Gantt Chart}
 \end{longtable}
+\normalsize
 
 \section{Detailed Phase Descriptions}
 
@@ -1987,16 +2034,25 @@ example.com
 
 \section{Timeline Visualization}
 
-\begin{verbatim}
-Week 1: [████████████████████]  Requirements & Design
-Week 2: [████████████████████]  Core DSA Implementation
-Week 3: [████████████████████]  Backend API & Collectors
-Week 4: [████████████████████]  Frontend GUI Development
-Week 5: [████████████████████]  Integration & Testing
-Week 6: [████████████████████]  Documentation & Deployment
-\end{verbatim}
+\newcommand{\progressbar}[1]{%
+    \begin{tikzpicture}[baseline=-0.5ex]
+        \fill[success!30] (0,0) rectangle (4,0.4);
+        \fill[success] (0,0) rectangle (#1*4/100,0.4);
+        \draw[success,thick] (0,0) rectangle (4,0.4);
+    \end{tikzpicture}%
+}
 
-\textbf{Overall Progress}: 100\% Complete
+\begin{itemize}[leftmargin=*,itemsep=1em]
+    \item \textbf{Week 1:} Requirements \& Design \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+    \item \textbf{Week 2:} Core DSA Implementation \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+    \item \textbf{Week 3:} Backend API \& Collectors \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+    \item \textbf{Week 4:} Frontend GUI Development \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+    \item \textbf{Week 5:} Integration \& Testing \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+    \item \textbf{Week 6:} Documentation \& Deployment \hfill \progressbar{100} \textcolor{success}{\textbf{100\%}}
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Overall Progress}: \progressbar{100} \textcolor{success}{\textbf{100\% Complete}}
 
 \section{Resource Allocation}
 
@@ -2531,11 +2587,5 @@ CyberNexus has the potential to become a leading open-source threat intelligence
     
     \item SQLAlchemy Development Team. (2024). \textit{SQLAlchemy: The Python SQL Toolkit}. Retrieved from \url{https://www.sqlalchemy.org/}
 \end{enumerate}
-
-\vspace{2cm}
-
-\textbf{Report Generated}: November 25, 2025 \\
-\textbf{Project Status}: 100\% Complete \\
-\textbf{Final Milestone}: Project Successfully Completed
 
 \end{document}
