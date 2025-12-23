@@ -1458,35 +1458,35 @@ CyberNexus has the potential to become a leading open-source threat intelligence
 
 ## 11. References
 
-1. Author, A., Researcher, B., & Scholar, C. (2023). "Graph-Based Threat Intelligence Correlation: A Performance Analysis." *Journal of Cybersecurity Research*, 15(3), 45-62.
+1. Li, Z., Zeng, J., Chen, Y., & Liang, Z. (2021). ["AttacKG: Constructing Technique Knowledge Graph from Cyber Threat Intelligence Reports"](https://arxiv.org/abs/2111.07093). arXiv preprint arXiv:2111.07093.
 
-2. Researcher, D., & Another, E. (2022). "Efficient Pattern Matching for DNS Analysis Using Trie Data Structures." *Proceedings of the International Conference on Network Security*, 234-248.
+2. Bkakria, A., Cuppens, N., & Cuppens, F. (2020). ["Pattern Matching on Encrypted Data"](https://eprint.iacr.org/2020/422). IACR Cryptology ePrint Archive, Report 2020/422.
 
-3. GraphSecurity Research Group. (2023). "Graph-Based Threat Intelligence Correlation." *IEEE Security & Privacy*, 21(4), 78-85.
+3. Wang, J., Zhu, T., Xiong, C., & Chen, Y. (2024). ["MultiKG: Multi-Source Threat Intelligence Aggregation for High-Quality Knowledge Graph Representation of Attack Techniques"](https://arxiv.org/abs/2411.08359). arXiv preprint arXiv:2411.08359.
 
-4. PerformanceStudy, F. (2024). "In-Memory Data Structures for Real-Time Security Operations." *ACM Transactions on Information Systems Security*, 27(2), 112-130.
+4. Kanka, V., Bairi, A. R., & Mohammed, A. S. (2022). ["Graph-Based AI/ML Algorithms for Real-Time Security Event Correlation and Attack Campaign Detection"](https://thesciencebrigade.org/jst/article/view/567). *Journal of Science & Technology*, 3(6), 113-156.
 
-5. FastAPI Documentation. (2024). *FastAPI: Modern, Fast Web Framework for Building APIs*. Retrieved from https://fastapi.tiangolo.com/
+5. FastAPI Documentation. (2024). *FastAPI: Modern, Fast Web Framework for Building APIs*. Retrieved from [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
 
-6. PostgreSQL Global Development Group. (2024). *PostgreSQL 15 Documentation*. Retrieved from https://www.postgresql.org/docs/15/
+6. PostgreSQL Global Development Group. (2024). *PostgreSQL 15 Documentation*. Retrieved from [https://www.postgresql.org/docs/15/](https://www.postgresql.org/docs/15/)
 
-7. Next.js Team. (2024). *Next.js 14 Documentation*. Retrieved from https://nextjs.org/docs
+7. Next.js Team. (2024). *Next.js 14 Documentation*. Retrieved from [https://nextjs.org/docs](https://nextjs.org/docs)
 
-8. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press.
+8. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. Available at [https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/](https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/)
 
-9. Sedgewick, R., & Wayne, K. (2023). *Algorithms* (5th ed.). Addison-Wesley Professional.
+9. Sedgewick, R., & Wayne, K. (2023). *Algorithms* (5th ed.). Addison-Wesley Professional. Available at [https://www.pearson.com/en-us/subject-catalog/p/algorithms/P200000003499/9780137546357](https://www.pearson.com/en-us/subject-catalog/p/algorithms/P200000003499/9780137546357)
 
-10. Recorded Future. (2024). *Threat Intelligence Platform*. Retrieved from https://www.recordedfuture.com/
+10. Recorded Future. (2024). *Threat Intelligence Platform*. Retrieved from [https://www.recordedfuture.com/](https://www.recordedfuture.com/)
 
-11. ThreatConnect. (2024). *Threat Intelligence Platform*. Retrieved from https://threatconnect.com/
+11. ThreatConnect. (2024). *Threat Intelligence Platform*. Retrieved from [https://threatconnect.com/](https://threatconnect.com/)
 
-12. Anomali. (2024). *Threat Intelligence Solutions*. Retrieved from https://www.anomali.com/
+12. Anomali. (2024). *Threat Intelligence Solutions*. Retrieved from [https://www.anomali.com/](https://www.anomali.com/)
 
-13. NetworkX Development Team. (2024). *NetworkX: Network Analysis in Python*. Retrieved from https://networkx.org/
+13. NetworkX Development Team. (2024). *NetworkX: Network Analysis in Python*. Retrieved from [https://networkx.org/](https://networkx.org/)
 
-14. Redis Labs. (2024). *Redis: In-Memory Data Structure Store*. Retrieved from https://redis.io/
+14. Redis Labs. (2024). *Redis: In-Memory Data Structure Store*. Retrieved from [https://redis.io/](https://redis.io/)
 
-15. SQLAlchemy Development Team. (2024). *SQLAlchemy: The Python SQL Toolkit*. Retrieved from https://www.sqlalchemy.org/
+15. SQLAlchemy Development Team. (2024). *SQLAlchemy: The Python SQL Toolkit*. Retrieved from [https://www.sqlalchemy.org/](https://www.sqlalchemy.org/)
 
 ---
 
