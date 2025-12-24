@@ -7,7 +7,6 @@ import {
   FeaturesSection,
   HowItWorksSection,
   TestimonialsSection,
-  IntegrationsSection,
   SecuritySection,
   TeamSection,
   FAQSection,
@@ -25,7 +24,6 @@ export default function LandingPage() {
         <FeaturesSection />
         <HowItWorksSection />
         <TestimonialsSection />
-        <IntegrationsSection />
         <SecuritySection />
         <TeamSection />
         <FAQSection />
