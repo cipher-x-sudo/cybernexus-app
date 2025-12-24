@@ -503,20 +503,6 @@ export default function DarkWebPage() {
                 )}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                {isScanning && currentJob && (
-                  <GlassButton
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      // TODO: Implement job cancellation
-                      console.log("Stop job:", currentJob.id);
-                    }}
-                    className="text-red-400 hover:text-red-300"
-                  >
-                    Stop
-                  </GlassButton>
-                )}
                 <button
                   type="button"
                   onClick={() => setShowConfig(!showConfig)}
